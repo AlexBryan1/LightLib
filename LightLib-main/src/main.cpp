@@ -121,7 +121,8 @@ void autonomous() {
 }
 
 
-pros::Task ezScreenTask(ez_screen_task);
+// ezScreenTask disabled — LightLib handles the display
+// pros::Task ezScreenTask(ez_screen_task);
 
 static std::atomic<bool> auton_running{false};
 static pros::Task* auton_task = nullptr;

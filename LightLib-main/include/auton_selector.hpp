@@ -46,6 +46,21 @@ private:
     void init_pid_vals();
     void apply_pid_vals();
     void select(int idx);
+
+    // persistent full-screen view shown during/after autonomous
+    lv_obj_t*  run_screen_    = nullptr;
+    lv_obj_t*  run_img_cont_  = nullptr;
+    lv_obj_t*  run_info_cont_ = nullptr;
+    lv_obj_t*  run_toggle_lbl_= nullptr;
+    lv_obj_t*  run_back_lbl_  = nullptr;
+    lv_obj_t*  run_img_       = nullptr;
+    bool       run_show_img_  = true;
+    void build_run_screen();
+    void start_run_anim();
+    void switch_run_view(bool show_img);
+    static void run_toggle_cb(lv_event_t* e);
+    static void run_back_cb(lv_event_t* e);
+
     static void btn_cb(lv_event_t* e);
     static void toggle_cb(lv_event_t* e);
     static void pid_tab_cb(lv_event_t* e);
