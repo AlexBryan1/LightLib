@@ -1,7 +1,7 @@
 #include "auton_selector.hpp"
 #include "pid_tuner.hpp"
 
-LV_IMG_DECLARE(Web_Photo_Editor);
+LV_IMG_DECLARE(Balls);
 
 // ─── Layout ──────────────────────────────────────────────────────────────────
 static constexpr int SCREEN_W   = 480;
@@ -201,7 +201,7 @@ void AutonSelector::build_ui() {
 
 void AutonSelector::build_right_preview(lv_obj_t* parent) {
     img_obj_ = lv_img_create(parent);
-    lv_img_set_src(img_obj_, &Web_Photo_Editor);
+    lv_img_set_src(img_obj_, &Balls);
     lv_obj_align(img_obj_, LV_ALIGN_CENTER, 0, 0);
 }
 
