@@ -4,7 +4,6 @@
 #include <cstdio>
 #include <cmath>
 
-// ─── Layout ──────────────────────────────────────────────────────────────────
 static constexpr int SW        = 480;
 static constexpr int SH        = 240;
 static constexpr int HDR_H     = 32;
@@ -16,27 +15,26 @@ static constexpr int CTRL_X    = GRAPH_W + 6;
 static constexpr int CTRL_W    = SW - CTRL_X - 4;
 static constexpr int GRAPH_PTS = 100;
 
-// ─── Colors ──────────────────────────────────────────────────────────────────
-#define C_BG       lv_color_make(0x0D, 0x0D, 0x10)
-#define C_PANEL    lv_color_make(0x16, 0x16, 0x1E)
-#define C_GREEN    lv_color_make(0x00, 0xC8, 0x6E)
-#define C_GREEN2   lv_color_make(0x00, 0x88, 0x50)
-#define C_IDLE     lv_color_make(0x22, 0x22, 0x2E)
-#define C_BORDER   lv_color_make(0x33, 0x33, 0x44)
-#define C_TEXT     lv_color_make(0xE8, 0xE8, 0xEE)
-#define C_DIM      lv_color_make(0x66, 0x66, 0x77)
-#define C_DARK     lv_color_make(0x08, 0x08, 0x10)
+// ─── Noisy Boy palette ────────────────────────────────────────────────────────
+#define C_BG       lv_color_make(0x0A, 0x06, 0x14)
+#define C_PANEL    lv_color_make(0x14, 0x0C, 0x26)
+#define C_YELLOW   lv_color_make(0xFF, 0xD0, 0x00)
+#define C_YELLOW2  lv_color_make(0xCC, 0xA0, 0x00)
+#define C_PURPLE   lv_color_make(0x5A, 0x00, 0xAA)
+#define C_PURPLE2  lv_color_make(0x3A, 0x00, 0x7A)
+#define C_IDLE     lv_color_make(0x1E, 0x10, 0x36)
+#define C_BORDER   lv_color_make(0x44, 0x20, 0x66)
+#define C_TEXT     lv_color_make(0xF0, 0xE8, 0xFF)
+#define C_DIM      lv_color_make(0x88, 0x66, 0xAA)
+#define C_DARK     lv_color_make(0x0A, 0x06, 0x14)
 #define C_RED      lv_color_make(0xFF, 0x44, 0x44)
-#define C_YELLOW   lv_color_make(0xFF, 0xCC, 0x00)
 #define C_CYAN     lv_color_make(0x00, 0xCC, 0xFF)
+#define C_ORANGE   lv_color_make(0xFF, 0x88, 0x00)
 
-// ─── Step sizes & labels ─────────────────────────────────────────────────────
-static constexpr double STEP[4]              = { 0.1, 0.001, 0.01, 0.5 };
-static constexpr const char* SLOT_NAMES[4]  = { "kP", "kI", "kD", "start_i" };
-static constexpr const char* PID_NAMES[4]   = { "Drive", "Turn", "Swing", "Heading" };
+static constexpr double STEP[4]             = { 0.1, 0.001, 0.01, 0.5 };
+static constexpr const char* SLOT_NAMES[4] = { "kP", "kI", "kD", "start_i" };
+static constexpr const char* PID_NAMES[4]  = { "Drive", "Turn", "Swing", "Heading" };
 
-// ─── Encode slot+sign into user_data pointer ─────────────────────────────────
-// high nibble = slot (0-3), low bit = sign (1=inc, 0=dec)
 static inline void* pack_ud(int slot, int sign) {
     return (void*)(intptr_t)(((slot & 0xF) << 1) | (sign > 0 ? 1 : 0));
 }
@@ -50,8 +48,6 @@ namespace light {
 
 PidTuner pid_tuner;
 
-// ─── Public ──────────────────────────────────────────────────────────────────
-
 void PidTuner::set_drive(ez::Drive* drive) {
     drive_ = drive;
     if (!drive_) return;
@@ -61,6 +57,7 @@ void PidTuner::set_drive(ez::Drive* drive) {
         constants_[t].val[KD]      = c.kd;
         constants_[t].val[START_I] = c.start_i;
     };
+    // Use forward drive PID as the seed for the drive tab
     load(PID_DRIVE,   drive_->pid_drive_constants_get());
     load(PID_TURN,    drive_->pid_turn_constants_get());
     load(PID_SWING,   drive_->pid_swing_constants_get());
@@ -85,8 +82,6 @@ void PidTuner::close() {
     auton_selector.show();
 }
 
-// ─── UI build ────────────────────────────────────────────────────────────────
-
 void PidTuner::build_ui() {
     if (screen_) { lv_obj_del(screen_); screen_ = nullptr; }
 
@@ -97,12 +92,12 @@ void PidTuner::build_ui() {
     lv_obj_set_style_border_width(screen_, 0, 0);
     lv_obj_set_style_pad_all(screen_, 0, 0);
 
-    // ── Header ──
+    // Header — deep purple gradient
     lv_obj_t* hdr = lv_obj_create(screen_);
     lv_obj_set_size(hdr, SW, HDR_H);
     lv_obj_set_pos(hdr, 0, 0);
-    lv_obj_set_style_bg_color(hdr, C_GREEN, 0);
-    lv_obj_set_style_bg_grad_color(hdr, C_GREEN2, 0);
+    lv_obj_set_style_bg_color(hdr, C_PURPLE, 0);
+    lv_obj_set_style_bg_grad_color(hdr, C_PURPLE2, 0);
     lv_obj_set_style_bg_grad_dir(hdr, LV_GRAD_DIR_VER, 0);
     lv_obj_set_style_bg_opa(hdr, LV_OPA_COVER, 0);
     lv_obj_set_style_border_width(hdr, 0, 0);
@@ -127,7 +122,7 @@ void PidTuner::build_ui() {
     // Title
     lv_obj_t* title = lv_label_create(hdr);
     lv_label_set_text(title, "PID Tuner");
-    lv_obj_set_style_text_color(title, C_DARK, 0);
+    lv_obj_set_style_text_color(title, C_YELLOW, 0);
     lv_obj_align(title, LV_ALIGN_CENTER, 0, 0);
 
     // Record button
@@ -135,24 +130,25 @@ void PidTuner::build_ui() {
     lv_obj_set_size(rec, 80, HDR_H - 8);
     lv_obj_align(rec, LV_ALIGN_RIGHT_MID, -4, 0);
     lv_obj_set_style_bg_color(rec, C_IDLE, 0);
-    lv_obj_set_style_bg_color(rec, C_GREEN, LV_STATE_PRESSED);
+    lv_obj_set_style_bg_color(rec, C_YELLOW, LV_STATE_PRESSED);
     lv_obj_set_style_bg_opa(rec, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(rec, 4, 0);
-    lv_obj_set_style_border_width(rec, 0, 0);
+    lv_obj_set_style_border_color(rec, C_YELLOW, 0);
+    lv_obj_set_style_border_width(rec, 1, 0);
     lv_obj_add_event_cb(rec, record_cb, LV_EVENT_CLICKED, this);
     lv_obj_t* rec_lbl = lv_label_create(rec);
     lv_label_set_text(rec_lbl, LV_SYMBOL_PLAY " Record");
-    lv_obj_set_style_text_color(rec_lbl, C_TEXT, 0);
+    lv_obj_set_style_text_color(rec_lbl, C_YELLOW, 0);
     lv_obj_center(rec_lbl);
 
-    // ── PID type tabs ──
+    // PID type tabs
     int tab_w = (SW - 8) / PID_COUNT;
     for (int i = 0; i < PID_COUNT; i++) {
         lv_obj_t* tb = lv_btn_create(screen_);
         lv_obj_set_size(tb, tab_w - 2, TAB_H - 2);
         lv_obj_set_pos(tb, 4 + i * tab_w, HDR_H + 1);
         lv_obj_set_style_bg_color(tb, C_IDLE, 0);
-        lv_obj_set_style_bg_color(tb, C_GREEN, LV_STATE_CHECKED);
+        lv_obj_set_style_bg_color(tb, C_YELLOW, LV_STATE_CHECKED);
         lv_obj_set_style_bg_opa(tb, LV_OPA_COVER, 0);
         lv_obj_set_style_border_color(tb, C_BORDER, 0);
         lv_obj_set_style_border_width(tb, 1, 0);
@@ -168,7 +164,7 @@ void PidTuner::build_ui() {
         lv_obj_center(lbl);
     }
 
-    // ── Graph panel ──
+    // Graph panel
     lv_obj_t* graph_panel = lv_obj_create(screen_);
     lv_obj_set_size(graph_panel, GRAPH_W, BODY_H - 8);
     lv_obj_set_pos(graph_panel, 4, BODY_Y + 4);
@@ -179,22 +175,20 @@ void PidTuner::build_ui() {
     lv_obj_set_style_radius(graph_panel, 4, 0);
     lv_obj_set_style_pad_all(graph_panel, 4, 0);
 
-    // Legend
     auto make_legend = [&](lv_obj_t* parent, const char* txt, lv_color_t col, int x) {
         lv_obj_t* l = lv_label_create(parent);
         lv_label_set_text(l, txt);
         lv_obj_set_style_text_color(l, col, 0);
         lv_obj_set_pos(l, x, 2);
     };
-    make_legend(graph_panel, "● L vel", C_GREEN,  2);
-    make_legend(graph_panel, "● R vel", C_CYAN,  60);
-    make_legend(graph_panel, "● Error", C_YELLOW, 118);
+    make_legend(graph_panel, "● L vel", C_YELLOW, 2);
+    make_legend(graph_panel, "● R vel", C_CYAN,   60);
+    make_legend(graph_panel, "● Error", C_ORANGE, 118);
 
-    // Chart
     chart_ = lv_chart_create(graph_panel);
     lv_obj_set_size(chart_, GRAPH_W - 12, BODY_H - 40);
     lv_obj_set_pos(chart_, 2, 18);
-    lv_obj_set_style_bg_color(chart_, lv_color_make(0x10, 0x10, 0x18), 0);
+    lv_obj_set_style_bg_color(chart_, lv_color_make(0x08, 0x04, 0x10), 0);
     lv_obj_set_style_bg_opa(chart_, LV_OPA_COVER, 0);
     lv_obj_set_style_border_color(chart_, C_BORDER, 0);
     lv_obj_set_style_border_width(chart_, 1, 0);
@@ -203,19 +197,19 @@ void PidTuner::build_ui() {
     lv_chart_set_point_count(chart_, GRAPH_PTS);
     lv_chart_set_range(chart_, LV_CHART_AXIS_PRIMARY_Y, -200, 200);
     lv_chart_set_div_line_count(chart_, 4, 5);
-    lv_obj_set_style_line_width(chart_, 0, LV_PART_ITEMS);  // hide point dots
+    lv_obj_set_style_line_width(chart_, 0, LV_PART_ITEMS);
 
-    ser_left_  = lv_chart_add_series(chart_, C_GREEN,  LV_CHART_AXIS_PRIMARY_Y);
+    ser_left_  = lv_chart_add_series(chart_, C_YELLOW, LV_CHART_AXIS_PRIMARY_Y);
     ser_right_ = lv_chart_add_series(chart_, C_CYAN,   LV_CHART_AXIS_PRIMARY_Y);
-    ser_err_   = lv_chart_add_series(chart_, C_YELLOW, LV_CHART_AXIS_PRIMARY_Y);
+    ser_err_   = lv_chart_add_series(chart_, C_ORANGE, LV_CHART_AXIS_PRIMARY_Y);
 
-    // ── Control panel ──
+    // Control panel
     lv_obj_t* ctrl = lv_obj_create(screen_);
     lv_obj_set_size(ctrl, CTRL_W, BODY_H - 8);
     lv_obj_set_pos(ctrl, CTRL_X, BODY_Y + 4);
     lv_obj_set_style_bg_color(ctrl, C_PANEL, 0);
     lv_obj_set_style_bg_opa(ctrl, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_color(ctrl, C_GREEN, 0);
+    lv_obj_set_style_border_color(ctrl, C_YELLOW, 0);
     lv_obj_set_style_border_width(ctrl, 1, 0);
     lv_obj_set_style_radius(ctrl, 4, 0);
     lv_obj_set_style_pad_all(ctrl, 4, 0);
@@ -230,7 +224,6 @@ void PidTuner::build_ui() {
         lv_obj_set_style_text_color(name_l, C_DIM, 0);
         lv_obj_set_pos(name_l, 4, ry + (row_h / 2) - 7);
 
-        // − button
         lv_obj_t* dec = lv_btn_create(ctrl);
         lv_obj_set_size(dec, 26, row_h - 4);
         lv_obj_set_pos(dec, 38, ry + 2);
@@ -246,18 +239,16 @@ void PidTuner::build_ui() {
         lv_obj_set_style_text_color(dl, C_TEXT, 0);
         lv_obj_center(dl);
 
-        // Value label
         val_labels_[i] = lv_label_create(ctrl);
-        lv_obj_set_style_text_color(val_labels_[i], C_GREEN, 0);
+        lv_obj_set_style_text_color(val_labels_[i], C_YELLOW, 0);
         lv_obj_set_pos(val_labels_[i], 68, ry + (row_h / 2) - 7);
         lv_label_set_text(val_labels_[i], "0.000");
 
-        // + button
         lv_obj_t* inc = lv_btn_create(ctrl);
         lv_obj_set_size(inc, 26, row_h - 4);
         lv_obj_set_pos(inc, CTRL_W - 34, ry + 2);
         lv_obj_set_style_bg_color(inc, C_IDLE, 0);
-        lv_obj_set_style_bg_color(inc, C_GREEN, LV_STATE_PRESSED);
+        lv_obj_set_style_bg_color(inc, C_YELLOW, LV_STATE_PRESSED);
         lv_obj_set_style_bg_opa(inc, LV_OPA_COVER, 0);
         lv_obj_set_style_border_width(inc, 0, 0);
         lv_obj_set_style_radius(inc, 3, 0);
@@ -273,8 +264,8 @@ void PidTuner::build_ui() {
     lv_obj_t* apply = lv_btn_create(ctrl);
     lv_obj_set_size(apply, CTRL_W - 10, 28);
     lv_obj_set_pos(apply, 4, BODY_H - 8 - 32);
-    lv_obj_set_style_bg_color(apply, C_GREEN, 0);
-    lv_obj_set_style_bg_grad_color(apply, C_GREEN2, 0);
+    lv_obj_set_style_bg_color(apply, C_YELLOW, 0);
+    lv_obj_set_style_bg_grad_color(apply, C_YELLOW2, 0);
     lv_obj_set_style_bg_grad_dir(apply, LV_GRAD_DIR_VER, 0);
     lv_obj_set_style_bg_opa(apply, LV_OPA_COVER, 0);
     lv_obj_set_style_bg_color(apply, C_IDLE, LV_STATE_PRESSED);
@@ -286,8 +277,6 @@ void PidTuner::build_ui() {
     lv_obj_set_style_text_color(al, C_DARK, 0);
     lv_obj_center(al);
 }
-
-// ─── Tab / value logic ───────────────────────────────────────────────────────
 
 void PidTuner::select_pid(PidType t) {
     active_pid_ = t;
@@ -309,16 +298,24 @@ void PidTuner::refresh_value_labels() {
 void PidTuner::apply_constants() {
     if (!drive_) return;
     auto& v = constants_[active_pid_].val;
+    // EZ-Template setters: pid_X_constants_set(kP, kI, kD, start_i)
     switch (active_pid_) {
-        case PID_DRIVE:   drive_->pid_drive_constants_set(v[KP], v[KI], v[KD]);   break;
-        case PID_TURN:    drive_->pid_turn_constants_set(v[KP], v[KI], v[KD]);    break;
-        case PID_SWING:   drive_->pid_swing_constants_set(v[KP], v[KI], v[KD]);   break;
-        case PID_HEADING: drive_->pid_heading_constants_set(v[KP], v[KI], v[KD]); break;
+        case PID_DRIVE:
+            // Apply to both forward and backward drive PIDs
+            drive_->pid_drive_constants_set(v[KP], v[KI], v[KD], v[START_I]);
+            break;
+        case PID_TURN:
+            drive_->pid_turn_constants_set(v[KP], v[KI], v[KD], v[START_I]);
+            break;
+        case PID_SWING:
+            drive_->pid_swing_constants_set(v[KP], v[KI], v[KD], v[START_I]);
+            break;
+        case PID_HEADING:
+            drive_->pid_heading_constants_set(v[KP], v[KI], v[KD], v[START_I]);
+            break;
         default: break;
     }
 }
-
-// ─── Background sampler ──────────────────────────────────────────────────────
 
 void PidTuner::sample_task_fn(void* param) {
     auto* self = static_cast<PidTuner*>(param);
@@ -342,8 +339,6 @@ void PidTuner::push_sample() {
     lv_chart_set_next_value(chart_, ser_err_,   clamp(ev));
     lv_obj_invalidate(chart_);
 }
-
-// ─── Callbacks ───────────────────────────────────────────────────────────────
 
 void PidTuner::tab_cb(lv_event_t* e) {
     auto* self = static_cast<PidTuner*>(lv_event_get_user_data(e));
@@ -387,10 +382,11 @@ void PidTuner::record_cb(lv_event_t* e) {
     if (self->recording_) {
         lv_label_set_text(lbl, LV_SYMBOL_STOP " Stop");
         lv_obj_set_style_bg_color(btn, C_RED, 0);
+        lv_obj_set_style_border_color(btn, C_RED, 0);
     } else {
         lv_label_set_text(lbl, LV_SYMBOL_PLAY " Record");
         lv_obj_set_style_bg_color(btn, C_IDLE, 0);
-        // Clear graph
+        lv_obj_set_style_border_color(btn, C_YELLOW, 0);
         lv_chart_set_all_value(self->chart_, self->ser_left_,  0);
         lv_chart_set_all_value(self->chart_, self->ser_right_, 0);
         lv_chart_set_all_value(self->chart_, self->ser_err_,   0);
@@ -398,4 +394,4 @@ void PidTuner::record_cb(lv_event_t* e) {
     }
 }
 
-} // namespace cactus
+} // namespace light

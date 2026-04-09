@@ -17,6 +17,7 @@ public:
     void open();
     void close();
     bool is_open() const { return screen_ != nullptr && lv_scr_act() == screen_; }
+    ez::Drive* get_drive() const { return drive_; }
 
 private:
     ez::Drive*          drive_        = nullptr;

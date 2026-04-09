@@ -8,33 +8,69 @@
 #include "ez_extra.hpp"
 #include <atomic>
 
-/////
-// For installation, upgrading, documentations, and tutorials, check out our website!
-// https://ez-robotics.github.io/EZ-Template/
-/////
-/// Driver joystick curve
-static const float CURVE = 0.2f;
+// ┌─────────────────────────────────────────────────────────────┐
+// │                   ROBOT CONFIGURATION                       │
+// │   Change your ports and settings here — nothing else needs  │
+// │   to be touched to get the drivetrain working.              │
+// └─────────────────────────────────────────────────────────────┘
 
-// Chassis constructor
-ez::Drive chassis(
-    // These are your drive motors, the first motor is used for sensing!
-    {-10, -9, -8},     // Left Chassis Ports (negative port will reverse it!)
-    {20, 19, 18},  // Right Chassis Ports (negative port will reverse it!)
+// Drive motor ports — use a negative number to reverse that motor
+#define LEFT_PORTS  {-10, -9, -8}
+#define RIGHT_PORTS { 20, 19, 18}
 
-    21,      // IMU Port
-    3.25,  // Wheel Diameter (Remember, 4" wheels without screw holes are actually 4.125!)
-    450);   // Wheel RPM = cartridge * (motor gear / wheel gear)
-    
-pros::MotorGroup leftMotors ({-10, -9, -8});
-pros::MotorGroup rightMotors({20, 19, 18});
-pros::Imu imu(21);
-pros::Imu imu2(0);
+#define IMU_PORT   21   // primary IMU
+#define IMU2_PORT   0   // second IMU (set to 0 if you only have one)
 
-// TODO: half of track width — change -3.0f / 3.0f to -(your track width / 2) / (your track width / 2)
-TrackingWheel leftTracker (&leftMotors,  3.25f, -3.0f);
-TrackingWheel rightTracker(&rightMotors, 3.25f,  3.0f);
+#define WHEEL_DIAMETER 3.25   // inches  (4" wheels with screw holes are actually 4.125)
+#define WHEEL_RPM      450    // motor cartridge RPM × (motor sprocket / wheel sprocket)
+#define TRACK_HALF_W   3.0f   // half of your robot's track width, in inches (used for odometry)
+
+#define JOYSTICK_CURVE 0.2f   // expo curve strength for driving (0 = linear)
+
+// Distance sensor ports
+#define DIST_LEFT_FRONT_PORT  11
+#define DIST_LEFT_BACK_PORT   16
+#define DIST_FRONT_PORT        5
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Everything below builds itself from the values above — no need to edit it
+// ─────────────────────────────────────────────────────────────────────────────
+
+ez::Drive chassis(LEFT_PORTS, RIGHT_PORTS, IMU_PORT, WHEEL_DIAMETER, WHEEL_RPM);
+
+pros::MotorGroup leftMotors (LEFT_PORTS);
+pros::MotorGroup rightMotors(RIGHT_PORTS);
+pros::Imu imu(IMU_PORT);
+pros::Imu imu2(IMU2_PORT);
+
+TrackingWheel leftTracker (&leftMotors,  WHEEL_DIAMETER, -TRACK_HALF_W);
+TrackingWheel rightTracker(&rightMotors, WHEEL_DIAMETER,  TRACK_HALF_W);
 
 OdomSensors sensors(&leftTracker, &rightTracker, nullptr, nullptr, &imu, &imu2);
+
+// Distance sensors — port 0 means "not installed"; pointer is nullptr in that case
+#if DIST_LEFT_FRONT_PORT != 0
+static pros::Distance _left_front_obj(DIST_LEFT_FRONT_PORT);
+pros::Distance* left_front_sensor = &_left_front_obj;
+#else
+pros::Distance* left_front_sensor = nullptr;
+#endif
+
+#if DIST_LEFT_BACK_PORT != 0
+static pros::Distance _left_back_obj(DIST_LEFT_BACK_PORT);
+pros::Distance* left_back_sensor = &_left_back_obj;
+pros::Distance* leftDist         = &_left_back_obj;  // alias used by WallRide
+#else
+pros::Distance* left_back_sensor = nullptr;
+pros::Distance* leftDist         = nullptr;
+#endif
+
+#if DIST_FRONT_PORT != 0
+static pros::Distance _front_obj(DIST_FRONT_PORT);
+pros::Distance* frontDist = &_front_obj;
+#else
+pros::Distance* frontDist = nullptr;
+#endif
 
 void initialize() {
   pros::delay(300);
@@ -122,7 +158,7 @@ static float curve_lut[256]; // lookup table, index 0 = -127, index 255 = 127
 void build_curve_lut() {
     for (int i = -127; i <= 127; i++) {
         float x = i / 127.0f;
-        float curved = (std::exp(CURVE * std::abs(x)) - 1.0f) / (std::exp(CURVE) - 1.0f);
+        float curved = (std::exp(JOYSTICK_CURVE * std::abs(x)) - 1.0f) / (std::exp(JOYSTICK_CURVE) - 1.0f);
         curve_lut[i + 127] = std::copysign(curved * 127.0f, (float)i);
     }
     curve_lut[127] = 0.0f; // exact zero for zero input

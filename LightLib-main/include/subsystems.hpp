@@ -25,10 +25,11 @@
     inline pros::Motor turret(0);
     inline pros::Optical optical(15); 
 
-    inline pros::Distance left_front_sensor(11);  
-    inline pros::Distance left_back_sensor(16);
-    inline pros::Distance leftDist(16);
-    inline pros::Distance frontDist(5);
+    // nullptr when the corresponding port define is 0
+    extern pros::Distance* left_front_sensor;
+    extern pros::Distance* left_back_sensor;
+    extern pros::Distance* leftDist;
+    extern pros::Distance* frontDist;
 
 
     enum Colors { BLUE = 0, NEUTRAL = 1, RED = 2 };

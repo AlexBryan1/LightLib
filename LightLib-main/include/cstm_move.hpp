@@ -53,9 +53,12 @@
 //   timeout      : max run duration in milliseconds before forced exit (default: 5000)
 void cstm_move_init(ez::Drive& chassis);
 
-void WallRide(pros::Distance& frontSensor,
-                    pros::Distance& leftSensor,
-                    double stopDistIn,
-                    double targetDistIn,
-                    int  baseSpeed = 80,
-                    int  timeout   = 5000);
+// Pass nullptr for a sensor whose port is 0 (not installed).
+// WallRide returns immediately if frontSensor is nullptr.
+// If leftSensor is nullptr, the robot drives straight (no wall correction).
+void WallRide(pros::Distance* frontSensor,
+              pros::Distance* leftSensor,
+              double stopDistIn,
+              double targetDistIn,
+              int  baseSpeed = 80,
+              int  timeout   = 5000);

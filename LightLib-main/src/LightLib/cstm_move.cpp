@@ -49,15 +49,16 @@ void cstm_move_init(ez::Drive& chassis) {
     g_chassis = &chassis;
 }
 
-void WallRide(pros::Distance& frontSensor,
-                    pros::Distance& leftSensor,
-                    double stopDistIn,
-                    double targetDistIn,
-                    int  baseSpeed,
-                    int  timeout) {
+void WallRide(pros::Distance* frontSensor,
+              pros::Distance* leftSensor,
+              double stopDistIn,
+              double targetDistIn,
+              int  baseSpeed,
+              int  timeout) {
 
-    // Safety guard — do nothing if cstm_move_init() was never called.
+    // Safety guards — do nothing if chassis not initialised or front sensor absent.
     if (g_chassis == nullptr) return;
+    if (frontSensor == nullptr) return;  // can't determine stop condition without front sensor
 
     // Convert inch thresholds to millimeters once up front.
     // pros::Distance::get() returns millimeters; all sensor comparisons use mm.
@@ -72,20 +73,21 @@ void WallRide(pros::Distance& frontSensor,
         // ── Front sensor stop check ───────────────────────────────────────────
         // Read the front sensor every cycle. If it returns a valid reading that
         // is at or below the stop threshold, a wall is close enough ahead — exit.
-        double frontMM = static_cast<double>(frontSensor.get());
+        double frontMM = static_cast<double>(frontSensor->get());
 
         if (frontMM < SENSOR_MAX_VALID_MM && frontMM <= stopDistMM) break;
 
         // ── Left wall distance error ──────────────────────────────────────────
-        // Read the left sensor. Zero the correction if the reading is invalid
-        // (out of range or sensor error) to prevent runaway steering.
-        double leftMM    = static_cast<double>(leftSensor.get());
+        // If leftSensor is nullptr (port was 0), skip wall correction entirely.
         double wallError = 0.0;
 
-        if (leftMM < SENSOR_MAX_VALID_MM) {
-            // positive wallError → robot too far from left wall  → steer left
-            // negative wallError → robot too close to left wall  → steer right
-            wallError = targetDistMM - leftMM;
+        if (leftSensor != nullptr) {
+            double leftMM = static_cast<double>(leftSensor->get());
+            if (leftMM < SENSOR_MAX_VALID_MM) {
+                // positive wallError → robot too far from left wall  → steer left
+                // negative wallError → robot too close to left wall  → steer right
+                wallError = targetDistMM - leftMM;
+            }
         }
 
         double derivative = wallError - prevWallError;
