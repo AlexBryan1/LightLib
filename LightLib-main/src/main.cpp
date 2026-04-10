@@ -110,7 +110,7 @@ void autonomous() {
   chassis.pid_targets_reset();
   chassis.drive_imu_reset();
   chassis.drive_sensor_reset();
-  chassis.drive_brake_set(MOTOR_BRAKE_HOLD);
+  chassis.drive_brake_set(MOTOR_BRAKE_BRAKE);
 
   pros::delay(10);        // let sensors settle at 0
   light::reset();     // sync prev* variables to the now-zeroed sensors
@@ -191,8 +191,8 @@ void opcontrol() {
             int new_left  = std::clamp((int)(c_throttle + c_turn), -127, 127);
             int new_right = std::clamp((int)(c_throttle - c_turn), -127, 127);
 
-            if (new_left  != last_left)  { leftMotors.move(new_left);   last_left  = new_left;  }
-            if (new_right != last_right) { rightMotors.move(new_right); last_right = new_right; }
+            if (new_left  != last_left)  { chassis.drive_set(new_left, new_right);   last_left  = new_left;  }
+            if (new_right != last_right) { chassis.drive_set(new_left, new_right); last_right = new_right; }
 
 
             if (master.get_digital(DIGITAL_R2))
@@ -219,7 +219,7 @@ void opcontrol() {
         if (loader_btn && !loader_prev) { loader_state = !loader_state; Loader.set(loader_state); }
         loader_prev = loader_btn;
 
-        pros::delay(4);
+        pros::delay(10);
     }
 }
 // void opcontrol() {

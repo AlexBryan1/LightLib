@@ -65,9 +65,9 @@ void default_positions(){
 ///
 void default_constants() {
   // P, I, D, and Start I
-  chassis.pid_drive_constants_set(7.0, 0.10, 100.0);         // Fwd/rev constants, used for odom and non odom motions
-  chassis.pid_heading_constants_set(5.0, 0.0, 120.0);        // Holds the robot straight while going forward without odom
-  chassis.pid_turn_constants_set(2.2, 0.02, 15.0, 5.0 );     // Turn in place constants
+  chassis.pid_drive_constants_set(10.0, 0.1, 30.0);         // Fwd/rev constants, used for odom and non odom motions
+  chassis.pid_heading_constants_set(17.0, 0.0, 27.0);        // Holds the robot straight while going forward without odom
+  chassis.pid_turn_constants_set(5.0, 0.0, 35.0 );     // Turn in place constants
   chassis.pid_swing_constants_set(6.0, 0.0, 50.0);           // Swing constants
   chassis.pid_odom_angular_constants_set(1.0, 0.0, 10.0);    // Angular control for odom motions
   chassis.pid_odom_boomerang_constants_set(5.8, 0.0, 32.5);  // Angular control for boomerang motions
@@ -80,9 +80,9 @@ void default_constants() {
   chassis.pid_odom_drive_exit_condition_set(90_ms, 1_in, 250_ms, 3_in, 500_ms, 750_ms);
 
 
-  chassis.pid_turn_chain_constant_set(5_deg);
+  chassis.pid_turn_chain_constant_set(10_deg);
   chassis.pid_swing_chain_constant_set(5_deg);
-  chassis.pid_drive_chain_constant_set(2.5_in);
+  chassis.pid_drive_chain_constant_set(5_in);
 
   // Slew constants
   chassis.slew_turn_constants_set(10_deg, 55);
@@ -93,7 +93,7 @@ void default_constants() {
   // - if you have tracking wheels, you can run this higher.  1.0 is the max
   chassis.odom_turn_bias_set(1.0);
 
-  chassis.odom_look_ahead_set(10_in);           // This is how far ahead in the path the robot looks at
+  chassis.odom_look_ahead_set(15_in);           // This is how far ahead in the path the robot looks at
   chassis.odom_boomerang_distance_set(16_in);  // This sets the maximum distance away from target that the carrot point can be
   chassis.odom_boomerang_dlead_set(0.625);     // This handles how aggressive the end of boomerang motions are
 
@@ -106,7 +106,20 @@ void skills(){
 }
 
 void rush_right(){
-
+  Score.move(127);
+  chassis.pid_swing_set(ez::RIGHT_SWING, 270_deg, 127, 45, ez::ccw);
+  chassis.pid_wait_until(300_deg);
+  chassis.pid_swing_set(ez::LEFT_SWING, 340_deg, 90, 40, ez::cw);
+  chassis.pid_wait_quick_chain();
+  chassis.pid_drive_set(15_in, 50);
+  chassis.pid_wait_until(5_in);
+  chassis.pid_drive_set(0_in, 0);
+  Loader.set(false);
+  pros::delay(200);
+  chassis.pid_swing_set(ez::LEFT_SWING, 230_deg, 127, 27, ez::ccw);
+  chassis.pid_wait_quick_chain();
+  chassis.pid_drive_set(-5_in, 127);
+  chassis.pid_wait_quick_chain();
 }
 
 void rush_left(){
