@@ -2,6 +2,7 @@
 #include "pid_tuner.hpp"
 
 LV_IMG_DECLARE(Balls);
+LV_IMG_DECLARE(radiant_scroll_banner);
 
 // ─── Layout ──────────────────────────────────────────────────────────────────
 static constexpr int SCREEN_W   = 480;
@@ -52,7 +53,14 @@ static lv_style_t s_btn_idle, s_btn_sel;
 void AutonSelector::add(const std::string& name,
                         const std::string& desc,
                         std::function<void()> fn) {
-    autons_.push_back({name, desc, std::move(fn)});
+    autons_.push_back({name, desc, std::move(fn), nullptr});
+}
+
+void AutonSelector::add(const std::string& name,
+                        const std::string& desc,
+                        std::function<void()> fn,
+                        const lv_img_dsc_t* banner) {
+    autons_.push_back({name, desc, std::move(fn), banner});
 }
 
 void AutonSelector::init() {
@@ -213,12 +221,45 @@ void AutonSelector::build_ui() {
         lv_obj_set_user_data(btn, (void*)(intptr_t)i);
         lv_obj_add_event_cb(btn, btn_cb, LV_EVENT_CLICKED, NULL);
 
-        lv_obj_t* lbl = lv_label_create(btn);
-        lv_label_set_text(lbl, autons_[i].name.c_str());
-        lv_label_set_long_mode(lbl, LV_LABEL_LONG_DOT);
-        lv_obj_set_width(lbl, btn_w - 8);
-        lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
-        lv_obj_center(lbl);
+        if (autons_[i].banner) {
+            int cw = btn_w - 4, ch = BTN_H - 4;
+            lv_obj_t* clip = lv_obj_create(btn);
+            lv_obj_set_size(clip, cw, ch);
+            lv_obj_center(clip);
+            lv_obj_clear_flag(clip, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_set_style_bg_opa(clip, LV_OPA_TRANSP, 0);
+            lv_obj_set_style_border_width(clip, 0, 0);
+            lv_obj_set_style_pad_all(clip, 0, 0);
+            lv_obj_set_style_radius(clip, 0, 0);
+
+            int iw = (int)autons_[i].banner->header.w;
+            int ih = (int)autons_[i].banner->header.h;
+
+            lv_obj_t* img = lv_img_create(clip);
+            lv_img_set_src(img, autons_[i].banner);
+            lv_obj_set_y(img, (ch - ih) / 2);
+            lv_obj_set_x(img, -iw);
+
+            lv_anim_t a;
+            lv_anim_init(&a);
+            lv_anim_set_var(&a, img);
+            lv_anim_set_exec_cb(&a, [](void* obj, int32_t v) {
+                lv_obj_set_x((lv_obj_t*)obj, v);
+            });
+            lv_anim_set_values(&a, -iw, cw);
+            lv_anim_set_time(&a, (iw + cw) * 7);
+            lv_anim_set_delay(&a, i * 400);
+            lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+            lv_anim_set_repeat_delay(&a, 800);
+            lv_anim_start(&a);
+        } else {
+            lv_obj_t* lbl = lv_label_create(btn);
+            lv_label_set_text(lbl, autons_[i].name.c_str());
+            lv_label_set_long_mode(lbl, LV_LABEL_LONG_DOT);
+            lv_obj_set_width(lbl, btn_w - 8);
+            lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
+            lv_obj_center(lbl);
+        }
 
         btn_objs_.push_back(btn);
     }
@@ -491,7 +532,41 @@ void AutonSelector::build_run_screen() {
         lv_obj_set_style_border_side(btn,
             border_right ? LV_BORDER_SIDE_RIGHT : LV_BORDER_SIDE_LEFT, 0);
         lv_obj_set_style_radius(btn, 0, 0);
+        lv_obj_set_style_pad_all(btn, 0, 0);
         lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, this);
+
+        // Scrolling radiant banner inside the strip
+        int iw = (int)radiant_scroll_banner.header.w;
+        int ih = (int)radiant_scroll_banner.header.h;
+        lv_obj_t* clip = lv_obj_create(btn);
+        lv_obj_set_size(clip, DEAD_W, SCREEN_H);
+        lv_obj_set_pos(clip, 0, 0);
+        lv_obj_clear_flag(clip, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_style_bg_opa(clip, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(clip, 0, 0);
+        lv_obj_set_style_pad_all(clip, 0, 0);
+        lv_obj_set_style_radius(clip, 0, 0);
+        lv_obj_t* img = lv_img_create(clip);
+        lv_img_set_src(img, &radiant_scroll_banner);
+        lv_img_set_angle(img, 2700);
+        lv_img_set_pivot(img, iw / 2, ih / 2);
+        // After 90° CW rotation the content axis runs vertically;
+        // fix x to center the 48px visual width in the strip, animate y.
+        lv_obj_set_x(img, (DEAD_W - iw) / 2);   // centers rotated visual in strip
+        int start_y = -(ih / 2 + iw / 2);       // content starts above strip
+        int end_y   =  SCREEN_H + (iw / 2 - ih / 2); // content ends below strip
+        lv_obj_set_y(img, start_y);
+        lv_anim_t a;
+        lv_anim_init(&a);
+        lv_anim_set_var(&a, img);
+        lv_anim_set_exec_cb(&a, [](void* obj, int32_t v) {
+            lv_obj_set_y((lv_obj_t*)obj, v);
+        });
+        lv_anim_set_values(&a, start_y, end_y);
+        lv_anim_set_time(&a, (iw + SCREEN_H) * 7);
+        lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+        lv_anim_set_repeat_delay(&a, 800);
+        lv_anim_start(&a);
     };
 
     // Strip label — child of lv_layer_top() (never clipped by run_screen_).

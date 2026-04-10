@@ -10,11 +10,15 @@ struct Auton {
     std::string name;
     std::string description;
     std::function<void()> fn;
+    const lv_img_dsc_t*  banner = nullptr;  // optional scrolling image strip
 };
 
 class AutonSelector {
 public:
     void add(const std::string& name, const std::string& desc, std::function<void()> fn);
+    // add() with a scrolling banner image shown inside the button
+    void add(const std::string& name, const std::string& desc, std::function<void()> fn,
+             const lv_img_dsc_t* banner);
     void init();
     void run();
     void show();
