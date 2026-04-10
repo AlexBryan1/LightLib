@@ -542,31 +542,46 @@ void AutonSelector::build_run_screen() {
         lv_obj_set_size(clip, DEAD_W, SCREEN_H);
         lv_obj_set_pos(clip, 0, 0);
         lv_obj_clear_flag(clip, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_clear_flag(clip, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_set_style_bg_opa(clip, LV_OPA_TRANSP, 0);
         lv_obj_set_style_border_width(clip, 0, 0);
         lv_obj_set_style_pad_all(clip, 0, 0);
         lv_obj_set_style_radius(clip, 0, 0);
-        lv_obj_t* img = lv_img_create(clip);
-        lv_img_set_src(img, &radiant_scroll_banner);
-        lv_img_set_angle(img, 2700);
-        lv_img_set_pivot(img, iw / 2, ih / 2);
-        // After 90° CW rotation the content axis runs vertically;
-        // fix x to center the 48px visual width in the strip, animate y.
-        lv_obj_set_x(img, (DEAD_W - iw) / 2);   // centers rotated visual in strip
-        int start_y = -(ih / 2 + iw / 2);       // content starts above strip
-        int end_y   =  SCREEN_H + (iw / 2 - ih / 2); // content ends below strip
-        lv_obj_set_y(img, start_y);
-        lv_anim_t a;
-        lv_anim_init(&a);
-        lv_anim_set_var(&a, img);
-        lv_anim_set_exec_cb(&a, [](void* obj, int32_t v) {
-            lv_obj_set_y((lv_obj_t*)obj, v);
-        });
-        lv_anim_set_values(&a, start_y, end_y);
-        lv_anim_set_time(&a, (iw + SCREEN_H) * 7);
-        lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
-        lv_anim_set_repeat_delay(&a, 800);
-        lv_anim_start(&a);
+        // Scale so banner height fills the strip width
+        int zoom   = (DEAD_W * 256) / ih;
+        int eff_iw = iw * zoom / 256;   // scaled scroll length
+        int x_img  = DEAD_W / 2 - iw / 2;   // center pivot in strip
+        // start_y: image bottom (pivot + eff_iw/2) sits at clip bottom (SCREEN_H)
+        // end_y = start_y + eff_iw: image top (pivot - eff_iw/2) reaches clip bottom → exits
+        // Travel = exactly eff_iw → the two copies hand off seamlessly with no gap.
+        int start_y = SCREEN_H - (eff_iw / 2 + ih / 2);
+
+        // Two images offset by eff_iw — one always covers the strip while the
+        // other resets off-screen, producing a seamless endless loop.
+        auto add_scroll_img = [&](int y_start) {
+            lv_obj_t* img = lv_img_create(clip);
+            lv_img_set_src(img, &radiant_scroll_banner);
+            lv_img_set_angle(img, 2700);
+            lv_img_set_pivot(img, iw / 2, ih / 2);
+            lv_obj_clear_flag(img, LV_OBJ_FLAG_CLICKABLE);
+            lv_img_set_zoom(img, zoom);
+            lv_obj_set_x(img, x_img);
+            lv_obj_set_y(img, y_start);
+            lv_anim_t a;
+            lv_anim_init(&a);
+            lv_anim_set_var(&a, img);
+            lv_anim_set_exec_cb(&a, [](void* obj, int32_t v) {
+                lv_obj_set_y((lv_obj_t*)obj, v);
+            });
+            lv_anim_set_values(&a, y_start, y_start + eff_iw);
+            lv_anim_set_time(&a, eff_iw * 7);
+            lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+            lv_anim_set_repeat_delay(&a, 0);
+            lv_anim_start(&a);
+        };
+
+        add_scroll_img(start_y);           // visible at start, scrolls through strip
+        add_scroll_img(start_y - eff_iw);  // one banner-width behind, fills the gap
     };
 
     // Strip label — child of lv_layer_top() (never clipped by run_screen_).
