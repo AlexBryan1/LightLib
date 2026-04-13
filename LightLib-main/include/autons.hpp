@@ -10,8 +10,15 @@ void split_right();
 void sevenball_right();
 void sevenball_left();
 
-void rush_right();
+void rush_mid_left();
+void rush_mid_right();
+
 void rush_left();
+void rush_right();
+
+void sixball_left();
+void sixball_right();
+
 
 void skills();
 

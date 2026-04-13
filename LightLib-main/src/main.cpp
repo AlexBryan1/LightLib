@@ -72,6 +72,18 @@ pros::Distance* frontDist = &_front_obj;
 pros::Distance* frontDist = nullptr;
 #endif
 
+static void temp_display_task(void*) {
+    while (true) {
+        double max_temp = 0.0;
+        for (double t : leftMotors.get_temperature_all())  max_temp = std::max(max_temp, t);
+        for (double t : rightMotors.get_temperature_all()) max_temp = std::max(max_temp, t);
+        max_temp = std::max(max_temp, Top.get_temperature());
+        max_temp = std::max(max_temp, Bottom.get_temperature());
+        master.print(2, 8, "H:%3.0fC", max_temp);
+        pros::delay(500);
+    }
+}
+
 void initialize() {
   pros::delay(300);
     // Let EZ handle IMU calibration — don't call imu.reset() manually
@@ -93,6 +105,8 @@ void initialize() {
   light::pid_tuner.start_task();        // starts 25Hz graph sampler
   register_autons();
   light::auton_selector.init();
+
+  static pros::Task temp_task(temp_display_task, nullptr, 3, TASK_STACK_DEPTH_DEFAULT, "Temp Display");
 
   master.rumble(chassis.drive_imu_calibrated() ? "." : "---");
   pros::delay(100);
@@ -116,7 +130,13 @@ void autonomous() {
   light::reset();     // sync prev* variables to the now-zeroed sensors
   light::setPose(Pose(0, 0, 0));
 
+  uint32_t auton_start = pros::millis();
   light::auton_selector.run();
+  uint32_t elapsed_ms = pros::millis() - auton_start;
+
+  uint32_t secs = elapsed_ms / 1000;
+  uint32_t ms   = elapsed_ms % 1000;
+  master.print(0, 0, "Done: %lu.%03lus  ", secs, ms);
 
 }
 
@@ -196,13 +216,13 @@ void opcontrol() {
 
 
             if (master.get_digital(DIGITAL_R2))
-                MidGoal.set(true), Score.move(-127), Hood.set(false);
+                MidGoal.set(false), Score.move(-127), Hood.set(false);
             else if (master.get_digital(DIGITAL_R1))
                 Score.move(127);
             else if (master.get_digital(DIGITAL_L2))
-                MidGoal.set(false), Score.move(-127);
+                MidGoal.set(true), Score.move(-127);
             else if (master.get_digital(DIGITAL_L1))
-                Score.move(-127), Hood.set(true), MidGoal.set(true);
+                Score.move(-127), Hood.set(true), MidGoal.set(false);
             else
                 Score.move(0);
         }
@@ -229,7 +249,7 @@ void opcontrol() {
 //     if(!auton_running) {
 //       chassis.opcontrol_arcade_standard(ez::SPLIT);
 //       if (master.get_digital(DIGITAL_R2))
-//         MidGoal.set(true),
+//         .set(true),
 //         Score.move(-127),
 //         Hood.set(false);
 //       else if (master.get_digital(DIGITAL_R1))
@@ -240,7 +260,7 @@ void opcontrol() {
 //       else if (master.get_digital(DIGITAL_L1))
 //         Score.move(-127),
 //         Hood.set(true),
-//         MidGoal.set(true);
+//         .set(true);
 //       else
 //         Score.move(0);
 //     }

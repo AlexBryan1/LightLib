@@ -57,10 +57,12 @@ void PidTuner::set_drive(ez::Drive* drive) {
         constants_[t].val[KD]      = c.kd;
         constants_[t].val[START_I] = c.start_i;
     };
-    // Use forward drive PID as the seed for the drive tab
-    load(PID_DRIVE,   drive_->pid_drive_constants_get());
+    // pid_drive_constants_get() / pid_swing_constants_get() return 0 when the
+    // combined setter was used (they read forward_*PID which is zeroed by it).
+    // Read directly from fwd_rev_*PID where the combined setter actually stores.
+    load(PID_DRIVE,   drive_->fwd_rev_drivePID.constants_get());
     load(PID_TURN,    drive_->pid_turn_constants_get());
-    load(PID_SWING,   drive_->pid_swing_constants_get());
+    load(PID_SWING,   drive_->fwd_rev_swingPID.constants_get());
     load(PID_HEADING, drive_->pid_heading_constants_get());
 }
 

@@ -433,9 +433,9 @@ void AutonSelector::init_pid_vals() {
         pid_vals_[t][2] = c.kd;
         pid_vals_[t][3] = c.start_i;
     };
-    load(0, drive->pid_drive_constants_get());
+    load(0, drive->fwd_rev_drivePID.constants_get());
     load(1, drive->pid_turn_constants_get());
-    load(2, drive->pid_swing_constants_get());
+    load(2, drive->fwd_rev_swingPID.constants_get());
     load(3, drive->pid_heading_constants_get());
 }
 
@@ -619,6 +619,9 @@ void AutonSelector::build_run_screen() {
 }
 
 void AutonSelector::start_run_anim() {
+    // Skip if already fully enlarged — no need to replay
+    if (lv_img_get_zoom(run_img_) == 452) return;
+
     // Reset to start position
     lv_img_set_zoom(run_img_, 244);
     lv_obj_set_style_translate_x(run_img_, 143, 0);
