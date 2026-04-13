@@ -8,8 +8,6 @@
 void screen_print_tracker(ez::tracking_wheel *tracker, std::string name, int line);
 void ez_screen_task();
 void ez_template_extras();
-static void auton_task_fn(void*);
-void auton_toggle();
 void checkMotorTemp(pros::Controller& controller, pros::Motor& Top, pros::Motor& Bottom);
 void default_positions();
 void track_basket();

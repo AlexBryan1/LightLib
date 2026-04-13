@@ -2,44 +2,56 @@
 
 // ┌─────────────────────────────────────────────────────────────────────────┐
 // │                         AUTON DECLARATIONS                              │
-// │  Declare every autonomous function here so it can be used in both       │
-// │  autons.cpp (where you write the code) and auton_config.cpp             │
-// │  (where you register it with the selector).                             │
 // │                                                                         │
-// │  Pattern:  void my_auton_name();                                        │
+// │  Three files work together to set up autonomous:                        │
+// │                                                                         │
+// │    autons.hpp       ← YOU ARE HERE — declare every auton function       │
+// │    autons.cpp       ← write the actual autonomous code                  │
+// │    auton_config.cpp ← register each auton with the brain-screen picker  │
+// │                                                                         │
+// │  Workflow for adding a new routine:                                     │
+// │    1. Declare it here:   void my_auton();                               │
+// │    2. Write it in autons.cpp                                            │
+// │    3. Register it in auton_config.cpp:                                  │
+// │         light::auton_selector.add("Label", "na", my_auton);            │
 // └─────────────────────────────────────────────────────────────────────────┘
 
+
 // ── Setup functions ───────────────────────────────────────────────────────────
-// Called once from initialize() in main.cpp — do not rename these.
-void default_constants();   // PID / exit-condition / slew tuning
-void default_positions();   // starting piston / mechanism positions
+// Called once by initialize() in main — do not rename these.
+
+void default_constants();   // tune PID gains, exit conditions, and slew rates
+void default_positions();   // set starting piston / mechanism states
+
 
 // ── Autonomous routines ───────────────────────────────────────────────────────
-// Add a declaration for every routine you write in autons.cpp,
-// then register it in auton_config.cpp with light::auton_selector.add().
+// Declare every routine you write in autons.cpp here, then register it in
+// auton_config.cpp.  Add or remove entries freely — just keep them in sync.
 
-void split_left();
-void split_right();
+void split_left();          // split-goal route starting on the left side
+void split_right();         // split-goal route starting on the right side
 
-void sevenball_right();
-void sevenball_left();
+void sevenball_left();      // seven-ball route — left start
+void sevenball_right();     // seven-ball route — right start
 
-void rush_mid_left();
-void rush_mid_right();
+void rush_mid_left();       // rush to mid goal — left start
+void rush_mid_right();      // rush to mid goal — right start
 
-void rush_left();
-void rush_right();
+void rush_left();           // rush route — left start
+void rush_right();          // rush route — right start
 
-void sixball_left();
-void sixball_right();
+void sawp();
 
-void skills();
+void skills();              // 60-second skills run
 
-// ── Test / debug routines ─────────────────────────────────────────────────────
-// Useful during practice for tuning — remove or comment out for competition.
-void con_test();
-void drive_test(int inches);
-void turn_test(int degrees);
-void swing_test(int degrees);
-void heading_test(int degrees);
-void odom_test(int degrees);
+
+// ── Test / tuning routines ────────────────────────────────────────────────────
+// Useful during practice for dialing in PID.  Register these in
+// auton_config.cpp during tuning sessions; remove them before competition.
+
+void con_test();                    // basic connectivity / control check
+void drive_test(int inches);        // drive straight N inches — tune drive PID
+void turn_test(int degrees);        // turn to N degrees — tune turn PID
+void swing_test(int degrees);       // swing to N degrees — tune swing PID
+void heading_test(int degrees);     // drive while fighting a heading offset
+void odom_test(int degrees);        // zero odom then drive 24 in — test odometry
