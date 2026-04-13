@@ -1,7 +1,7 @@
 #pragma once
 #include "EZ-Template/drive/drive.hpp"
 #include "pros/distance.hpp"
-#include "odom.hpp"
+#include "LightLib/odom.hpp"
 #include <cmath>
 #include <algorithm>
 

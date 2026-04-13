@@ -1,5 +1,5 @@
-#include "pid_tuner.hpp"
-#include "auton_selector.hpp"
+#include "LightLib/pid_tuner.hpp"
+#include "LightLib/auton_selector.hpp"
 #include "pros/rtos.hpp"
 #include <cstdio>
 #include <cmath>

@@ -1,5 +1,5 @@
 #pragma once
-#include "main.h"
+#include "LightLib/main.h"
 #include <string>
 #include <functional>
 #include <vector>

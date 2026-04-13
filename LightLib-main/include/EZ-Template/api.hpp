@@ -15,4 +15,4 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #include "EZ-Template/slew.hpp"
 #include "EZ-Template/tracking_wheel.hpp"
 #include "EZ-Template/util.hpp"
-#include "stub.hpp"
+#include "LightLib/stub.hpp"

@@ -1,11 +1,11 @@
-#include "main.h"
+#include "LightLib/main.h"
 #include <functional>
 #include "autons.hpp"
 #include "pros/motors.h"
-#include "odom.hpp"
-#include "custom_selector.hpp"
-#include "cstm_move.hpp"
-#include "ez_extra.hpp"
+#include "LightLib/odom.hpp"
+#include "LightLib/custom_selector.hpp"
+#include "LightLib/cstm_move.hpp"
+#include "LightLib/ez_extra.hpp"
 #include <atomic>
 
 // ┌─────────────────────────────────────────────────────────────┐

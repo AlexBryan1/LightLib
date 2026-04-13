@@ -1,12 +1,12 @@
 #include "autons.hpp"
 #include <cmath>
 #include "EZ-Template/util.hpp"
-#include "cstm_move.hpp"
-#include "main.h"
+#include "LightLib/cstm_move.hpp"
+#include "LightLib/main.h"
 #include "pros/motors.h"
 #include "subsystems.hpp"
-#include "drive_utils.hpp"
-#include "odom.hpp"
+#include "LightLib/drive_utils.hpp"
+#include "LightLib/odom.hpp"
 
 /////
 // For installation, upgrading, documentations, and tutorials, check out our website!

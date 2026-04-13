@@ -19,7 +19,7 @@
 //   The left distance sensor feeds a PD loop that applies a differential speed
 //   correction to the left and right drive sides each 10ms control cycle.
 
-#include "cstm_move.hpp"
+#include "LightLib/cstm_move.hpp"
 #include <cmath>
 #include <algorithm>
 

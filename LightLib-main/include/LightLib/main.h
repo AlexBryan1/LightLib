@@ -34,7 +34,7 @@
  */
 #define PROS_USE_LITERALS
 
-#include "api.h"
+#include "LightLib/api.h"
 
 /**
  * You should add more #includes here
@@ -46,10 +46,11 @@
 // More includes here...
 #include "autons.hpp"
 #include "subsystems.hpp"
-#include "auton_config.hpp"
-#include "auton_selector.hpp"
-#include "pid_tuner.hpp"
-#include "drive.hpp"
+#include "LightLib/auton_config.hpp"
+#include "LightLib/auton_selector.hpp"
+#include "LightLib/pid_tuner.hpp"
+#include "LightLib/drive.hpp"
+#include "LightLib/holo_drive.hpp"
 
 /**
  * If you find doing pros::Motor() to be tedious and you'd prefer just to do

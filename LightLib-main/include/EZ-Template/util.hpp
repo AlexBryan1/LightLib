@@ -10,7 +10,7 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #include <stdio.h>
 #include <string.h>
 
-#include "api.h"
+#include "LightLib/api.h"
 #include "okapi/api/units/QAngle.hpp"
 #include "okapi/api/units/QLength.hpp"
 #include "okapi/api/units/QTime.hpp"

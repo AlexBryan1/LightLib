@@ -32,7 +32,7 @@
 //   The ez::Drive reference is stored as a pointer at runtime inside
 //   cstm_move_init(), avoiding the PROS cold/hot package linker constraint.
 
-#include "main.h"           // PROS umbrella — provides pros::Distance, pros::millis, etc.
+#include "LightLib/main.h"  // PROS umbrella — provides pros::Distance, pros::millis, etc.
 #include "EZ-Template/api.hpp" // provides ez::Drive
 
 // driveWallTrack — drives the robot forward while:

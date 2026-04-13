@@ -1,10 +1,10 @@
-#include "main.h"
+#include "LightLib/main.h"
 #include "pros/motors.h"
-#include "odom.hpp"
+#include "LightLib/odom.hpp"
 #include "subsystems.hpp"
-#include "odom.hpp"
+#include "LightLib/odom.hpp"
 #include "pros/rtos.hpp"
-#include "ez_extra.hpp"
+#include "LightLib/ez_extra.hpp"
 #include <cmath>
 #include <algorithm>
 #include <atomic>

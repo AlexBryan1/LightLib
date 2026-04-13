@@ -1,8 +1,8 @@
 #pragma once
 
 #include "EZ-Template/api.hpp"
-#include "api.h"
-#include "odom.hpp"
+#include "LightLib/api.h"
+#include "LightLib/odom.hpp"
 
 
 void screen_print_tracker(ez::tracking_wheel *tracker, std::string name, int line);

@@ -1,5 +1,5 @@
-#include "auton_selector.hpp"
-#include "pid_tuner.hpp"
+#include "LightLib/auton_selector.hpp"
+#include "LightLib/pid_tuner.hpp"
 
 LV_IMG_DECLARE(Balls);
 LV_IMG_DECLARE(radiant_scroll_banner);
