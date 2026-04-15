@@ -65,7 +65,11 @@ pros::Distance* frontDist = nullptr;
 // ── Alliance color ────────────────────────────────────────────────────────────
 Colors allianceColor = NEUTRAL;
 
-// ── Temperature display ───────────────────────────────────────────────────────
+// ── Temperature + auton time display ─────────────────────────────────────────
+// auton_time_str is set by autonomous() and auton_toggle(); the temp task
+// reads it every 500 ms so both values appear in the same controller update.
+static char auton_time_str[16] = "";
+
 static void temp_display_task(void*) {
     while (true) {
         double max_temp = 0.0;
@@ -73,7 +77,7 @@ static void temp_display_task(void*) {
         for (double t : rightMotors.get_temperature_all()) max_temp = std::max(max_temp, t);
         max_temp = std::max(max_temp, Top.get_temperature());
         max_temp = std::max(max_temp, Bottom.get_temperature());
-        master.print(2, 8, "H:%3.0fC", max_temp);
+        master.print(1, 0, "%.0fC  %s        ", max_temp, auton_time_str);
         pros::delay(500);
     }
 }
@@ -81,6 +85,7 @@ static void temp_display_task(void*) {
 // ── Auton-during-driver task ──────────────────────────────────────────────────
 static std::atomic<bool> auton_running{false};
 static pros::Task* auton_task = nullptr;
+static uint32_t auton_start_ms = 0;
 
 static void auton_task_fn(void*) {
     autonomous();
@@ -96,10 +101,15 @@ static void auton_toggle() {
     }
     if (master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_UP)) {
         if (auton_task == nullptr) {
+            auton_start_ms = pros::millis();
             auton_running.store(true);
             auton_task = new pros::Task(auton_task_fn, nullptr, TASK_PRIORITY_DEFAULT,
                                         TASK_STACK_DEPTH_DEFAULT, "Auton Task");
         } else {
+            uint32_t elapsed_ms = pros::millis() - auton_start_ms;
+            uint32_t secs = elapsed_ms / 1000;
+            uint32_t ms   = elapsed_ms % 1000;
+            snprintf(auton_time_str, sizeof(auton_time_str), "S:%lu.%03lus", secs, ms);
             auton_running.store(false);
             auton_task->remove();
             delete auton_task;
@@ -216,5 +226,5 @@ void autonomous() {
 
     uint32_t secs = elapsed_ms / 1000;
     uint32_t ms   = elapsed_ms % 1000;
-    master.print(0, 0, "Done: %lu.%03lus  ", secs, ms);
+    snprintf(auton_time_str, sizeof(auton_time_str), "D:%lu.%03lus", secs, ms);
 }

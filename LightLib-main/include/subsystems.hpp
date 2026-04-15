@@ -49,7 +49,6 @@ inline pros::Optical     optical(15);
 //   name.button_toggle(btn)     — toggle state when btn is newly pressed
 
 inline ez::Piston Wings     ('A');   // intake wings / expander
-inline ez::Piston IntakeLift('B');   // raises / lowers the intake
 inline ez::Piston Loader    ('C');   // ball loader / indexer
 inline ez::Piston MidGoal   ('D');   // mid-goal clamp or mechanism
 inline ez::Piston Hood      ('E');   // scoring hood

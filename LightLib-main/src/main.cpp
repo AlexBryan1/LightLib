@@ -21,7 +21,7 @@
 //  1  Arcade        left stick = throttle,  right stick = turn
 //  2  Tank          left stick = left side, right stick = right side
 //  3  Single stick  left stick = throttle + turn (one hand)
-//  4  Holo/Mecanum  left stick = move,      right stick = turn  (needs holoDrive in subsystems.hpp)
+//  4  X/Mecanum  left stick = move,      right stick = turn  (needs holoDrive in subsystems.hpp)
 //  5  H-Drive       tank sides + strafe,    right stick = turn  (needs hDrive   in subsystems.hpp)
 #define DRIVE_TYPE  1
 
@@ -80,7 +80,6 @@ void opcontrol() {
 
         // ── Toggle buttons ────────────────────────────────────────────────
         Wings.button_toggle     (master.get_digital(DIGITAL_B));
-        IntakeLift.button_toggle(master.get_digital(DIGITAL_DOWN));
         Loader.button_toggle    (master.get_digital(DIGITAL_Y));
 
         pros::delay(10);

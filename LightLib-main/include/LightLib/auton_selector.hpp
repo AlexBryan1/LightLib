@@ -58,7 +58,7 @@ private:
     lv_obj_t*  run_toggle_lbl_= nullptr;
     lv_obj_t*  run_back_lbl_  = nullptr;
     lv_obj_t*  run_img_       = nullptr;
-    bool       run_show_img_  = true;
+    bool       run_show_img_  = false;
     void build_run_screen();
     void start_run_anim();
     void switch_run_view(bool show_img);

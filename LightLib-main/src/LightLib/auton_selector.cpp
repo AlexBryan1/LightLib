@@ -73,10 +73,10 @@ void AutonSelector::run() {
     if (selected_idx_ < 0 || selected_idx_ >= (int)autons_.size()) return;
     if (!run_screen_) build_run_screen();
     lv_scr_load(run_screen_);
-    // Show layer-top strip labels
+    switch_run_view(true);
     lv_obj_clear_flag(run_back_lbl_,   LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(run_toggle_lbl_, LV_OBJ_FLAG_HIDDEN);
-    start_run_anim();   // replay animation every time
+    start_run_anim();
     autons_[selected_idx_].fn();
 }
 
@@ -473,7 +473,7 @@ void AutonSelector::build_run_screen() {
     lv_obj_set_style_border_width(run_screen_, 0, 0);
     lv_obj_set_style_pad_all(run_screen_, 0, 0);
 
-    // ── Image view ───────────────────────────────────────────────────────────
+    // ── Image view (hidden by default — toggle to see it) ────────────────────
     run_img_cont_ = lv_obj_create(run_screen_);
     lv_obj_set_size(run_img_cont_, SCREEN_W, SCREEN_H);
     lv_obj_set_pos(run_img_cont_, 0, 0);
@@ -488,8 +488,9 @@ void AutonSelector::build_run_screen() {
     lv_obj_align(run_img_, LV_ALIGN_CENTER, 0, 0);
     lv_obj_set_style_translate_x(run_img_, 143, 0);
     lv_obj_set_style_translate_y(run_img_, 18,  0);
+    lv_obj_add_flag(run_img_cont_, LV_OBJ_FLAG_HIDDEN);
 
-    // ── Info view ────────────────────────────────────────────────────────────
+    // ── Info view (shown by default) ─────────────────────────────────────────
     run_info_cont_ = lv_obj_create(run_screen_);
     lv_obj_set_size(run_info_cont_, SCREEN_W, SCREEN_H);
     lv_obj_set_pos(run_info_cont_, 0, 0);
@@ -514,13 +515,10 @@ void AutonSelector::build_run_screen() {
     lv_obj_set_width(desc_lbl, SCREEN_W - 32);
     lv_obj_set_style_text_align(desc_lbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_align(desc_lbl, LV_ALIGN_CENTER, 0, 20);
-    lv_obj_add_flag(run_info_cont_, LV_OBJ_FLAG_HIDDEN);
 
     // ── Side strips ──────────────────────────────────────────────────────────
-    // Image at zoom 452 is 337px wide → dead space = (480-337)/2 = 71px each side
     static constexpr int DEAD_W = 71;
 
-    // Strip button — dark background with inner accent border, no children
     auto make_strip_btn = [&](int x, lv_event_cb_t cb, bool border_right) {
         lv_obj_t* btn = lv_btn_create(run_screen_);
         lv_obj_set_size(btn, DEAD_W, SCREEN_H);
@@ -535,7 +533,6 @@ void AutonSelector::build_run_screen() {
         lv_obj_set_style_pad_all(btn, 0, 0);
         lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, this);
 
-        // Scrolling radiant banner inside the strip
         int iw = (int)radiant_scroll_banner.header.w;
         int ih = (int)radiant_scroll_banner.header.h;
         lv_obj_t* clip = lv_obj_create(btn);
@@ -547,17 +544,10 @@ void AutonSelector::build_run_screen() {
         lv_obj_set_style_border_width(clip, 0, 0);
         lv_obj_set_style_pad_all(clip, 0, 0);
         lv_obj_set_style_radius(clip, 0, 0);
-        // Scale so banner height fills the strip width
-        int zoom   = (DEAD_W * 256) / ih;
-        int eff_iw = iw * zoom / 256;   // scaled scroll length
-        int x_img  = DEAD_W / 2 - iw / 2;   // center pivot in strip
-        // start_y: image bottom (pivot + eff_iw/2) sits at clip bottom (SCREEN_H)
-        // end_y = start_y + eff_iw: image top (pivot - eff_iw/2) reaches clip bottom → exits
-        // Travel = exactly eff_iw → the two copies hand off seamlessly with no gap.
+        int zoom    = (DEAD_W * 256) / ih;
+        int eff_iw  = iw * zoom / 256;
+        int x_img   = DEAD_W / 2 - iw / 2;
         int start_y = SCREEN_H - (eff_iw / 2 + ih / 2);
-
-        // Two images offset by eff_iw — one always covers the strip while the
-        // other resets off-screen, producing a seamless endless loop.
         auto add_scroll_img = [&](int y_start) {
             lv_obj_t* img = lv_img_create(clip);
             lv_img_set_src(img, &radiant_scroll_banner);
@@ -579,16 +569,10 @@ void AutonSelector::build_run_screen() {
             lv_anim_set_repeat_delay(&a, 0);
             lv_anim_start(&a);
         };
-
-        add_scroll_img(start_y);           // visible at start, scrolls through strip
-        add_scroll_img(start_y - eff_iw);  // one banner-width behind, fills the gap
+        add_scroll_img(start_y);
+        add_scroll_img(start_y - eff_iw);
     };
 
-    // Strip label — child of lv_layer_top() (never clipped by run_screen_).
-    // Unrotated size: 60×18. After 270° rotation it appears as 18×60 (fits in 71px strip).
-    // Both strips have their unrotated rect fully within 0…480 bounds:
-    //   Left  strip centre x=35  → rect x=5,  width=60 → 5…65   ✓
-    //   Right strip centre x=444 → rect x=414, width=60 → 414…474 ✓
     auto make_strip_lbl = [&](int strip_x, const char* text) -> lv_obj_t* {
         static constexpr int LW = 60, LH = 18;
         int cx = strip_x + DEAD_W / 2;
@@ -613,16 +597,30 @@ void AutonSelector::build_run_screen() {
     run_back_lbl_   = make_strip_lbl(0, "BACK");
 
     make_strip_btn(SCREEN_W - DEAD_W, run_toggle_cb, false);
-    run_toggle_lbl_ = make_strip_lbl(SCREEN_W - DEAD_W, "INFO");
+    run_toggle_lbl_ = make_strip_lbl(SCREEN_W - DEAD_W, "IMG");
 
-    run_show_img_ = true;
+    run_show_img_ = false;
+}
+
+void AutonSelector::switch_run_view(bool show_img) {
+    run_show_img_ = show_img;
+    if (show_img) {
+        lv_obj_clear_flag(run_img_cont_,  LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(run_info_cont_,   LV_OBJ_FLAG_HIDDEN);
+        lv_label_set_text(run_toggle_lbl_, "INFO");
+    } else {
+        lv_obj_add_flag(run_img_cont_,    LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(run_info_cont_, LV_OBJ_FLAG_HIDDEN);
+        lv_label_set_text(run_toggle_lbl_, "IMG");
+    }
+}
+
+void AutonSelector::run_toggle_cb(lv_event_t* e) {
+    auto* self = static_cast<AutonSelector*>(lv_event_get_user_data(e));
+    self->switch_run_view(!self->run_show_img_);
 }
 
 void AutonSelector::start_run_anim() {
-    // Skip if already fully enlarged — no need to replay
-    if (lv_img_get_zoom(run_img_) == 452) return;
-
-    // Reset to start position
     lv_img_set_zoom(run_img_, 244);
     lv_obj_set_style_translate_x(run_img_, 143, 0);
     lv_obj_set_style_translate_y(run_img_, 18,  0);
@@ -661,36 +659,15 @@ void AutonSelector::start_run_anim() {
     lv_anim_start(&ay);
 }
 
-void AutonSelector::switch_run_view(bool show_img) {
-    run_show_img_ = show_img;
-    if (show_img) {
-        lv_obj_clear_flag(run_img_cont_,  LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(run_info_cont_,   LV_OBJ_FLAG_HIDDEN);
-        lv_label_set_text(run_toggle_lbl_, "INFO");
-    } else {
-        lv_obj_add_flag(run_img_cont_,    LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(run_info_cont_, LV_OBJ_FLAG_HIDDEN);
-        lv_label_set_text(run_toggle_lbl_, "IMG");
-    }
-}
-
-void AutonSelector::run_toggle_cb(lv_event_t* e) {
-    auto* self = static_cast<AutonSelector*>(lv_event_get_user_data(e));
-    self->switch_run_view(!self->run_show_img_);
-}
-
 void AutonSelector::run_back_cb(lv_event_t* e) {
     auto* self = static_cast<AutonSelector*>(lv_event_get_user_data(e));
     lv_obj_add_flag(self->run_back_lbl_,   LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(self->run_toggle_lbl_, LV_OBJ_FLAG_HIDDEN);
 
-    // Ready callback: switch to selector screen after the last anim finishes
     auto on_done = [](lv_anim_t* a) {
-        auto* s = static_cast<AutonSelector*>(a->user_data);
-        s->show();
+        static_cast<AutonSelector*>(a->user_data)->show();
     };
 
-    // Reverse zoom: 452 → 244
     lv_anim_t az;
     lv_anim_init(&az);
     lv_anim_set_var(&az, self->run_img_);
@@ -702,7 +679,6 @@ void AutonSelector::run_back_cb(lv_event_t* e) {
     lv_anim_set_path_cb(&az, lv_anim_path_ease_in);
     lv_anim_start(&az);
 
-    // Reverse translate X: 0 → 143
     lv_anim_t ax;
     lv_anim_init(&ax);
     lv_anim_set_var(&ax, self->run_img_);
@@ -714,7 +690,6 @@ void AutonSelector::run_back_cb(lv_event_t* e) {
     lv_anim_set_path_cb(&ax, lv_anim_path_ease_in);
     lv_anim_start(&ax);
 
-    // Reverse translate Y: 0 → 18 — switch screen when this one finishes
     lv_anim_t ay;
     lv_anim_init(&ay);
     lv_anim_set_var(&ay, self->run_img_);
@@ -736,10 +711,8 @@ void AutonSelector::btn_cb(lv_event_t* e) {
     int idx = (int)(intptr_t)lv_obj_get_user_data(btn);
     auton_selector.select(idx);
 
-    // Show run screen preview with animation when auton is selected
     auto& self = auton_selector;
     if (!self.run_screen_) self.build_run_screen();
-    // Always start on image view when selecting an auton
     self.switch_run_view(true);
     lv_scr_load(self.run_screen_);
     lv_obj_clear_flag(self.run_back_lbl_,   LV_OBJ_FLAG_HIDDEN);
