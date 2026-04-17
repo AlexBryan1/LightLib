@@ -1,31 +1,45 @@
-// cstm_move.cpp
-// Custom movement primitives using EZ-Template motor control and dual distance sensors.
-// PROS Makefile compiles all src/*.cpp files automatically — no Makefile edits needed.
-//
-// USAGE:
-//   1. Call cstm_move_init(chassis) once in initialize() in main.cpp.
-//   2. Call driveWallTrack(frontSensor, leftSensor, stopDistIn, targetDistIn) in auton.
-//
-// MOTOR CONTROL:
-//   Uses ez::Drive::drive_set(left, right) — values are -127 to 127, NOT millivolts.
-//   A baseSpeed of 80 ≈ 63% power, which is a safe starting point for wall tracking.
-//
-// STOP CONDITION:
-//   The front distance sensor determines when to stop. When the front sensor reads
-//   ≤ stopDistIn inches, the robot has reached a wall ahead and the function exits.
-//   This replaces the encoder-based distance tracking used in the LemLib version.
-//
-// WALL TRACKING:
-//   The left distance sensor feeds a PD loop that applies a differential speed
-//   correction to the left and right drive sides each 10ms control cycle.
+// ┌─────────────────────────────────────────────────────────────────────────────┐
+// │  cstm_move.cpp — Custom movement primitives                                │
+// │                                                                            │
+// │  This file provides "WallRide", a movement function that drives the robot  │
+// │  forward while hugging a wall at a set distance.  It uses two distance     │
+// │  sensors:                                                                  │
+// │                                                                            │
+// │      ┌──────────┐                                                         │
+// │      │  ROBOT   │→ front sensor (stop condition)                          │
+// │      │          │                                                         │
+// │   ←──│          │   left sensor (wall tracking)                           │
+// │      └──────────┘                                                         │
+// │   ════════════════  wall                                                  │
+// │                                                                            │
+// │  HOW IT WORKS:                                                            │
+// │    1. The robot drives forward at a constant base speed.                   │
+// │    2. Every 10ms, the left sensor measures distance to the wall.           │
+// │    3. A PD loop computes a steering correction:                            │
+// │       - Too far from wall → steer left (toward wall)                      │
+// │       - Too close to wall → steer right (away from wall)                  │
+// │    4. The correction is applied as a speed differential between the        │
+// │       left and right drive sides.                                          │
+// │    5. When the front sensor reads ≤ stopDistIn, the robot stops.          │
+// │                                                                            │
+// │  SETUP:                                                                    │
+// │    1. Call cstm_move_init(chassis) once in initialize() in main.cpp.      │
+// │    2. Call WallRide(&frontSensor, &leftSensor, stopDist, targetDist)      │
+// │       in your auton routine.                                               │
+// │                                                                            │
+// │  SPEED SCALE:                                                              │
+// │    All speeds use EZ-Template's -127 to 127 range (NOT raw millivolts).   │
+// │    A baseSpeed of 80 ≈ 63% power, a safe starting point for wall rides.   │
+// └─────────────────────────────────────────────────────────────────��───────────┘
 
 #include "LightLib/cstm_move.hpp"
 #include <cmath>
 #include <algorithm>
 
-// ─── Runtime state (populated by cstm_move_init) ─────────────────────────────
+// ─── Runtime state ───────────────────────────────────────────────────────────
+// Pointer to the EZ-Template chassis object.  Set once by cstm_move_init() so
+// we don't need a global extern — avoids PROS cold/hot package linker issues.
 static ez::Drive* g_chassis = nullptr;
-// ─────────────────────────────────────────────────────────────────────────────
 
 // ─── Wall-Tracking PD Gains ───────────────────────────────────────────────────
 // Units: WALL_KP is in (speed units / mm of lateral distance error).
@@ -43,12 +57,26 @@ static constexpr double WALL_KD = 0.1; // TODO: tune for your robot
 // pros::Distance::get() returns PROS_ERR (~UINT32_MAX) when no object is detected.
 // Readings at or above this threshold (mm) are treated as invalid → zero correction.
 static constexpr double SENSOR_MAX_VALID_MM = 2000.0;
-// ─────────────────────────────────────────────────────────────────────────────
 
+// ─── Initialization ──────────────────────────────────────────────────────────
+// Must be called once before any WallRide() call.  Typically done in initialize().
 void cstm_move_init(ez::Drive& chassis) {
     g_chassis = &chassis;
 }
 
+// ─── WallRide ────────────────────────────────────────────────────────────────
+// Drives forward while maintaining a set distance from a left-side wall.
+// Stops when the front sensor detects a wall within stopDistIn inches,
+// or when the timeout expires.
+//
+// Parameters:
+//   frontSensor  — distance sensor on the front (determines when to stop)
+//   leftSensor   — distance sensor on the left side (feeds the PD wall-tracking loop)
+//                   pass nullptr if not installed; robot drives straight instead
+//   stopDistIn   — how close (inches) the front wall must be before stopping
+//   targetDistIn — desired distance (inches) to maintain from the left wall
+//   baseSpeed    — forward speed, 0–127 (default 80)
+//   timeout      — max duration in ms before forced stop (default 5000)
 void WallRide(pros::Distance* frontSensor,
               pros::Distance* leftSensor,
               double stopDistIn,
@@ -123,27 +151,21 @@ void WallRide(pros::Distance* frontSensor,
     // Stop the drive at the end of the move regardless of exit condition.
     g_chassis->drive_set(0, 0);
 }
-///
-// For turret functions addd the following to opcontrol, and define the turret motor to the right port
-// P.S. change R1 to the button you want to press when shooting the turret, and add the shooting function under the first if statement
+// ─── Turret tracking (example / reference) ───────────────────────────────────
+// If your robot has a turret, you can add the following to opcontrol().
+// Define the turret motor to the correct port, and change DIGITAL_R1 to
+// whichever button you want to use for shooting.
 //
-// void opcontrol(){
-//    pros::Task turret_task(track_basket);
-//    while (true){
-//     if (master.get_digital(DIGITAL_R1)){
-//         turret.move_relative(err_basket, p_turret);
-//         bool pressed = true;
-//     }
-//     else if (pressed){
-//         if (!master.get_digital(DIGITAL_R1)){
-//             pros::Task turr_reset(turret_reset);
-//         }
-//     }
-//    }
-// }
-//
-//
-//
-//
-//
-//
+//   void opcontrol() {
+//       pros::Task turret_task(track_basket);   // start aiming task
+//       bool pressed = false;
+//       while (true) {
+//           if (master.get_digital(DIGITAL_R1)) {
+//               turret.move_relative(err_basket, p_turret);
+//               pressed = true;
+//           } else if (pressed) {
+//               pros::Task turr_reset(turret_reset);
+//               pressed = false;
+//           }
+//       }
+//   }

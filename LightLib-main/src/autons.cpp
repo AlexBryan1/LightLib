@@ -82,7 +82,7 @@ void default_constants() {
     chassis.pid_heading_constants_set(17.0, 0.0, 70.0);
 
     // Turn: used for pid_turn_set() in-place pivots
-    chassis.pid_turn_constants_set(5.0, 0.0, 35.0);
+    chassis.pid_turn_constants_set(5.0, 0.0, 45.0);
 
     // Swing: used for pid_swing_set() single-side turns
     chassis.pid_swing_constants_set(4.0, 0.0, 45.0);
@@ -144,18 +144,113 @@ void default_constants() {
 // │  auton_config.cpp with light::auton_selector.add() so it appears       │
 // │  on the brain screen selector.                                          │
 // └─────────────────────────────────────────────────────────────────────────┘
-
+void shake() {
+    chassis.pid_turn_set(10_deg, 127);
+    pros::delay(100);
+    chassis.pid_turn_set(-10_deg, 127);
+    pros::delay(100);
+    chassis.pid_turn_set(10_deg, 127);
+    pros::delay(100);
+    chassis.pid_turn_set(-10_deg, 127);
+    pros::delay(100);
+    chassis.pid_turn_set(10_deg, 127);
+    pros::delay(100);
+    chassis.pid_turn_set(-10_deg, 127);
+    pros::delay(100);
+    chassis.pid_turn_set(10_deg, 127);
+    pros::delay(100);
+    chassis.pid_turn_set(-10_deg, 127);
+    pros::delay(100);
+}
 void skills() {
     Score.move(-127);
-    chassis.pid_drive_set(90_in, 75);
+    chassis.pid_drive_set(10_in, 75);
+    chassis.pid_wait_until(5_in);
+    shake();
+    chassis.pid_drive_set(10_in, 75);
+    chassis.pid_wait_until(5_in);
+    shake();
+    shake();
+    chassis.pid_turn_set(0_deg, 127);
     chassis.pid_wait();
-    pros::delay(300);
-    chassis.pid_swing_set(ez::RIGHT_SWING, 110_deg, 127, 0, ez::cw);
-    chassis.pid_wait_until(85_deg);
-    chassis.pid_drive_set(-10_in, 127);
-    pros::delay(500);
+    chassis.pid_drive_set(-25_in, 127);
+    chassis.pid_wait_until(-20_in);
+    drive_until_distance(27_in, 40);
+    chassis.pid_turn_set(235_deg, 127);
+    chassis.pid_wait_quick_chain();
     chassis.pid_drive_set(20_in, 127);
-    chassis.pid_wait();
+    chassis.pid_wait_quick_chain();
+    chassis.pid_turn_set(140_deg, 127);
+    chassis.pid_wait_quick_chain();
+    chassis.pid_drive_set(17_in, 127);
+    chassis.pid_wait_quick_chain();
+    Score.move(127);
+    pros::delay(1000);
+    Score.move(90 );
+    chassis.pid_drive_set(-10_in, 127);
+    chassis.pid_wait_quick_chain();
+    Score.move(-127);
+    chassis.pid_turn_set(90_deg, 127);
+    chassis.pid_wait_quick_chain();
+    chassis.pid_drive_set(40_in, 127);
+    chassis.pid_wait_quick_chain();
+    Loader.set(false);
+    chassis.pid_turn_set(65_deg, 127);
+    chassis.pid_wait_quick_chain();
+    chassis.pid_drive_set(17_in, 127);
+    chassis.pid_wait_quick_chain();
+    chassis.pid_turn_set(0_deg, 127);
+    chassis.pid_wait_quick_chain();
+    chassis.pid_drive_set(-20_in, 127);
+    pros::delay(500);
+    Hood.set(false);
+    pros::delay(700);
+    Hood.set(true);
+    chassis.pid_drive_set(35_in, 80);
+    chassis.pid_wait_until(25_in);
+    pros::delay(2000);
+    chassis.pid_drive_set(-7_in, 127);
+    chassis.pid_wait_until(-2_in);
+    Loader.set(true);
+    chassis.pid_turn_set(150_deg, 127);
+    chassis.pid_wait_until(140_deg);
+    chassis.pid_heading_constants_set(0.0, 0.0, 0.0);
+    chassis.pid_drive_set(100_in, 127);
+    chassis.pid_wait_until(60_in);
+    drive_until_distance(50_in);
+    chassis.pid_heading_constants_set(17.0, 0.0, 70.0);
+    chassis.pid_turn_set(270_deg, 127);
+    chassis.pid_wait_quick_chain();
+    chassis.pid_heading_constants_set(0.0, 0.0, 0.0);
+    chassis.pid_drive_set(-20_in, 127);
+    pros::delay(500);
+    chassis.pid_heading_constants_set(17.0, 0.0, 70.0);
+    chassis.pid_drive_set(10_in, 127);
+    chassis.pid_wait_quick_chain();
+    chassis.pid_turn_set(180_deg, 127);
+    chassis.pid_wait_quick_chain();
+    chassis.pid_drive_set(-20_in, 127);
+    pros::delay(100);
+    Loader.set(false);
+    Hood.set(false);
+    pros::delay(2000);
+    Hood.set(true);
+    chassis.pid_drive_set(35_in, 80);
+    chassis.pid_wait_until(25_in);
+    pros::delay(2000);
+    chassis.pid_drive_set(-25_in, 127);
+    chassis.pid_wait_until(-20_in);
+    Hood.set(false);
+    pros::delay(2000);
+    Hood.set(true);
+    Loader.set(true);
+    chassis.pid_drive_set(15_in, 127);
+    chassis.pid_wait_quick_chain();
+    chassis.pid_turn_set(110_deg, 127);
+    chassis.pid_wait_quick_chain();
+    chassis.pid_drive_set(15_in, 127);
+    chassis.pid_wait_quick_chain();
+    drive_until_distance(40_in, 70);
 }
 
 void rush_left() {
@@ -284,39 +379,36 @@ void split_left() {
     chassis.pid_swing_set(ez::LEFT_SWING, 310_deg, 127, 2, ez::cw);
     chassis.pid_wait_quick_chain();
     Loader.set(true);
-    chassis.pid_drive_set(21_in, 127);
+    chassis.pid_drive_set(20_in, 127);
     chassis.pid_wait_quick_chain();
     Loader.set(false);
     pros::delay(200);
     chassis.pid_swing_set(ez::RIGHT_SWING, 0_deg, 127, 15, ez::cw);
-    chassis.pid_wait_until(330_deg);
-    Loader.set(true);
     chassis.pid_wait_until(350_deg);
-    chassis.pid_drive_set(7_in, 127);
-    chassis.pid_wait_until(3_in);
+    chassis.pid_drive_set(5_in, 127);
+    chassis.pid_wait_until(2_in);
     chassis.pid_drive_constants_set(10.0, 0.3, 20.0);
-    chassis.pid_drive_set(-28_in, 127);
-    chassis.pid_wait_until(-23_in);
-    chassis.pid_drive_constants_set(10.0, 0.3, 30.0);
-    chassis.pid_swing_set(ez::RIGHT_SWING, 178_deg, 127, -30, ez::cw);
-    chassis.pid_wait_until(173_deg);
+    chassis.pid_drive_set(-25_in, 127);
+    chassis.pid_wait_until(-20_in);
+    chassis.pid_drive_constants_set(10.0, 0.1, 30.0);
+    chassis.pid_swing_set(ez::RIGHT_SWING, 175_deg, 127, -25, ez::cw);
+    chassis.pid_wait_until(165_deg);
     Loader.set(false);
-    chassis.pid_wait_quick_chain();
-    chassis.pid_drive_set(30_in, 50);
-    pros::delay(1300);
+    chassis.pid_drive_set(30_in, 60);
+    pros::delay(1100);
     chassis.pid_turn_set(175_deg, 127);
-    pros::delay(300);
-    chassis.pid_swing_set(ez::RIGHT_SWING, 217_deg, 127, 30, ez::cw);
-    chassis.pid_wait_until(213_deg);
+    pros::delay(400);
+    chassis.pid_swing_set(ez::RIGHT_SWING, 218_deg, 127, 30, ez::cw);
+    chassis.pid_wait_until(214_deg);
     chassis.pid_drive_set(-45_in, 127);
     Top.move(127);
     pros::delay(100);
-    Top.move(0);
-    chassis.pid_wait_until(-25_in);
+    Top.move(-10);
+    chassis.pid_wait_until(-28_in);
     chassis.pid_speed_max_set(80);
     Wings.set(false);
     MidGoal.set(true);
-    pros::delay(450); 
+    pros::delay(400); 
     Score.move(-127);
     pros::delay(350);
     MidGoal.set(false);
@@ -327,26 +419,30 @@ void split_left() {
     chassis.pid_swing_set(ez::RIGHT_SWING, 150_deg, 127, 5, ez::ccw);
     chassis.pid_wait_quick_chain();
     chassis.pid_drive_set(-20_in, 127);
-    chassis.pid_wait_until(-14_in);
-    chassis.pid_swing_set(ez::RIGHT_SWING, 180_deg, 127, 0, ez::cw);
+    chassis.pid_wait_until(-13_in);
+    chassis.pid_turn_set(175_deg, 127);
     chassis.pid_wait_quick_chain();
-    chassis.pid_drive_exit_condition_set(5000_ms, 1_in, 25000_ms, 3_in, 50000_ms, 50000_ms);
+    chassis.pid_drive_set(-5_in, 127);
+    chassis.pid_wait_until(-2_in);
     MidGoal.set(false);
     Loader.set(true);
     Wings.set(true);
-    chassis.pid_drive_set(25_in, 127);
-    chassis.pid_wait_until(20_in);
-    chassis.pid_swing_set(ez::RIGHT_SWING, 140_deg, 127, -20, ez::ccw);
+    chassis.pid_drive_set(35_in, 127);
+    chassis.pid_wait_until(30_in);
+    chassis.pid_swing_set(ez::RIGHT_SWING, 140_deg, 127, 5, ez::ccw);
     chassis.pid_wait_until(150_deg);
-    chassis.pid_drive_set(-10_in, 127);
-    chassis.pid_wait_until(-5_in);
+    chassis.pid_drive_set(-15_in, 127);
+    chassis.pid_wait_until(-10_in);
     chassis.pid_swing_set(ez::RIGHT_SWING, 180_deg, 127, -25, ez::cw);
     chassis.pid_wait_until(160_deg);
+    chassis.pid_drive_set(-20_in, 80);
+    pros::delay(100);
     Hood.set(false);
-    pros::delay(2500);
+    pros::delay(2000);
     Hood.set(true);
 }
 
+void old_six_ball(){
 // Score.move(-127);
 //     chassis.pid_swing_set(ez::RIGHT_SWING, 285_deg, 127, 45, ez::ccw);
 //     chassis.pid_wait_quick_chain();
@@ -402,6 +498,7 @@ void split_left() {
 //     Loader.set(true);
 //     chassis.pid_drive_set(-3_in, 127);
 //     chassis.pid_wait();
+}
 
 void split_right() {
     Score.move(-127);
@@ -488,14 +585,14 @@ void sawp(){
     chassis.pid_drive_set(45_in, 127, false);
     chassis.pid_wait_until(27_in);
     Loader.set(false);
-    chassis.pid_swing_set(ez::RIGHT_SWING, 330_deg, 127, 50, ez::ccw);
+    chassis.pid_swing_set(ez::RIGHT_SWING, 335_deg, 127, 50, ez::ccw);
     chassis.pid_wait_until(345);
     chassis.pid_drive_set(30_in, 127, false);
     chassis.pid_wait_until(20_in);
-    chassis.pid_swing_set(ez::RIGHT_SWING, 270_deg, 127, 0, ez::ccw);
-    chassis.pid_wait_until(285_deg);
+    chassis.pid_turn_set(270_deg, 127);
+    chassis.pid_wait_quick_chain();
     chassis.pid_drive_set(-25_in, 127);
-    pros::delay(300);
+    pros::delay(200);
     Hood.set(false);
     pros::delay(500);
     chassis.pid_turn_set(268_deg, 127);

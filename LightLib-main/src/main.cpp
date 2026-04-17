@@ -32,7 +32,7 @@
 // ── Distance sensor ports (set to 0 if not installed) ────────────────────────
 #define DIST_LEFT_FRONT_PORT  0
 #define DIST_LEFT_BACK_PORT   0
-#define DIST_FRONT_PORT       0
+#define DIST_FRONT_PORT       15
 
 
 #include "LightLib/robot_impl.inl"

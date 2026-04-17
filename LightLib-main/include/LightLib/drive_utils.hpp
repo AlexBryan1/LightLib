@@ -2,19 +2,23 @@
 #include "EZ-Template/drive/drive.hpp"
 #include "pros/distance.hpp"
 #include "LightLib/odom.hpp"
+#include "okapi/api/units/QLength.hpp"
+#include "subsystems.hpp"
 #include <cmath>
 #include <algorithm>
 
 // ── drive_until_distance ──────────────────────────────────────────────────────
 
-inline void drive_until_distance(ez::Drive&      chassis,
-                                 pros::Distance& sensor,
-                                 double          target_in,
+inline void drive_until_distance(okapi::QLength  target,
                                  int             speed      = 127,
+                                 pros::Distance& sensor     = *frontDist,
                                  int             timeout_ms = 10000)
 {
-    int target_mm = (int)(target_in * 25.4);
-    chassis.pid_drive_set(5000, speed);
+    int target_mm = (int)(target.convert(okapi::inch) * 25.4);
+    // Drive forward or backward depending on speed sign.
+    // 5000 is an arbitrarily large distance — the sensor triggers the real stop.
+    int drive_dir = (speed >= 0) ? 5000 : -5000;
+    chassis.pid_drive_set(drive_dir, std::abs(speed));
 
     int elapsed = 0;
     while (elapsed < timeout_ms) {

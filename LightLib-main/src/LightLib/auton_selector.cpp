@@ -1,25 +1,71 @@
+// ┌─────────────────────────────────────────────────────────────────────────────┐
+// │  auton_selector.cpp                                                         │
+// │                                                                             │
+// │  This file builds the touchscreen UI that appears on the V5 Brain.          │
+// │  It uses LVGL (Light and Versatile Graphics Library) to draw everything.    │
+// │                                                                             │
+// │  The UI has two main screens:                                               │
+// │                                                                             │
+// │  1. SELECTOR SCREEN (what you see before a match)                           │
+// │     ┌──────────────────────────────┬────────────┐                           │
+// │     │  Header  [title]     [toggle]│            │                           │
+// │     ├──────────────────────────────┤  Right     │                           │
+// │     │                              │  Panel     │                           │
+// │     │  Auton buttons (2-col grid,  │  (cycles   │                           │
+// │     │  scrollable if many autons)  │  between:  │                           │
+// │     │                              │  Preview,  │                           │
+// │     │  Tap a button to select an   │  PID Tune, │                           │
+// │     │  auton and preview it.       │  Odom Pos) │                           │
+// │     └──────────────────────────────┴────────────┘                           │
+// │     Left panel  = 290px wide, holds the auton button grid                   │
+// │     Right panel = 190px wide, toggled by the header button:                 │
+// │       - Preview:  shows team image                                          │
+// │       - PID Tune: live-adjust kP/kI/kD/startI for Drive/Turn/Swing/Hdng     │
+// │       - Odom Pos: shows live X, Y, Angle from odometry                      │
+// │                                                                             │
+// │  2. RUN SCREEN (shown when an auton is selected or during autonomous)       │
+// │     Full-screen view with an animated team image, auton name & desc,        │
+// │     and two side-strip buttons:                                             │
+// │       - Left strip:  "BACK" — returns to selector screen                    │
+// │       - Right strip: "IMG"/"INFO" — toggles image vs. text view             │
+// │                                                                             │
+// │  HOW TO USE (from auton_config.cpp or similar):                             │
+// │     light::auton_selector.add("My Auton", "description", my_auton_fn);      │
+// │     light::auton_selector.init();   // call once in initialize()            │
+// │     light::auton_selector.run();    // call in autonomous() to execute      │
+// └─────────────────────────────────────────────────────────────────────────────┘
+
 #include "LightLib/auton_selector.hpp"
 #include "LightLib/pid_tuner.hpp"
 #include "LightLib/odom.hpp"
 
+// LVGL image assets — these are defined elsewhere and converted from image files
+// at compile time.  LV_IMG_DECLARE makes them available as C structs.
 LV_IMG_DECLARE(Balls);
 LV_IMG_DECLARE(radiant_scroll_banner);
 
-// ─── Layout ──────────────────────────────────────────────────────────────────
+// ─── Layout constants ────────────────────────────────────────────────────────
+// The V5 Brain screen is 480×240 pixels.  The selector screen splits into a
+// left button panel (290px) and a right info panel (190px).
 static constexpr int SCREEN_W   = 480;
 static constexpr int SCREEN_H   = 240;
-static constexpr int PANEL_W    = 290;
-static constexpr int PREVIEW_W  = SCREEN_W - PANEL_W;
-static constexpr int HEADER_H   = 36;
-static constexpr int BTN_COLS   = 2;
-static constexpr int BTN_PAD    = 6;
-static constexpr int BTN_H      = 42;
+static constexpr int PANEL_W    = 290;   // left panel (auton buttons)
+static constexpr int PREVIEW_W  = SCREEN_W - PANEL_W;  // right panel
+static constexpr int HEADER_H   = 36;    // gold bar across the top
+static constexpr int BTN_COLS   = 2;     // buttons per row in the grid
+static constexpr int BTN_PAD    = 6;     // spacing between buttons
+static constexpr int BTN_H      = 42;    // height of each auton button
 
-// compact PID panel
+// ─── PID tuner constants ─────────────────────────────────────────────────────
+// The right panel has a built-in PID tuner so you can tweak gains without
+// re-uploading code.  Each PID type (Drive, Turn, Swing, Heading) has four
+// adjustable slots: kP, kI, kD, and start_i.
+// PID_STEP controls how much each +/- button press changes the value.
 static constexpr double      PID_STEP[4]      = { 0.1, 0.001, 0.01, 0.5 };
 static constexpr const char* PID_SLOT_NAMES[4]= { "kP", "kI", "kD", "si" };
 static constexpr const char* PID_TAB_NAMES[4] = { "Drive", "Turn", "Swing", "Hdng" };
 
+// ─── Color palette (purple + gold theme) ─────────────────────────────────────
 #define COL_BG        lv_color_make(0x68, 0x46, 0x8F)
 #define COL_PANEL     lv_color_make(0x50, 0x35, 0x70)
 #define COL_ACCENT    lv_color_make(0xFF, 0xDF, 0x61)
@@ -28,11 +74,14 @@ static constexpr const char* PID_TAB_NAMES[4] = { "Drive", "Turn", "Swing", "Hdn
 #define COL_BORDER    lv_color_make(0xFF, 0xDF, 0x61)
 #define COL_TEXT      lv_color_make(0xFF, 0xDF, 0x61)
 #define COL_TEXT_DIM  lv_color_make(0xCC, 0xAA, 0x30)
-#define COL_TEXT_SEL  lv_color_make(0x3A, 0x20, 0x55)
+#define COL_TEXT_SEL  lv_color_make(0x3A, 0x20, 0x55)  // dark text on gold bg
 #define COL_YELLOW    lv_color_make(0xFF, 0xDF, 0x61)
 #define COL_RED       lv_color_make(0xFF, 0x44, 0x44)
 
-// pack pid-type (0-3), slot (0-3), sign (+/-1) into a pointer-sized cookie
+// ─── PID button data packing ─────────────────────────────────────────────────
+// LVGL buttons store a single void* of user data.  We pack three values into
+// that pointer so each +/- button knows which PID type, which slot (kP/kI/kD/si),
+// and which direction (+1 or -1) it controls.
 static void* sel_pack(int pid, int slot, int sign) {
     return (void*)(intptr_t)(((pid & 3) << 3) | ((slot & 3) << 1) | (sign > 0 ? 1 : 0));
 }
@@ -49,14 +98,21 @@ AutonSelector auton_selector;
 
 static lv_style_t s_btn_idle, s_btn_sel;
 
-// ─── Public ──────────────────────────────────────────────────────────────────
+// ─── Public API ──────────────────────────────────────────────────────────────
+// These are the methods you call from your own code:
+//   add()  — register an auton routine (call once per auton, before init)
+//   init() — build the UI and load it onto the screen (call once in initialize())
+//   run()  — execute whichever auton the driver selected (call in autonomous())
+//   show() — switch back to the selector screen (e.g. after autonomous ends)
 
+// Register an auton with just a text label on its button
 void AutonSelector::add(const std::string& name,
                         const std::string& desc,
                         std::function<void()> fn) {
     autons_.push_back({name, desc, std::move(fn), nullptr});
 }
 
+// Register an auton with a scrolling banner image inside its button
 void AutonSelector::add(const std::string& name,
                         const std::string& desc,
                         std::function<void()> fn,
@@ -64,12 +120,15 @@ void AutonSelector::add(const std::string& name,
     autons_.push_back({name, desc, std::move(fn), banner});
 }
 
+// Build the full UI and select the first auton by default
 void AutonSelector::init() {
     if (autons_.empty()) return;
     build_ui();
     select(0);
 }
 
+// Show the run screen with an animation, then execute the selected auton.
+// This is what you call inside autonomous() — it blocks until the auton finishes.
 void AutonSelector::run() {
     if (selected_idx_ < 0 || selected_idx_ >= (int)autons_.size()) return;
     if (!run_screen_) build_run_screen();
@@ -78,16 +137,22 @@ void AutonSelector::run() {
     lv_obj_clear_flag(run_back_lbl_,   LV_OBJ_FLAG_HIDDEN);
     lv_obj_clear_flag(run_toggle_lbl_, LV_OBJ_FLAG_HIDDEN);
     start_run_anim();
-    autons_[selected_idx_].fn();
+    autons_[selected_idx_].fn();  // actually runs the auton code
 }
 
+// Switch the brain display back to the selector screen
 void AutonSelector::show() {
     if (screen_) lv_scr_load(screen_);
 }
 
 // ─── UI build ────────────────────────────────────────────────────────────────
+// Everything below is internal — you don't need to call any of it directly.
+// build_ui() constructs the entire selector screen from scratch using LVGL.
 
 void AutonSelector::build_ui() {
+    // Two shared styles for auton buttons:
+    // s_btn_idle = default look (purple bg, gold border)
+    // s_btn_sel  = selected/checked look (gold gradient bg, white border)
     lv_style_init(&s_btn_idle);
     lv_style_set_bg_color(&s_btn_idle, COL_BTN_IDLE);
     lv_style_set_bg_opa(&s_btn_idle, LV_OPA_COVER);
@@ -131,7 +196,7 @@ void AutonSelector::build_ui() {
     lv_obj_set_style_text_color(title, COL_TEXT_SEL, 0);
     lv_obj_align(title, LV_ALIGN_LEFT_MID, 10, 0);
 
-    // Toggle button (Preview ↔ PID Tune)
+    // Toggle button — cycles the right panel: Preview → PID Tune → Odom Position
     lv_obj_t* toggle_btn = lv_btn_create(header);
     lv_obj_set_size(toggle_btn, 100, HEADER_H - 10);
     lv_obj_align(toggle_btn, LV_ALIGN_RIGHT_MID, -4, 0);
@@ -148,7 +213,11 @@ void AutonSelector::build_ui() {
     lv_obj_set_style_text_color(toggle_lbl_, COL_ACCENT, 0);
     lv_obj_center(toggle_lbl_);
 
-    // Right panel container
+    // Right panel — sits to the right of the button grid. Contains three
+    // sub-panels stacked on top of each other (only one visible at a time):
+    //   preview_cont_ = team image
+    //   pid_cont_     = PID gain tuner
+    //   odom_cont_    = live odometry readout
     int rp_x = PANEL_W + 4;
     int rp_w = PREVIEW_W - 8;
     int rp_h = SCREEN_H - HEADER_H - 8;
@@ -164,7 +233,7 @@ void AutonSelector::build_ui() {
     lv_obj_set_style_radius(right_panel, 4, 0);
     lv_obj_set_style_pad_all(right_panel, 0, 0);
 
-    // Build preview and PID sub-panels (both created, one hidden)
+    // All three sub-panels are created here; only the preview is visible initially.
     preview_cont_ = lv_obj_create(right_panel);
     lv_obj_set_size(preview_cont_, rp_w, rp_h);
     lv_obj_set_pos(preview_cont_, 0, 0);
@@ -191,9 +260,12 @@ void AutonSelector::build_ui() {
     build_right_odom(odom_cont_);
     lv_obj_add_flag(odom_cont_, LV_OBJ_FLAG_HIDDEN);
 
+    // Timer fires every 100ms to refresh the odom X/Y/Angle display
     odom_timer_ = lv_timer_create(odom_timer_cb, 100, this);
 
-    // Button grid (left panel) — scrollable container
+    // ── Left panel: auton button grid ────────────────────────────────────────
+    // Lays out buttons in a 2-column grid.  If there are too many to fit on
+    // screen, the container becomes scrollable.
     int avail_w  = PANEL_W - BTN_PAD * 2;
     int btn_w    = (avail_w - BTN_PAD * (BTN_COLS - 1)) / BTN_COLS;
     int rows     = ((int)autons_.size() + BTN_COLS - 1) / BTN_COLS;
@@ -219,6 +291,8 @@ void AutonSelector::build_ui() {
         lv_obj_clear_flag(scroll_cont, LV_OBJ_FLAG_SCROLLABLE);
     }
 
+    // Create one button per registered auton.  If the auton has a banner image,
+    // the button shows a scrolling animation; otherwise it shows the auton's name.
     for (int i = 0; i < (int)autons_.size(); i++) {
         int col = i % BTN_COLS;
         int row = i / BTN_COLS;
@@ -279,15 +353,23 @@ void AutonSelector::build_ui() {
     lv_scr_load(screen_);
 }
 
+// Preview sub-panel — just shows the team image rotated and scaled to fit
 void AutonSelector::build_right_preview(lv_obj_t* parent) {
     img_obj_ = lv_img_create(parent);
     lv_img_set_src(img_obj_, &Balls);
-    lv_img_set_angle(img_obj_, 2700);
-    // zoom to fill preview panel (~182×196): scale height 196/136*256 ≈ 369
-    lv_img_set_zoom(img_obj_, 244);
+    lv_img_set_angle(img_obj_, 2700);    // rotate 270 degrees (LVGL uses 0.1-degree units)
+    lv_img_set_zoom(img_obj_, 244);      // scale to fill the panel
     lv_obj_align(img_obj_, LV_ALIGN_CENTER, 0, 0);
 }
 
+// PID tuner sub-panel — lets you adjust PID constants on the brain without
+// re-uploading code.  Layout:
+//   [Drive] [Turn] [Swing] [Hdng]    ← tab buttons to pick which PID set
+//    kP   [-]  0.000  [+]            ← one row per constant, with +/- buttons
+//    kI   [-]  0.000  [+]
+//    kD   [-]  0.000  [+]
+//    si   [-]  0.000  [+]            ← "si" = start_i (integral activation zone)
+//   [       Apply to EZ       ]      ← pushes edited values into EZ-Template
 void AutonSelector::build_right_pid(lv_obj_t* parent) {
     int pw = PREVIEW_W - 8;  // panel width
     int ph = SCREEN_H - HEADER_H - 8;  // panel height
@@ -394,6 +476,8 @@ void AutonSelector::build_right_pid(lv_obj_t* parent) {
     select_pid_tab(0);
 }
 
+// Odometry sub-panel — shows live robot position (X, Y, Angle) updated by a timer.
+// Useful for verifying tracking wheel calibration and odom accuracy on the field.
 void AutonSelector::build_right_odom(lv_obj_t* parent) {
     int pw = PREVIEW_W - 8;
     int ph = SCREEN_H - HEADER_H - 8;
@@ -437,7 +521,8 @@ void AutonSelector::build_right_odom(lv_obj_t* parent) {
 }
 
 // ─── Panel switching ─────────────────────────────────────────────────────────
-
+// Hides all three right-panel sub-panels, then reveals the one matching `mode`.
+// Also updates the toggle button label to show what the NEXT press will switch to.
 void AutonSelector::switch_panel(int mode) {
     right_panel_mode_ = mode;
     lv_obj_add_flag(preview_cont_, LV_OBJ_FLAG_HIDDEN);
@@ -462,6 +547,7 @@ void AutonSelector::switch_panel(int mode) {
     }
 }
 
+// Highlight the selected PID tab and show only its value labels
 void AutonSelector::select_pid_tab(int idx) {
     active_pid_tab_ = idx;
     for (int i = 0; i < 4; i++) {
@@ -476,6 +562,7 @@ void AutonSelector::select_pid_tab(int idx) {
     }
 }
 
+// Update every PID value label to reflect the current pid_vals_ array
 void AutonSelector::refresh_pid_labels() {
     for (int p = 0; p < 4; p++) {
         for (int s = 0; s < 4; s++) {
@@ -487,6 +574,7 @@ void AutonSelector::refresh_pid_labels() {
     }
 }
 
+// Read the current PID constants from EZ-Template into our local pid_vals_ array
 void AutonSelector::init_pid_vals() {
     auto* drive = pid_tuner.get_drive();
     if (!drive) return;
@@ -502,6 +590,7 @@ void AutonSelector::init_pid_vals() {
     load(3, drive->pid_heading_constants_get());
 }
 
+// Push the edited values for the active tab back into EZ-Template's PID controllers
 void AutonSelector::apply_pid_vals() {
     auto* drive = pid_tuner.get_drive();
     if (!drive) return;
@@ -516,7 +605,7 @@ void AutonSelector::apply_pid_vals() {
 }
 
 // ─── Selection ───────────────────────────────────────────────────────────────
-
+// Visually checks the tapped button and unchecks all others
 void AutonSelector::select(int idx) {
     if (idx < 0 || idx >= (int)autons_.size()) return;
     for (int i = 0; i < (int)btn_objs_.size(); i++) {
@@ -526,7 +615,14 @@ void AutonSelector::select(int idx) {
     selected_idx_ = idx;
 }
 
-// ─── Run screen (shown during + after autonomous) ────────────────────────────
+// ─── Run screen ──────────────────────────────────────────────────────────────
+// Shown when an auton button is tapped or when autonomous() calls run().
+// Layout:
+//   ┌─────────┬──────────────────────────┬─────────┐
+//   │  BACK   │   team image / auton     │   IMG   │
+//   │ (strip) │   name + description     │ (strip) │
+//   └─────────┴──────────────────────────┴─────────┘
+// The two side strips have scrolling banner animations and act as buttons.
 
 void AutonSelector::build_run_screen() {
     run_screen_ = lv_obj_create(NULL);
@@ -665,6 +761,7 @@ void AutonSelector::build_run_screen() {
     run_show_img_ = false;
 }
 
+// Toggle the run screen between the team image and the auton name/description text
 void AutonSelector::switch_run_view(bool show_img) {
     run_show_img_ = show_img;
     if (show_img) {
@@ -683,6 +780,8 @@ void AutonSelector::run_toggle_cb(lv_event_t* e) {
     self->switch_run_view(!self->run_show_img_);
 }
 
+// Zoom-in animation that plays when the run screen appears (image scales up
+// from preview size to full screen over 550ms with an ease-out curve)
 void AutonSelector::start_run_anim() {
     lv_img_set_zoom(run_img_, 244);
     lv_obj_set_style_translate_x(run_img_, 143, 0);
@@ -722,6 +821,7 @@ void AutonSelector::start_run_anim() {
     lv_anim_start(&ay);
 }
 
+// "BACK" strip tapped — reverse the zoom animation, then return to selector screen
 void AutonSelector::run_back_cb(lv_event_t* e) {
     auto* self = static_cast<AutonSelector*>(lv_event_get_user_data(e));
     lv_obj_add_flag(self->run_back_lbl_,   LV_OBJ_FLAG_HIDDEN);
@@ -767,8 +867,11 @@ void AutonSelector::run_back_cb(lv_event_t* e) {
     lv_anim_start(&ay);
 }
 
-// ─── Callbacks ───────────────────────────────────────────────────────────────
+// ─── LVGL event callbacks ────────────────────────────────────────────────────
+// These are static functions registered with lv_obj_add_event_cb().  LVGL calls
+// them when the user taps a button on the touchscreen.
 
+// Auton button tapped — select it and jump to the run screen with an animation
 void AutonSelector::btn_cb(lv_event_t* e) {
     lv_obj_t* btn = lv_event_get_target(e);
     int idx = (int)(intptr_t)lv_obj_get_user_data(btn);
@@ -783,11 +886,13 @@ void AutonSelector::btn_cb(lv_event_t* e) {
     self.start_run_anim();
 }
 
+// Header toggle button — cycles right panel: Preview → PID Tune → Odom → Preview…
 void AutonSelector::toggle_cb(lv_event_t* e) {
     auto* self = static_cast<AutonSelector*>(lv_event_get_user_data(e));
     self->switch_panel((self->right_panel_mode_ + 1) % 3);
 }
 
+// Fires every 100ms — refreshes the X/Y/Angle labels on the odom sub-panel
 void AutonSelector::odom_timer_cb(lv_timer_t* timer) {
     auto* self = static_cast<AutonSelector*>(timer->user_data);
     if (self->right_panel_mode_ != 2 || !self->odom_x_lbl_) return;
@@ -801,12 +906,14 @@ void AutonSelector::odom_timer_cb(lv_timer_t* timer) {
     lv_label_set_text(self->odom_theta_lbl_, buf);
 }
 
+// PID tab button tapped (Drive/Turn/Swing/Hdng) — switch which set of values is shown
 void AutonSelector::pid_tab_cb(lv_event_t* e) {
     auto* self = static_cast<AutonSelector*>(lv_event_get_user_data(e));
     int idx = (int)(intptr_t)lv_obj_get_user_data(lv_event_get_target(e));
     self->select_pid_tab(idx);
 }
 
+// +/- button tapped on a PID row — bump the value by its step size and update the label
 void AutonSelector::pid_adj_cb(lv_event_t* e) {
     auto* self = static_cast<AutonSelector*>(lv_event_get_user_data(e));
     int pid_unused, slot, sign;
@@ -820,6 +927,7 @@ void AutonSelector::pid_adj_cb(lv_event_t* e) {
     lv_label_set_text(self->pid_val_labels_[pid][slot], buf);
 }
 
+// "Apply to EZ" button — writes the edited PID values into EZ-Template live
 void AutonSelector::pid_apply_cb(lv_event_t* e) {
     auto* self = static_cast<AutonSelector*>(lv_event_get_user_data(e));
     self->apply_pid_vals();

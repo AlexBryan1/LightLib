@@ -15,7 +15,7 @@
 // │     function       — the void() function declared in autons.hpp         │
 // └─────────────────────────────────────────────────────────────────────────┘
 void register_autons() {
-    light::auton_selector.add("Test",             "na", split_left);
+    light::auton_selector.add("Test",             "na", skills);
     light::auton_selector.add("Left Rush",        "na", rush_left);
     light::auton_selector.add("Right Rush",       "na", rush_right);
     light::auton_selector.add("Left Mid Rush",    "na", rush_mid_left);
