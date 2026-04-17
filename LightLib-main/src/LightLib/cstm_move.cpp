@@ -1,36 +1,36 @@
-// ┌─────────────────────────────────────────────────────────────────────────────┐
-// │  cstm_move.cpp — Custom movement primitives                                │
-// │                                                                            │
-// │  This file provides "WallRide", a movement function that drives the robot  │
-// │  forward while hugging a wall at a set distance.  It uses two distance     │
-// │  sensors:                                                                  │
-// │                                                                            │
-// │      ┌──────────┐                                                         │
-// │      │  ROBOT   │→ front sensor (stop condition)                          │
-// │      │          │                                                         │
-// │   ←──│          │   left sensor (wall tracking)                           │
-// │      └──────────┘                                                         │
-// │   ════════════════  wall                                                  │
-// │                                                                            │
-// │  HOW IT WORKS:                                                            │
-// │    1. The robot drives forward at a constant base speed.                   │
-// │    2. Every 10ms, the left sensor measures distance to the wall.           │
-// │    3. A PD loop computes a steering correction:                            │
-// │       - Too far from wall → steer left (toward wall)                      │
-// │       - Too close to wall → steer right (away from wall)                  │
-// │    4. The correction is applied as a speed differential between the        │
-// │       left and right drive sides.                                          │
-// │    5. When the front sensor reads ≤ stopDistIn, the robot stops.          │
-// │                                                                            │
-// │  SETUP:                                                                    │
-// │    1. Call cstm_move_init(chassis) once in initialize() in main.cpp.      │
-// │    2. Call WallRide(&frontSensor, &leftSensor, stopDist, targetDist)      │
-// │       in your auton routine.                                               │
-// │                                                                            │
-// │  SPEED SCALE:                                                              │
-// │    All speeds use EZ-Template's -127 to 127 range (NOT raw millivolts).   │
-// │    A baseSpeed of 80 ≈ 63% power, a safe starting point for wall rides.   │
-// └─────────────────────────────────────────────────────────────────��───────────┘
+// ┌───────────────────────────────────────────────────────────────────────────────┐
+// │  cstm_move.cpp — Custom movement primitives                                   │
+// │                                                                               │
+// │  This file provides "WallRide", a movement function that drives the robot     │
+// │  forward while hugging a wall at a set distance.  It uses two distance        │
+// │  sensors:                                                                     │
+// │                                                                               │
+// │      ┌──────────┐                                                             │
+// │      │  ROBOT   │→ front sensor (stop condition)                              │
+// │      │          │                                                             │
+// │   ←──│          │   left sensor (wall tracking)                               │
+// │      └──────────┘                                                             │
+// │   ════════════════  wall                                                      │
+// │                                                                               │
+// │  HOW IT WORKS:                                                                │
+// │    1. The robot drives forward at a constant base speed.                      │
+// │    2. Every 10ms, the left sensor measures distance to the wall.              │
+// │    3. A PD loop computes a steering correction:                               │
+// │       - Too far from wall → steer left (toward wall)                          │
+// │       - Too close to wall → steer right (away from wall)                      │
+// │    4. The correction is applied as a speed differential between the           │
+// │       left and right drive sides.                                             │
+// │    5. When the front sensor reads ≤ stopDistIn, the robot stops.              │
+// │                                                                               │
+// │  SETUP:                                                                       │
+// │    1. Call cstm_move_init(chassis) once in initialize() in main.cpp.          │
+// │    2. Call WallRide(&frontSensor, &leftSensor, stopDist, targetDist)          │
+// │       in your auton routine.                                                  │
+// │                                                                               │
+// │  SPEED SCALE:                                                                 │
+// │    All speeds use EZ-Template's -127 to 127 range (NOT raw millivolts).       │
+// │    A baseSpeed of 80 ≈ 63% power, a safe starting point for wall rides.       │
+// └───────────────────────────────────────────────────────────────────────────────┘
 
 #include "LightLib/cstm_move.hpp"
 #include <cmath>

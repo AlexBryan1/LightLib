@@ -162,6 +162,7 @@ void shake() {
     chassis.pid_turn_set(-10_deg, 127);
     pros::delay(100);
 }
+
 void skills() {
     Score.move(-127);
     chassis.pid_drive_set(10_in, 75);
