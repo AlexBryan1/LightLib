@@ -1,5 +1,6 @@
 #include "LightLib/auton_selector.hpp"
 #include "LightLib/pid_tuner.hpp"
+#include "LightLib/odom.hpp"
 
 LV_IMG_DECLARE(Balls);
 LV_IMG_DECLARE(radiant_scroll_banner);
@@ -180,6 +181,17 @@ void AutonSelector::build_ui() {
     lv_obj_set_style_pad_all(pid_cont_, 0, 0);
     build_right_pid(pid_cont_);
     lv_obj_add_flag(pid_cont_, LV_OBJ_FLAG_HIDDEN);
+
+    odom_cont_ = lv_obj_create(right_panel);
+    lv_obj_set_size(odom_cont_, rp_w, rp_h);
+    lv_obj_set_pos(odom_cont_, 0, 0);
+    lv_obj_set_style_bg_opa(odom_cont_, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(odom_cont_, 0, 0);
+    lv_obj_set_style_pad_all(odom_cont_, 0, 0);
+    build_right_odom(odom_cont_);
+    lv_obj_add_flag(odom_cont_, LV_OBJ_FLAG_HIDDEN);
+
+    odom_timer_ = lv_timer_create(odom_timer_cb, 100, this);
 
     // Button grid (left panel) — scrollable container
     int avail_w  = PANEL_W - BTN_PAD * 2;
@@ -382,20 +394,71 @@ void AutonSelector::build_right_pid(lv_obj_t* parent) {
     select_pid_tab(0);
 }
 
+void AutonSelector::build_right_odom(lv_obj_t* parent) {
+    int pw = PREVIEW_W - 8;
+    int ph = SCREEN_H - HEADER_H - 8;
+
+    // Title
+    lv_obj_t* title = lv_label_create(parent);
+    lv_label_set_text(title, LV_SYMBOL_GPS "  POSITION");
+    lv_obj_set_style_text_color(title, COL_ACCENT, 0);
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
+
+    // Separator line
+    lv_obj_t* sep = lv_obj_create(parent);
+    lv_obj_set_size(sep, pw - 8, 1);
+    lv_obj_set_pos(sep, 4, 26);
+    lv_obj_set_style_bg_color(sep, COL_ACCENT2, 0);
+    lv_obj_set_style_bg_opa(sep, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(sep, 0, 0);
+    lv_obj_set_style_radius(sep, 0, 0);
+
+    const char* keys[3] = {"X", "Y", "Ang"};
+    lv_obj_t**  vals[3] = {&odom_x_lbl_, &odom_y_lbl_, &odom_theta_lbl_};
+
+    int row_start = 30;
+    int row_h     = (ph - row_start) / 3;
+
+    for (int i = 0; i < 3; i++) {
+        int mid_y = row_start + i * row_h + row_h / 2 - 7;
+
+        lv_obj_t* key = lv_label_create(parent);
+        lv_label_set_text(key, keys[i]);
+        lv_obj_set_style_text_color(key, COL_TEXT_DIM, 0);
+        lv_obj_set_pos(key, 8, mid_y);
+
+        *vals[i] = lv_label_create(parent);
+        lv_label_set_text(*vals[i], "---");
+        lv_obj_set_style_text_color(*vals[i], COL_ACCENT, 0);
+        lv_obj_set_pos(*vals[i], 40, mid_y);
+        lv_obj_set_width(*vals[i], pw - 48);
+        lv_obj_set_style_text_align(*vals[i], LV_TEXT_ALIGN_RIGHT, 0);
+    }
+}
+
 // ─── Panel switching ─────────────────────────────────────────────────────────
 
-void AutonSelector::switch_panel(bool to_pid) {
-    show_pid_ = to_pid;
-    if (to_pid) {
-        init_pid_vals();
-        refresh_pid_labels();
-        lv_obj_clear_flag(pid_cont_, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(preview_cont_, LV_OBJ_FLAG_HIDDEN);
-        lv_label_set_text(toggle_lbl_, LV_SYMBOL_IMAGE "  Preview");
-    } else {
-        lv_obj_clear_flag(preview_cont_, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(pid_cont_, LV_OBJ_FLAG_HIDDEN);
-        lv_label_set_text(toggle_lbl_, LV_SYMBOL_SETTINGS " PID Tune");
+void AutonSelector::switch_panel(int mode) {
+    right_panel_mode_ = mode;
+    lv_obj_add_flag(preview_cont_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(pid_cont_,     LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(odom_cont_,    LV_OBJ_FLAG_HIDDEN);
+
+    switch (mode) {
+        case 1:  // PID Tune
+            init_pid_vals();
+            refresh_pid_labels();
+            lv_obj_clear_flag(pid_cont_, LV_OBJ_FLAG_HIDDEN);
+            lv_label_set_text(toggle_lbl_, LV_SYMBOL_GPS "  Position");
+            break;
+        case 2:  // Odom Position
+            lv_obj_clear_flag(odom_cont_, LV_OBJ_FLAG_HIDDEN);
+            lv_label_set_text(toggle_lbl_, LV_SYMBOL_IMAGE "  Preview");
+            break;
+        default:  // 0 = Preview
+            lv_obj_clear_flag(preview_cont_, LV_OBJ_FLAG_HIDDEN);
+            lv_label_set_text(toggle_lbl_, LV_SYMBOL_SETTINGS " PID Tune");
+            break;
     }
 }
 
@@ -722,7 +785,20 @@ void AutonSelector::btn_cb(lv_event_t* e) {
 
 void AutonSelector::toggle_cb(lv_event_t* e) {
     auto* self = static_cast<AutonSelector*>(lv_event_get_user_data(e));
-    self->switch_panel(!self->show_pid_);
+    self->switch_panel((self->right_panel_mode_ + 1) % 3);
+}
+
+void AutonSelector::odom_timer_cb(lv_timer_t* timer) {
+    auto* self = static_cast<AutonSelector*>(timer->user_data);
+    if (self->right_panel_mode_ != 2 || !self->odom_x_lbl_) return;
+    Pose p = light::getPose();
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%.2f in", p.x);
+    lv_label_set_text(self->odom_x_lbl_, buf);
+    snprintf(buf, sizeof(buf), "%.2f in", p.y);
+    lv_label_set_text(self->odom_y_lbl_, buf);
+    snprintf(buf, sizeof(buf), "%.1f deg", p.theta);
+    lv_label_set_text(self->odom_theta_lbl_, buf);
 }
 
 void AutonSelector::pid_tab_cb(lv_event_t* e) {

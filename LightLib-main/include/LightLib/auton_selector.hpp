@@ -31,8 +31,13 @@ private:
     lv_obj_t*              img_obj_       = nullptr;
     lv_obj_t*              preview_cont_  = nullptr;
     lv_obj_t*              pid_cont_      = nullptr;
+    lv_obj_t*              odom_cont_     = nullptr;
+    lv_obj_t*              odom_x_lbl_    = nullptr;
+    lv_obj_t*              odom_y_lbl_    = nullptr;
+    lv_obj_t*              odom_theta_lbl_ = nullptr;
+    lv_timer_t*            odom_timer_    = nullptr;
     lv_obj_t*              toggle_lbl_    = nullptr;
-    bool                   show_pid_      = false;
+    int                    right_panel_mode_ = 0;  // 0=preview, 1=pid, 2=odom
     std::vector<lv_obj_t*> btn_objs_;
 
     // compact PID panel state
@@ -44,7 +49,8 @@ private:
     void build_ui();
     void build_right_preview(lv_obj_t* parent);
     void build_right_pid(lv_obj_t* parent);
-    void switch_panel(bool to_pid);
+    void build_right_odom(lv_obj_t* parent);
+    void switch_panel(int mode);
     void select_pid_tab(int idx);
     void refresh_pid_labels();
     void init_pid_vals();
@@ -70,6 +76,7 @@ private:
     static void pid_tab_cb(lv_event_t* e);
     static void pid_adj_cb(lv_event_t* e);
     static void pid_apply_cb(lv_event_t* e);
+    static void odom_timer_cb(lv_timer_t* timer);
 };
 
 extern AutonSelector auton_selector;

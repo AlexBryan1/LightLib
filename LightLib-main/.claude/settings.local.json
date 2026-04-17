@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -rn \"max_speed\\\\|MAX_SPEED\\\\|127\\\\|speed.*limit\\\\|-127\" /c/Users/cactu/OneDrive/Documents/GitHub/LightLib/LightLib-main/include/LightLib/*.hpp)"
+    ]
+  }
+}

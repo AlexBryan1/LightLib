@@ -29,12 +29,17 @@ ez::Drive chassis(LEFT_PORTS, RIGHT_PORTS, IMU_PORT, _ROBOT_WHEEL_DIA, WHEEL_RPM
 pros::MotorGroup leftMotors (LEFT_PORTS);
 pros::MotorGroup rightMotors(RIGHT_PORTS);
 pros::Imu imu(IMU_PORT);
+#if IMU2_PORT != 0
 pros::Imu imu2(IMU2_PORT);
+static pros::Imu* imu2_ptr = &imu2;
+#else
+static pros::Imu* imu2_ptr = nullptr;
+#endif
 
 TrackingWheel leftTracker (&leftMotors,  _ROBOT_WHEEL_DIA, -TRACK_HALF_W);
 TrackingWheel rightTracker(&rightMotors, _ROBOT_WHEEL_DIA,  TRACK_HALF_W);
 
-OdomSensors sensors(&leftTracker, &rightTracker, nullptr, nullptr, &imu, &imu2);
+OdomSensors sensors(&leftTracker, &rightTracker, nullptr, nullptr, &imu, imu2_ptr);
 
 // ── Distance sensors ──────────────────────────────────────────────────────────
 // Port 0 means "not installed" — the pointer is nullptr in that case.
@@ -71,13 +76,23 @@ Colors allianceColor = NEUTRAL;
 static char auton_time_str[16] = "";
 
 static void temp_display_task(void*) {
+    uint32_t last_buzz_ms = 0;
     while (true) {
         double max_temp = 0.0;
         for (double t : leftMotors.get_temperature_all())  max_temp = std::max(max_temp, t);
         for (double t : rightMotors.get_temperature_all()) max_temp = std::max(max_temp, t);
-        max_temp = std::max(max_temp, Top.get_temperature());
-        max_temp = std::max(max_temp, Bottom.get_temperature());
+        for (double t : Score.get_temperature_all())       max_temp = std::max(max_temp, t);
         master.print(1, 0, "%.0fC  %s        ", max_temp, auton_time_str);
+
+        // Buzz the controller at 2-second intervals when any motor exceeds HEAT_BUZZ_TEMP
+        if (HEAT_BUZZ_ENABLED && max_temp >= HEAT_BUZZ_TEMP) {
+            uint32_t now = pros::millis();
+            if (now - last_buzz_ms >= 2000) {
+                master.rumble("_");
+                last_buzz_ms = now;
+            }
+        }
+
         pros::delay(500);
     }
 }
@@ -182,7 +197,7 @@ void initialize() {
     chassis.drive_imu_reset();
     cstm_move_init(chassis);
 
-    OdomSensors odom_sensors(&leftTracker, &rightTracker, nullptr, nullptr, &imu, &imu2);
+    OdomSensors odom_sensors(&leftTracker, &rightTracker, nullptr, nullptr, &imu, imu2_ptr);
     light::init(odom_sensors);
 
     default_constants();           // PID / exit-condition / slew tuning (autons.cpp)

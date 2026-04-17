@@ -17,6 +17,10 @@
 #define JOYSTICK_CURVE    0.2f   // expo curve strength (0 = linear, higher = more curve)
 #define JOYSTICK_DEADZONE 10     // joystick values ±this are treated as 0 (0–127)
 
+// ── Thermal buzz ──────────────────────────────────────────────────────────────
+#define HEAT_BUZZ_ENABLED  true  // set to false to disable the temperature warning
+#define HEAT_BUZZ_TEMP     55    // °C threshold that triggers the controller buzz
+
 // ── Drive style ───────────────────────────────────────────────────────────────
 //  1  Arcade        left stick = throttle,  right stick = turn
 //  2  Tank          left stick = left side, right stick = right side
