@@ -3,6 +3,7 @@
 #include "EZ-Template/api.hpp"
 #include "LightLib/api.h"
 #include "LightLib/odom.hpp"
+#include "pros/motor_group.hpp"
 
 
 void screen_print_tracker(ez::tracking_wheel *tracker, std::string name, int line);
@@ -11,6 +12,16 @@ void ez_template_extras();
 void checkMotorTemp(pros::Controller& controller, pros::Motor& Top, pros::Motor& Bottom);
 void default_positions();
 void track_basket();
+
+// Register the user's drivetrain objects with LightLib.  Must be called once
+// in initialize() before ez_screen_task / ez_template_extras / moveToPoint are
+// used.  Takes pointers rather than externing globals so LightLib can live in
+// the PROS cold package without linker errors.
+namespace light {
+    void ez_extra_init(ez::Drive* chassis,
+                       pros::MotorGroup* leftMotors,
+                       pros::MotorGroup* rightMotors);
+}
 
 
 // Simple PID controller struct

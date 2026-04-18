@@ -23,9 +23,10 @@ USE_PACKAGE:=1
 # EXCLUDE_COLD_LIBRARIES:= $(FWDIR)/your_library.a
 EXCLUDE_COLD_LIBRARIES:=
 
-# Exclude large image assets from the hot binary - they live in the cold package
-# instead, so they only need to re-upload when the images actually change.
-EXCLUDE_SRCDIRS := $(SRCDIR)/images
+# Exclude large image assets, LightLib, and EZ-Template from the hot binary -
+# they live in the cold package instead, so they only need to re-upload when
+# those sources actually change.
+EXCLUDE_SRCDIRS := $(SRCDIR)/images $(SRCDIR)/LightLib $(SRCDIR)/EZ-Template
 
 # Set this to 1 to add additional rules to compile your project as a PROS library template
 IS_LIBRARY:=0
@@ -75,3 +76,52 @@ endif
 .PHONY: assets
 assets: $(ASSET_OBJS)
 	$(call test_output_2,Rebuilding asset library $(ASSET_LIB) ,$(AR) rcs $(ASSET_LIB) $^,$(DONE_STRING))
+
+################################################################################
+# LightLib library — LightLib source compiled into the cold package.
+# Same pattern as the asset library above: the sources are excluded from the
+# hot binary (via EXCLUDE_SRCDIRS) and linked into cold.elf as a static archive.
+# Delete firmware/liblightlib.a manually if you need a full cold rebuild.
+LIGHTLIB_SRCS := $(wildcard $(SRCDIR)/LightLib/*.cpp)
+LIGHTLIB_OBJS := $(addprefix $(BINDIR)/,$(patsubst $(SRCDIR)/%,%.o,$(LIGHTLIB_SRCS)))
+LIGHTLIB_LIB  := $(FWDIR)/liblightlib.a
+
+# Inject LightLib into the cold package link only ($^ → --whole-archive).
+# Hot/monolith use order-only so the library is never duplicated into the hot binary.
+$(COLD_ELF): $(LIGHTLIB_LIB)
+$(HOT_ELF): | $(LIGHTLIB_LIB)
+$(MONOLITH_ELF): | $(LIGHTLIB_LIB)
+
+# Only add the build rule when the library is completely absent (e.g. fresh git clone).
+# firmware/ is NOT cleaned by `make clean`, so once built the library persists.
+# When LightLib sources change, run `make lightlib` explicitly to rebuild.
+ifeq ($(wildcard $(LIGHTLIB_LIB)),)
+$(LIGHTLIB_LIB): $(LIGHTLIB_OBJS)
+	$(call test_output_2,Creating LightLib library $@ ,$(AR) rcs $@ $^,$(DONE_STRING))
+endif
+
+.PHONY: lightlib
+lightlib: $(LIGHTLIB_OBJS)
+	$(call test_output_2,Rebuilding LightLib library $(LIGHTLIB_LIB) ,$(AR) rcs $(LIGHTLIB_LIB) $^,$(DONE_STRING))
+
+################################################################################
+# EZ-Template library — EZ-Template source compiled into the cold package.
+# Same pattern as LightLib / assets above.  Moving EZ-Template to cold lets
+# LightLib (also cold) resolve ez::* symbols at cold-link time.
+# Delete firmware/libeztemplate.a manually if you need a full cold rebuild.
+EZTEMPLATE_SRCS := $(call rwildcard,$(SRCDIR)/EZ-Template/,*.cpp,)
+EZTEMPLATE_OBJS := $(addprefix $(BINDIR)/,$(patsubst $(SRCDIR)/%,%.o,$(EZTEMPLATE_SRCS)))
+EZTEMPLATE_LIB  := $(FWDIR)/libeztemplate.a
+
+$(COLD_ELF): $(EZTEMPLATE_LIB)
+$(HOT_ELF): | $(EZTEMPLATE_LIB)
+$(MONOLITH_ELF): | $(EZTEMPLATE_LIB)
+
+ifeq ($(wildcard $(EZTEMPLATE_LIB)),)
+$(EZTEMPLATE_LIB): $(EZTEMPLATE_OBJS)
+	$(call test_output_2,Creating EZ-Template library $@ ,$(AR) rcs $@ $^,$(DONE_STRING))
+endif
+
+.PHONY: eztemplate
+eztemplate: $(EZTEMPLATE_OBJS)
+	$(call test_output_2,Rebuilding EZ-Template library $(EZTEMPLATE_LIB) ,$(AR) rcs $(EZTEMPLATE_LIB) $^,$(DONE_STRING))

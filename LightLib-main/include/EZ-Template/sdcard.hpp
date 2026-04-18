@@ -101,3 +101,8 @@ int page_blank_amount();
 extern int amount_of_blank_pages;
 }  // namespace as
 }  // namespace ez
+
+// Inline stubs for the ez::as:: functions above — LightLib doesn't use LLEMU
+// so these are no-ops.  Included here so every TU that sees the declarations
+// above also sees the definitions (fixes cold-link undefined refs).
+#include "LightLib/stub.hpp"

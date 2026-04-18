@@ -37,6 +37,21 @@
 // If any motor exceeds this temperature (Celsius), the controller will rumble.
 #define MOTOR_TEMP_THRESHOLD 55.0
 
+// Runtime pointers to the user's drivetrain.  Set by light::ez_extra_init()
+// from initialize() — LightLib lives in the cold package and cannot reference
+// hot-defined externs directly, so callers register their objects instead.
+static ez::Drive*        g_chassis      = nullptr;
+static pros::MotorGroup* g_leftMotors   = nullptr;
+static pros::MotorGroup* g_rightMotors  = nullptr;
+
+void light::ez_extra_init(ez::Drive* chassis,
+                          pros::MotorGroup* leftMotors,
+                          pros::MotorGroup* rightMotors) {
+    g_chassis     = chassis;
+    g_leftMotors  = leftMotors;
+    g_rightMotors = rightMotors;
+}
+
 // ─── Brain screen helpers ────────────────────────────────────────────────────
 // These display tracking wheel data and odom readings on the V5 Brain screen.
 // Useful for debugging sensor calibration and odom accuracy in the pits.
@@ -62,19 +77,19 @@ void screen_print_tracker(ez::tracking_wheel *tracker, std::string name, int lin
 void ez_screen_task() {
   while (true) {
     if (!pros::competition::is_connected()) {
-      if (chassis.odom_enabled() && !chassis.pid_tuner_enabled()) {
+      if (g_chassis && g_chassis->odom_enabled() && !g_chassis->pid_tuner_enabled()) {
         if (ez::as::page_blank_is_on(0)) {
           // Show current robot position from odometry
-          ez::screen_print("x: " + util::to_string_with_precision(chassis.odom_x_get()) +
-                               "\ny: " + util::to_string_with_precision(chassis.odom_y_get()) +
-                               "\na: " + util::to_string_with_precision(chassis.odom_theta_get()),
+          ez::screen_print("x: " + util::to_string_with_precision(g_chassis->odom_x_get()) +
+                               "\ny: " + util::to_string_with_precision(g_chassis->odom_y_get()) +
+                               "\na: " + util::to_string_with_precision(g_chassis->odom_theta_get()),
                            1);  // line 1 — don't overwrite the page title on line 0
 
           // Show each tracking wheel's raw value and its distance-to-center
-          screen_print_tracker(chassis.odom_tracker_left, "l", 4);
-          screen_print_tracker(chassis.odom_tracker_right, "r", 5);
-          screen_print_tracker(chassis.odom_tracker_back, "b", 6);
-          screen_print_tracker(chassis.odom_tracker_front, "f", 7);
+          screen_print_tracker(g_chassis->odom_tracker_left, "l", 4);
+          screen_print_tracker(g_chassis->odom_tracker_right, "r", 5);
+          screen_print_tracker(g_chassis->odom_tracker_back, "b", 6);
+          screen_print_tracker(g_chassis->odom_tracker_front, "f", 7);
         }
       }
     } else {
@@ -96,19 +111,20 @@ void ez_screen_task() {
 // In competition mode:
 //   - The PID tuner is automatically disabled so it can't interfere with a match
 void ez_template_extras() {
+  if (!g_chassis) return;
   if (!pros::competition::is_connected()) {
     if (master.get_digital_new_press(DIGITAL_X))
-      chassis.pid_tuner_toggle();
+      g_chassis->pid_tuner_toggle();
 
     if (master.get_digital(DIGITAL_B) && master.get_digital(DIGITAL_DOWN)) {
-      pros::motor_brake_mode_e_t preference = chassis.drive_brake_get();
-      chassis.drive_brake_set(preference);
+      pros::motor_brake_mode_e_t preference = g_chassis->drive_brake_get();
+      g_chassis->drive_brake_set(preference);
     }
 
-    chassis.pid_tuner_iterate();
+    g_chassis->pid_tuner_iterate();
   } else {
-    if (chassis.pid_tuner_enabled())
-      chassis.pid_tuner_disable();
+    if (g_chassis->pid_tuner_enabled())
+      g_chassis->pid_tuner_disable();
   }
 }
 
@@ -164,11 +180,11 @@ void turret_reset(){
 //   maxSpeed         — motor speed cap, 0–127 (default 127)
 //   reversed         — if true, drive to the point backwards
 
-// These must match the motor groups declared in robot_config.cpp
-extern pros::MotorGroup leftMotors;
-extern pros::MotorGroup rightMotors;
+// Motor groups are passed in via light::ez_extra_init() — see top of file.
 
 void light::moveToPoint(float targetX, float targetY, int timeout, float maxSpeed, bool reversed) {
+
+    if (!g_leftMotors || !g_rightMotors) return;  // not registered — nothing to drive
 
     // Two separate PID controllers — one for distance, one for heading.
     // Tune these for your robot.  Good starting points:
@@ -226,13 +242,13 @@ void light::moveToPoint(float targetX, float targetY, int timeout, float maxSpee
             rightPower = rightPower / maxOut * maxSpeed;
         }
 
-        leftMotors.move(leftPower);
-        rightMotors.move(rightPower);
+        g_leftMotors->move(leftPower);
+        g_rightMotors->move(rightPower);
 
         pros::delay(10);  // 10ms control loop — yields to PROS scheduler
     }
 
     // Always stop the motors when we're done
-    leftMotors.move(0);
-    rightMotors.move(0);
+    g_leftMotors->move(0);
+    g_rightMotors->move(0);
 }

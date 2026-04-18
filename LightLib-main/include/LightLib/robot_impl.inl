@@ -196,6 +196,7 @@ void initialize() {
     pros::delay(300);
     chassis.drive_imu_reset();
     cstm_move_init(chassis);
+    light::ez_extra_init(&chassis, &leftMotors, &rightMotors);
 
     OdomSensors odom_sensors(&leftTracker, &rightTracker, nullptr, nullptr, &imu, imu2_ptr);
     light::init(odom_sensors);

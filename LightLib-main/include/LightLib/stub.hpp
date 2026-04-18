@@ -11,4 +11,9 @@ namespace ez::as {
     inline bool page_blank_is_on(int)  { return false; }
     inline int  page_blank_amount()    { return 0; }
     inline void page_blank_remove_all() {}
+    // The EZ-Template PID tuner calls these to toggle LLEMU.  LightLib uses
+    // LVGL directly (not LLEMU), so they're safe no-ops here.
+    inline void initialize() {}
+    inline void shutdown()   {}
+    inline bool enabled()    { return false; }
 }
