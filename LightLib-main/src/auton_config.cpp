@@ -15,12 +15,12 @@
 // │     function       — the void() function declared in autons.hpp         │
 // └─────────────────────────────────────────────────────────────────────────┘
 void register_autons() {
-    light::auton_selector.add("Test",             "na", split_right);
-    light::auton_selector.add("Left Mid Rush",    "na", rush_mid_left);
+    light::auton_selector.add("L 7",              "na", sevenball_left);
+    light::auton_selector.add("R 7",              "na", sevenball_right);
+    light::auton_selector.add("L 6/3 Mid",        "na", split_left);
+    light::auton_selector.add("R 6/3 Long",       "na", split_right);
+    light::auton_selector.add("L 6/3 Long",       "na", delayed_split);
     light::auton_selector.add("SAWP",             "na", sawp);
-    light::auton_selector.add("Left Sevenball",   "na", sevenball_left);
-    light::auton_selector.add("Right Sevenball",  "na", sevenball_right);
-    light::auton_selector.add("Left Split",       "na", split_left);
-    light::auton_selector.add("Right Split",      "na", split_right);
+    light::auton_selector.add("Secret",           "na", rush_mid_left);
     light::auton_selector.add("Skills",           "na", skills);
 }

@@ -32,13 +32,13 @@
 // ── Distance sensor ports (set to 0 if not installed) ────────────────────────
 #define DIST_LEFT_FRONT_PORT  0
 #define DIST_LEFT_BACK_PORT   0
-#define DIST_FRONT_PORT       15
+#define DIST_FRONT_PORT       6
 
 
 #include "LightLib/robot_impl.inl"
 
 // ┌─────────────────────────────────────────────────────────────────────────┐
-// │                       INITIALIZATION HOOK                                │
+// │                       INITIALIZATION HOOK                               │
 // │  Called at the end of initialize() — add any extra setup here.          │
 // │  The chassis, IMU, and auton selector are already ready by this point.  │
 // └─────────────────────────────────────────────────────────────────────────┘
@@ -47,7 +47,7 @@ void user_initialize() {
 }
 
 // ┌─────────────────────────────────────────────────────────────────────────┐
-// │                       AUTONOMOUS HOOK                                    │
+// │                       AUTONOMOUS HOOK                                   │
 // │  Called at the start of autonomous(), before the selected routine runs. │
 // │  Use this to set allianceColor or do any pre-auton setup.               │
 // └─────────────────────────────────────────────────────────────────────────┘
@@ -56,7 +56,7 @@ void user_autonomous() {
 }
 
 // ┌─────────────────────────────────────────────────────────────────────────┐
-// │                       OPERATOR CONTROL                                   │
+// │                       OPERATOR CONTROL                                  │
 // │  Map your buttons and subsystems here.                                  │
 // │  Motors and pistons are declared in subsystems.hpp.                     │
 // └─────────────────────────────────────────────────────────────────────────┘
