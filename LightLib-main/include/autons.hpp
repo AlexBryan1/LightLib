@@ -36,6 +36,10 @@ void sevenball_right();     // seven-ball route — right start
 
 void rush_mid_left();       // rush to mid goal — left start
 void delayed_split();
+
+void seven_two_left();
+void seven_two_right();
+
 void rush_left();           // rush route — left start
 void rush_right();          // rush route — right start
 

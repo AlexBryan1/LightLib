@@ -236,9 +236,9 @@ void autonomous() {
 
     user_autonomous();               // user hook — defined in main.cpp
 
-    uint32_t auton_start = pros::millis();
+    light::auton_start_ms = pros::millis();
     light::auton_selector.run();
-    uint32_t elapsed_ms = pros::millis() - auton_start;
+    uint32_t elapsed_ms = pros::millis() - light::auton_start_ms;
 
     uint32_t secs = elapsed_ms / 1000;
     uint32_t ms   = elapsed_ms % 1000;

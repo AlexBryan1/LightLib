@@ -51,6 +51,7 @@
 #include "LightLib/pid_tuner.hpp"
 #include "LightLib/drive.hpp"
 #include "LightLib/holo_drive.hpp"
+#include "LightLib/auton_timer.hpp"
 
 /**
  * If you find doing pros::Motor() to be tedious and you'd prefer just to do
