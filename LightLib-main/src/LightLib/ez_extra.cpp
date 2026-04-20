@@ -52,6 +52,14 @@ void light::ez_extra_init(ez::Drive* chassis,
     g_rightMotors = rightMotors;
 }
 
+void light::getDriveMotorGroups(pros::MotorGroup** leftOut,
+                                pros::MotorGroup** rightOut) {
+    if (leftOut)  *leftOut  = g_leftMotors;
+    if (rightOut) *rightOut = g_rightMotors;
+}
+
+ez::Drive* light::getChassis() { return g_chassis; }
+
 // ─── Brain screen helpers ────────────────────────────────────────────────────
 // These display tracking wheel data and odom readings on the V5 Brain screen.
 // Useful for debugging sensor calibration and odom accuracy in the pits.

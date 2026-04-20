@@ -25,28 +25,7 @@ void default_positions();   // set starting piston / mechanism states
 
 
 // ── Autonomous routines ───────────────────────────────────────────────────────
-// Declare every routine you write in autons.cpp here, then register it in
-// auton_config.cpp.  Add or remove entries freely — just keep them in sync.
-
-void split_left();          // split-goal route starting on the left side
-void split_right();         // split-goal route starting on the right side
-
-void sevenball_left();      // seven-ball route — left start
-void sevenball_right();     // seven-ball route — right start
-
-void rush_mid_left();       // rush to mid goal — left start
-void delayed_split();
-
-void seven_two_left();
-void seven_two_right();
-
-void rush_left();           // rush route — left start
-void rush_right();          // rush route — right start
-
-void sawp();
-
-void skills();              // 60-second skills run
-
+void run_jerryio_path_1();
 
 // ── Test / tuning routines ────────────────────────────────────────────────────
 // Useful during practice for dialing in PID.  Register these in

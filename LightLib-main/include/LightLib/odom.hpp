@@ -80,4 +80,10 @@ namespace light {
     Pose estimatePose(float time, bool radians = false);
 
     void update();
+
+    // Radian-only pose. RAMSETE and trajectory code MUST use this, never
+    // getPose(false). Double-conversion between degrees and radians is the
+    // top bug source in ports of this algorithm — centralizing the one
+    // radian entry point avoids it.
+    inline Pose getPoseRad() { return getPose(true); }
 }

@@ -21,6 +21,13 @@ namespace light {
     void ez_extra_init(ez::Drive* chassis,
                        pros::MotorGroup* leftMotors,
                        pros::MotorGroup* rightMotors);
+
+    // Accessors used by RAMSETE/characterization so they command the same
+    // motor groups the user registered via ez_extra_init. Returns nullptr
+    // through the out-params if ez_extra_init hasn't been called.
+    void getDriveMotorGroups(pros::MotorGroup** leftOut,
+                             pros::MotorGroup** rightOut);
+    ez::Drive* getChassis();
 }
 
 

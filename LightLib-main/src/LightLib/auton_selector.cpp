@@ -41,8 +41,8 @@
 
 // LVGL image assets — these are defined elsewhere and converted from image files
 // at compile time.  LV_IMG_DECLARE makes them available as C structs.
-LV_IMG_DECLARE(Balls);
-LV_IMG_DECLARE(radiant_scroll_banner);
+LV_IMG_DECLARE(LOGO);
+LV_IMG_DECLARE(BANNER);
 
 // ─── Layout constants ────────────────────────────────────────────────────────
 // The V5 Brain screen is 480×240 pixels.  The selector screen splits into a
@@ -356,7 +356,7 @@ void AutonSelector::build_ui() {
 // Preview sub-panel — just shows the team image rotated and scaled to fit
 void AutonSelector::build_right_preview(lv_obj_t* parent) {
     img_obj_ = lv_img_create(parent);
-    lv_img_set_src(img_obj_, &Balls);
+    lv_img_set_src(img_obj_, &LOGO);
     lv_img_set_angle(img_obj_, 2700);    // rotate 270 degrees (LVGL uses 0.1-degree units)
     lv_img_set_zoom(img_obj_, 244);      // scale to fill the panel
     lv_obj_align(img_obj_, LV_ALIGN_CENTER, 0, 0);
@@ -641,7 +641,7 @@ void AutonSelector::build_run_screen() {
     lv_obj_set_style_pad_all(run_img_cont_, 0, 0);
 
     run_img_ = lv_img_create(run_img_cont_);
-    lv_img_set_src(run_img_, &Balls);
+    lv_img_set_src(run_img_, &LOGO);
     lv_img_set_angle(run_img_, 2700);
     lv_img_set_zoom(run_img_, 244);
     lv_obj_align(run_img_, LV_ALIGN_CENTER, 0, 0);
@@ -692,8 +692,8 @@ void AutonSelector::build_run_screen() {
         lv_obj_set_style_pad_all(btn, 0, 0);
         lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, this);
 
-        int iw = (int)radiant_scroll_banner.header.w;
-        int ih = (int)radiant_scroll_banner.header.h;
+        int iw = (int)BANNER.header.w;
+        int ih = (int)BANNER.header.h;
         lv_obj_t* clip = lv_obj_create(btn);
         lv_obj_set_size(clip, DEAD_W, SCREEN_H);
         lv_obj_set_pos(clip, 0, 0);
@@ -709,7 +709,7 @@ void AutonSelector::build_run_screen() {
         int start_y = SCREEN_H - (eff_iw / 2 + ih / 2);
         auto add_scroll_img = [&](int y_start) {
             lv_obj_t* img = lv_img_create(clip);
-            lv_img_set_src(img, &radiant_scroll_banner);
+            lv_img_set_src(img, &BANNER);
             lv_img_set_angle(img, 2700);
             lv_img_set_pivot(img, iw / 2, ih / 2);
             lv_obj_clear_flag(img, LV_OBJ_FLAG_CLICKABLE);

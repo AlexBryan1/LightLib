@@ -1,4 +1,5 @@
 #include "LightLib/auton_selector.hpp"
+#include "LightLib/ramsete.hpp"
 #include "autons.hpp"
 
 // ┌─────────────────────────────────────────────────────────────────────────┐
@@ -16,14 +17,26 @@
 // └─────────────────────────────────────────────────────────────────────────┘
 
 void register_autons() {
-    light::auton_selector.add("L 7",              "7 balls in long goal, gains control", sevenball_left);
-    light::auton_selector.add("R 7",              "7 balls in long goal, gains control", sevenball_right);
-    light::auton_selector.add("L 6/3 Long",       "3 in mid then anti lever then 6 in long", delayed_split);
-    light::auton_selector.add("R 6/3 Long",       "3 in mid then anti lever then 6 in long", split_right);
-    light::auton_selector.add("L 6/3 Mid",        "Anti lever 6 in long with then 3 in mid", split_left);
-    light::auton_selector.add("SAWP",             "Solo Auton Win Point(5+0+3+6)", sawp);
-    light::auton_selector.add("L 7/2 Delayed",    "7 ball then go to mid after delay", seven_two_left);
-    light::auton_selector.add("R 7/2 Delayed",    "7 ball then go to mid after delay", seven_two_right);
-    light::auton_selector.add("Secret",           "6 mid rush, one time auton to suprise opponents", rush_mid_left);
-    light::auton_selector.add("Skills",           "102 max, realistically not even hitting 80 lol", skills);
+    light::auton_selector.add("Test Path",           "funny", run_jerryio_path_1);
+
+    // ── Relay-feedback PID auto-tune ────────────────────────────────────────
+    // Each runs ~6-10 s, printf's Ku/Pu/kP/kI/kD, and auto-applies to EZ.
+    light::auton_selector.add("Tune: Turn",    "Relay-tune turn PID (in-place)",
+                              []{ light::autotune_turn_pid(); });
+    light::auton_selector.add("Tune: Drive",   "Relay-tune drive PID (needs 8 ft)",
+                              []{ light::autotune_drive_pid(); });
+    light::auton_selector.add("Tune: Swing",   "Relay-tune swing PID (left-side)",
+                              []{ light::autotune_swing_pid(); });
+    light::auton_selector.add("Tune: Heading", "Relay-tune heading-correct PID (needs lane)",
+                              []{ light::autotune_heading_pid(); });
+
+    // ── RAMSETE characterization (prints + auto-applies to live config) ─────
+    // Transcribe the printed numbers into ramsete_configure() in
+    // default_constants() to make them permanent across reboots.
+    light::auton_selector.add("Char: kV/kA/kS", "Ramp drive, compute DriveFF (needs 8 ft)",
+                              []{ light::characterize_kV_kA_kS(); });
+    light::auton_selector.add("Char: Track W.", "Spin in place, compute trackWidthIn",
+                              []{ light::characterize_track_width(); });
+    light::auton_selector.add("Char: aLatMax",  "Constant-radius circle, find lat-accel cap",
+                              []{ light::characterize_a_lat_max(); });
 }

@@ -214,7 +214,7 @@ static lv_font_fmt_txt_dsc_t font_dsc = {
 };
 
 /* ── Public font object ───────────────────────────────────────────────────── */
-lv_font_t font = {
+lv_font_t FONT = {
     .get_glyph_dsc    = lv_font_get_glyph_dsc_fmt_txt,
     .get_glyph_bitmap = lv_font_get_bitmap_fmt_txt,
     .line_height      = 16,
