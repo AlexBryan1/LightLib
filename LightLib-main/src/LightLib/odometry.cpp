@@ -67,16 +67,12 @@
 // +-----------------------------------------------------------------------------+
 
 #include "LightLib/odom.hpp"
+#include "LightLib/ekf.hpp"
+#include "LightLib/lightcast.hpp"
 #include <cmath>
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-// Exponential Moving Average — smooths noisy speed readings.
-// `smooth` near 1.0 = very smooth (slow to respond), near 0.0 = raw/noisy.
-// We use 0.95 for speed estimates, which gives a ~200 ms effective window.
-static float ema(float newVal, float oldVal, float smooth) {
-    return smooth * oldVal + (1.0f - smooth) * newVal;
-}
 static float degToRad(float deg) { return deg * M_PI / 180.0f; }
 static float radToDeg(float rad) { return rad * 180.0f / M_PI; }
 
@@ -118,6 +114,10 @@ Pose light::getPose(bool radians) {
 // Pass degrees by default, or radians if you set the flag.
 void light::setPose(Pose pose, bool radians) {
     odomPose = radians ? pose : Pose(pose.x, pose.y, degToRad(pose.theta));
+    // Propagate to the fused estimators so the next update() doesn't pull the
+    // pose back to the stale EKF mean.
+    light::ekf::reset(odomPose);
+    light::lightcast::init(odomPose, odomSensors.distanceSensors);
 }
 
 // getSpeed() — global-frame velocity (how fast x, y, θ are changing).
@@ -267,29 +267,77 @@ void light::update() {
         localY = 2.0f * sinf(deltaHeading / 2.0f) * (deltaY / deltaHeading + vertOffset);
     }
 
-    // ── Step 6: Rotate local → global and update pose ──
-    // localY (forward) maps to both global X and Y via sin/cos of heading.
-    // localX (strafe) maps similarly but rotated 90°.
-    Pose prevPose = odomPose;
-    odomPose.x +=  localY * sinf(avgHeading);
-    odomPose.y +=  localY * cosf(avgHeading);
-    odomPose.x += -localX * cosf(avgHeading);
-    odomPose.y +=  localX * sinf(avgHeading);
-    odomPose.theta = heading;
-
-    // ── Step 7: Update smoothed speed estimates ──
-    // dt = 0.01 because update() runs every 10 ms.
-    // EMA with α=0.95 smooths out encoder noise while still tracking
-    // velocity changes within ~200 ms — good enough for motion prediction
-    // (see estimatePose()) and feed-forward control.
+    // ── Step 6/7: EKF predict + measurement updates + LightCast predict ──
+    // Arc math becomes the motion model; EKF handles mean + covariance
+    // propagation and Kalman-weighted measurement fusion. LightCast runs its
+    // (cheap) predict here synced to the same deltas; its (expensive) update
+    // runs at 5 Hz in lightcast_task.cpp.
     const float dt = 0.01f;
-    odomSpeed.x     = ema((odomPose.x     - prevPose.x)     / dt, odomSpeed.x,     0.95f);
-    odomSpeed.y     = ema((odomPose.y     - prevPose.y)     / dt, odomSpeed.y,     0.95f);
-    odomSpeed.theta = ema((odomPose.theta - prevPose.theta) / dt, odomSpeed.theta, 0.95f);
 
-    odomLocalSpeed.x     = ema(localX       / dt, odomLocalSpeed.x,     0.95f);
-    odomLocalSpeed.y     = ema(localY       / dt, odomLocalSpeed.y,     0.95f);
-    odomLocalSpeed.theta = ema(deltaHeading / dt, odomLocalSpeed.theta, 0.95f);
+    // Pose measurement derived from this tick's arc — used as the "wheel
+    // pose" update when GPS + unpowered rotation sensors are both absent.
+    // Compute it against the prior fused mean so we don't race with the EKF.
+    Pose prior = light::ekf::mean();
+    Pose wheelDerived;
+    wheelDerived.x     = prior.x + localY * sinf(avgHeading) - localX * cosf(avgHeading);
+    wheelDerived.y     = prior.y + localY * cosf(avgHeading) + localX * sinf(avgHeading);
+    wheelDerived.theta = heading;
+
+    light::ekf::predict(localX, localY, deltaHeading, dt);
+
+    // IMU: small variance so it dominates heading when other sources don't beat it.
+    if (odomSensors.imu != nullptr) {
+        const float R_imu = 0.000076f;  // ~(0.5°)² in rad²
+        light::ekf::updateHeadingIMU(imuRaw, R_imu);
+    }
+
+    // GPS: only fuse when sensor reports low error. get_error() ≈ meters;
+    // variance scales roughly with error². Convert GPS meters → inches.
+    if (odomSensors.gps != nullptr) {
+        double err_m = odomSensors.gps->get_error();
+        if (err_m > 0.0 && err_m < 0.5) {
+            const float M_TO_IN = 39.3701f;
+            float gx = static_cast<float>(odomSensors.gps->get_position_x()) * M_TO_IN;
+            float gy = static_cast<float>(odomSensors.gps->get_position_y()) * M_TO_IN;
+            float R_gps = static_cast<float>(err_m * err_m) * M_TO_IN * M_TO_IN;
+            light::ekf::updateGPS(gx, gy, R_gps);
+        }
+    }
+
+    // Powered-wheel-only fallback: only weight this in when there's nothing
+    // better (i.e. no unpowered vert + no horizontal trackers). High R so
+    // good sensors dominate when present.
+    bool haveUnpowered = v1unpowered || v2unpowered || h1ok || h2ok;
+    if (!haveUnpowered) {
+        const float R_wheel = 4.0f;  // (2 in)² position, ignored for heading in this path
+        light::ekf::updateWheelPose(wheelDerived, R_wheel);
+    }
+
+    light::lightcast::predict(localX, localY, deltaHeading);
+
+    // Divergence snap: if EKF covariance blows up AND LightCast has a tight
+    // cluster AND enough sensors participate, pull the EKF to the LightCast
+    // best estimate. Rate-limited to prevent oscillation.
+    static int snapCooldown = 0;
+    if (snapCooldown > 0) --snapCooldown;
+    if (snapCooldown == 0 &&
+        light::lightcast::sensorCount() >= 2 &&
+        light::ekf::diverged(9.0f) &&
+        light::lightcast::converged(3.0f)) {
+        light::ekf::reset(light::lightcast::best());
+        snapCooldown = 50;  // 500 ms at 100 Hz
+    }
+
+    // Read fused state back out into the public pose/speed fields.
+    odomPose  = light::ekf::mean();
+    odomSpeed = light::ekf::velocity();
+
+    // Local-frame speed = world speed rotated by -theta.
+    float ct = cosf(odomPose.theta);
+    float st = sinf(odomPose.theta);
+    odomLocalSpeed.x     = odomSpeed.x * (-ct) + odomSpeed.y *  st;
+    odomLocalSpeed.y     = odomSpeed.x *   st  + odomSpeed.y *  ct;
+    odomLocalSpeed.theta = odomSpeed.theta;
 }
 
 // ─── Task management ─────────────────────────────────────────────────────────
@@ -299,6 +347,15 @@ void light::update() {
 // The task runs update() every 10 ms (100 Hz) in the background.
 void light::init(OdomSensors sensors) {
     odomSensors = sensors;
+
+    // Bring the fused pose estimators online before the tick task starts so
+    // the first update() has valid state to update.
+    light::ekf::init(odomPose);
+    light::lightcast::init(odomPose, odomSensors.distanceSensors);
+    if (!odomSensors.distanceSensors.empty()) {
+        light::lightcast::startTask();
+    }
+
     if (trackingTask == nullptr) {
         trackingTask = new pros::Task([] {
             while (true) {

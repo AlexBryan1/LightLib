@@ -38,6 +38,7 @@
 #include "LightLib/auton_selector.hpp"
 #include "LightLib/pid_tuner.hpp"
 #include "LightLib/odom.hpp"
+#include "ui_config.hpp"
 
 // LVGL image assets — these are defined elsewhere and converted from image files
 // at compile time.  LV_IMG_DECLARE makes them available as C structs.
@@ -65,18 +66,8 @@ static constexpr double      PID_STEP[4]      = { 0.1, 0.001, 0.01, 0.5 };
 static constexpr const char* PID_SLOT_NAMES[4]= { "kP", "kI", "kD", "si" };
 static constexpr const char* PID_TAB_NAMES[4] = { "Drive", "Turn", "Swing", "Hdng" };
 
-// ─── Color palette (purple + gold theme) ─────────────────────────────────────
-#define COL_BG        lv_color_make(0x68, 0x46, 0x8F)
-#define COL_PANEL     lv_color_make(0x50, 0x35, 0x70)
-#define COL_ACCENT    lv_color_make(0xFF, 0xDF, 0x61)
-#define COL_ACCENT2   lv_color_make(0xCC, 0xAA, 0x30)
-#define COL_BTN_IDLE  lv_color_make(0x55, 0x38, 0x78)
-#define COL_BORDER    lv_color_make(0xFF, 0xDF, 0x61)
-#define COL_TEXT      lv_color_make(0xFF, 0xDF, 0x61)
-#define COL_TEXT_DIM  lv_color_make(0xCC, 0xAA, 0x30)
-#define COL_TEXT_SEL  lv_color_make(0x3A, 0x20, 0x55)  // dark text on gold bg
-#define COL_YELLOW    lv_color_make(0xFF, 0xDF, 0x61)
-#define COL_RED       lv_color_make(0xFF, 0x44, 0x44)
+// ─── Color palette ───────────────────────────────────────────────────────────
+// Defined in include/LightLib/ui_config.hpp — edit there to retheme the UI.
 
 // ─── PID button data packing ─────────────────────────────────────────────────
 // LVGL buttons store a single void* of user data.  We pack three values into
@@ -261,7 +252,7 @@ void AutonSelector::build_ui() {
     lv_obj_add_flag(odom_cont_, LV_OBJ_FLAG_HIDDEN);
 
     // Timer fires every 100ms to refresh the odom X/Y/Angle display
-    odom_timer_ = lv_timer_create(odom_timer_cb, 100, this);
+    odom_timer_ = lv_timer_create(odom_timer_cb, UI_ODOM_REFRESH_MS, this);
 
     // ── Left panel: auton button grid ────────────────────────────────────────
     // Lays out buttons in a 2-column grid.  If there are too many to fit on
@@ -333,10 +324,10 @@ void AutonSelector::build_ui() {
                 lv_obj_set_x((lv_obj_t*)obj, v);
             });
             lv_anim_set_values(&a, -iw, cw);
-            lv_anim_set_time(&a, (iw + cw) * 7);
-            lv_anim_set_delay(&a, i * 400);
+            lv_anim_set_time(&a, (iw + cw) * UI_ANIM_BANNER_PX_MS);
+            lv_anim_set_delay(&a, i * UI_ANIM_BANNER_STAGGER_MS);
             lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
-            lv_anim_set_repeat_delay(&a, 800);
+            lv_anim_set_repeat_delay(&a, UI_ANIM_BANNER_REPEAT_DELAY_MS);
             lv_anim_start(&a);
         } else {
             lv_obj_t* lbl = lv_label_create(btn);
@@ -723,7 +714,7 @@ void AutonSelector::build_run_screen() {
                 lv_obj_set_y((lv_obj_t*)obj, v);
             });
             lv_anim_set_values(&a, y_start, y_start + eff_iw);
-            lv_anim_set_time(&a, eff_iw * 7);
+            lv_anim_set_time(&a, eff_iw * UI_ANIM_BANNER_PX_MS);
             lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
             lv_anim_set_repeat_delay(&a, 0);
             lv_anim_start(&a);
@@ -794,7 +785,7 @@ void AutonSelector::start_run_anim() {
         lv_img_set_zoom((lv_obj_t*)obj, (uint16_t)v);
     });
     lv_anim_set_values(&az, 244, 452);
-    lv_anim_set_time(&az, 550);
+    lv_anim_set_time(&az, UI_ANIM_RUN_ZOOM_IN_MS);
     lv_anim_set_path_cb(&az, lv_anim_path_ease_out);
     lv_anim_start(&az);
 
@@ -805,7 +796,7 @@ void AutonSelector::start_run_anim() {
         lv_obj_set_style_translate_x((lv_obj_t*)obj, v, 0);
     });
     lv_anim_set_values(&ax, 143, 0);
-    lv_anim_set_time(&ax, 550);
+    lv_anim_set_time(&ax, UI_ANIM_RUN_ZOOM_IN_MS);
     lv_anim_set_path_cb(&ax, lv_anim_path_ease_out);
     lv_anim_start(&ax);
 
@@ -816,7 +807,7 @@ void AutonSelector::start_run_anim() {
         lv_obj_set_style_translate_y((lv_obj_t*)obj, v, 0);
     });
     lv_anim_set_values(&ay, 18, 0);
-    lv_anim_set_time(&ay, 550);
+    lv_anim_set_time(&ay, UI_ANIM_RUN_ZOOM_IN_MS);
     lv_anim_set_path_cb(&ay, lv_anim_path_ease_out);
     lv_anim_start(&ay);
 }
@@ -838,7 +829,7 @@ void AutonSelector::run_back_cb(lv_event_t* e) {
         lv_img_set_zoom((lv_obj_t*)obj, (uint16_t)v);
     });
     lv_anim_set_values(&az, 452, 244);
-    lv_anim_set_time(&az, 450);
+    lv_anim_set_time(&az, UI_ANIM_RUN_ZOOM_OUT_MS);
     lv_anim_set_path_cb(&az, lv_anim_path_ease_in);
     lv_anim_start(&az);
 
@@ -849,7 +840,7 @@ void AutonSelector::run_back_cb(lv_event_t* e) {
         lv_obj_set_style_translate_x((lv_obj_t*)obj, v, 0);
     });
     lv_anim_set_values(&ax, 0, 143);
-    lv_anim_set_time(&ax, 450);
+    lv_anim_set_time(&ax, UI_ANIM_RUN_ZOOM_OUT_MS);
     lv_anim_set_path_cb(&ax, lv_anim_path_ease_in);
     lv_anim_start(&ax);
 
@@ -861,7 +852,7 @@ void AutonSelector::run_back_cb(lv_event_t* e) {
         lv_obj_set_style_translate_y((lv_obj_t*)obj, v, 0);
     });
     lv_anim_set_values(&ay, 0, 18);
-    lv_anim_set_time(&ay, 450);
+    lv_anim_set_time(&ay, UI_ANIM_RUN_ZOOM_OUT_MS);
     lv_anim_set_path_cb(&ay, lv_anim_path_ease_in);
     lv_anim_set_ready_cb(&ay, on_done);
     lv_anim_start(&ay);

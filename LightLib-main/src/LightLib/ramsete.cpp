@@ -826,7 +826,8 @@ struct RelayResult {
 
 static RelayResult runRelay(std::function<float()> readError,
                             std::function<void(int)> applyRelay,
-                            float h, int cycles, int timeoutMs) {
+                            float h, int cycles, int timeoutMs,
+                            int chunkCycles = 0, int coolMs = 0) {
     RelayResult out;
     if (!readError || !applyRelay || h <= 0.0f || cycles <= 0) return out;
 
@@ -843,6 +844,13 @@ static RelayResult runRelay(std::function<float()> readError,
 
     std::vector<float> amps;   // per-half-cycle extrema spread
     std::vector<float> pers;   // period between like-signed zero-crossings
+
+    // Motor-cooldown chunking: every `halfPerChunk` half-cycles, kill the
+    // relay for `coolMs` to keep motors from cooking on long tunes. Active
+    // time (not cooldown time) counts against timeoutMs, so we bump t0 by
+    // coolMs after each pause.
+    const int halfPerChunk = (chunkCycles > 0 && coolMs > 0) ? (2 * chunkCycles) : 0;
+    int halfInChunk = 0;
 
     while ((int)(pros::millis() - t0) < timeoutMs) {
         float e = readError();
@@ -868,8 +876,26 @@ static RelayResult runRelay(std::function<float()> readError,
             sign = -sign;
             applyRelay(sign);
             haveHalfCycle = true;
+            halfInChunk++;
 
             if ((int)amps.size() >= 2 * cycles) break;   // cycles full periods
+
+            if (halfPerChunk > 0 && halfInChunk >= halfPerChunk) {
+                // Chunk full — cool off before next chunk. Throw away the
+                // first half-cycle after resume (transient from re-priming).
+                applyRelay(0);
+                printf("[AUTOTUNE] chunk done (%d/%d cycles), cooling %dms\n",
+                       (int)amps.size() / 2, cycles, coolMs);
+                pros::delay(coolMs);
+                t0 += coolMs;
+                halfInChunk = 0;
+                sign = (readError() >= 0.0f) ? -1 : 1;
+                applyRelay(sign);
+                tLastZX = pros::millis();
+                curMax = -1e9f;
+                curMin =  1e9f;
+                haveHalfCycle = false;
+            }
         }
 
         pros::delay(10);
@@ -909,7 +935,8 @@ static void applyZnAndPrint(const char* tag, const RelayResult& r,
     printf("[AUTOTUNE][%s] applied to live EZ chassis (start_i=0).\n", tag);
 }
 
-void autotune_turn_pid(float reliefV, int cycles, int timeoutMs) {
+void autotune_turn_pid(float reliefV, int cycles, int timeoutMs,
+                       int chunkCycles, int coolMs) {
     ez::Drive* chassis = light::getChassis();
     pros::MotorGroup* L = nullptr; pros::MotorGroup* R = nullptr;
     light::getDriveMotorGroups(&L, &R);
@@ -927,13 +954,15 @@ void autotune_turn_pid(float reliefV, int cycles, int timeoutMs) {
         L->move_voltage( mV);
         R->move_voltage(-mV);
     };
-    RelayResult r = runRelay(readErr, apply, reliefV, cycles, timeoutMs);
+    RelayResult r = runRelay(readErr, apply, reliefV, cycles, timeoutMs,
+                             chunkCycles, coolMs);
     applyZnAndPrint("turn", r, [&](double p, double i, double d) {
         chassis->pid_turn_constants_set(p, i, d, 0.0);
     });
 }
 
-void autotune_drive_pid(float reliefV, int cycles, int timeoutMs) {
+void autotune_drive_pid(float reliefV, int cycles, int timeoutMs,
+                        int chunkCycles, int coolMs) {
     ez::Drive* chassis = light::getChassis();
     pros::MotorGroup* L = nullptr; pros::MotorGroup* R = nullptr;
     light::getDriveMotorGroups(&L, &R);
@@ -953,13 +982,15 @@ void autotune_drive_pid(float reliefV, int cycles, int timeoutMs) {
         L->move_voltage(mV);
         R->move_voltage(mV);
     };
-    RelayResult r = runRelay(readErr, apply, reliefV, cycles, timeoutMs);
+    RelayResult r = runRelay(readErr, apply, reliefV, cycles, timeoutMs,
+                             chunkCycles, coolMs);
     applyZnAndPrint("drive", r, [&](double p, double i, double d) {
         chassis->pid_drive_constants_set(p, i, d, 0.0);
     });
 }
 
-void autotune_swing_pid(float reliefV, int cycles, int timeoutMs) {
+void autotune_swing_pid(float reliefV, int cycles, int timeoutMs,
+                        int chunkCycles, int coolMs) {
     ez::Drive* chassis = light::getChassis();
     pros::MotorGroup* L = nullptr; pros::MotorGroup* R = nullptr;
     light::getDriveMotorGroups(&L, &R);
@@ -978,13 +1009,15 @@ void autotune_swing_pid(float reliefV, int cycles, int timeoutMs) {
         L->move_voltage(mV);
         R->move_voltage(0);
     };
-    RelayResult r = runRelay(readErr, apply, reliefV, cycles, timeoutMs);
+    RelayResult r = runRelay(readErr, apply, reliefV, cycles, timeoutMs,
+                             chunkCycles, coolMs);
     applyZnAndPrint("swing", r, [&](double p, double i, double d) {
         chassis->pid_swing_constants_set(p, i, d, 0.0);
     });
 }
 
-void autotune_heading_pid(float forwardV, float reliefV, int cycles, int timeoutMs) {
+void autotune_heading_pid(float forwardV, float reliefV, int cycles, int timeoutMs,
+                          int chunkCycles, int coolMs) {
     ez::Drive* chassis = light::getChassis();
     pros::MotorGroup* L = nullptr; pros::MotorGroup* R = nullptr;
     light::getDriveMotorGroups(&L, &R);
@@ -1006,7 +1039,8 @@ void autotune_heading_pid(float forwardV, float reliefV, int cycles, int timeout
         L->move_voltage((int)(vL * 1000.0f));
         R->move_voltage((int)(vR * 1000.0f));
     };
-    RelayResult r = runRelay(readErr, apply, reliefV, cycles, timeoutMs);
+    RelayResult r = runRelay(readErr, apply, reliefV, cycles, timeoutMs,
+                             chunkCycles, coolMs);
     applyZnAndPrint("heading", r, [&](double p, double i, double d) {
         chassis->pid_heading_constants_set(p, i, d, 0.0);
     });

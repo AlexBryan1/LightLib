@@ -5,14 +5,15 @@
 // our strong definition, which runs before PROS applies its blue material theme.
 #include "liblvgl/lvgl.h"
 #include "liblvgl/extra/themes/default/lv_theme_default.h"
+#include "ui_config.hpp"
 
 void lvgl_init() {
     lv_disp_t* disp = lv_disp_get_default();
     lv_theme_t* th = lv_theme_default_init(
         disp,
-        lv_color_make(0x0D, 0x0D, 0x10),  // primary: near-black — suppresses blue bar
-        lv_color_make(0x0D, 0x0D, 0x10),  // secondary: same
-        true,                              // dark mode
-        &lv_font_montserrat_20);
+        COL_THEME_PRIMARY,
+        COL_THEME_SECONDARY,
+        UI_THEME_DARK,
+        UI_DEFAULT_FONT);
     lv_disp_set_theme(disp, th);
 }

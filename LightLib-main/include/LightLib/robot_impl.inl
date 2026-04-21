@@ -12,15 +12,135 @@
 static constexpr double _ROBOT_WHEEL_DIA = WHEEL_DIAMETER;
 #undef WHEEL_DIAMETER
 
+// ── Optional-sensor default macros ────────────────────────────────────────────
+// Any sensor the user doesn't `#define` in main.cpp silently stays disabled
+// (port 0 / offset 0). Ensures zero-regression builds.
+#ifndef VERT_WHEEL_DIA
+#define VERT_WHEEL_DIA      2.75
+#endif
+#ifndef VERT_LEFT_PORT
+#define VERT_LEFT_PORT      0
+#endif
+#ifndef VERT_LEFT_OFFSET
+#define VERT_LEFT_OFFSET    0.0
+#endif
+#ifndef VERT_RIGHT_PORT
+#define VERT_RIGHT_PORT     0
+#endif
+#ifndef VERT_RIGHT_OFFSET
+#define VERT_RIGHT_OFFSET   0.0
+#endif
+#ifndef HORIZ_WHEEL_DIA
+#define HORIZ_WHEEL_DIA     2.75
+#endif
+#ifndef HORIZ_1_PORT
+#define HORIZ_1_PORT        0
+#endif
+#ifndef HORIZ_1_OFFSET
+#define HORIZ_1_OFFSET      0.0
+#endif
+#ifndef HORIZ_2_PORT
+#define HORIZ_2_PORT        0
+#endif
+#ifndef HORIZ_2_OFFSET
+#define HORIZ_2_OFFSET      0.0
+#endif
+#ifndef GPS_PORT
+#define GPS_PORT            0
+#endif
+#ifndef GPS_OFFSET_X
+#define GPS_OFFSET_X        0.0
+#endif
+#ifndef GPS_OFFSET_Y
+#define GPS_OFFSET_Y        0.0
+#endif
+
+// Distance-sensor defaults — 2 per face × 4 faces = 8 slots, explicit.
+#ifndef DIST_FRONT_1_PORT
+#define DIST_FRONT_1_PORT   0
+#endif
+#ifndef DIST_FRONT_1_ALONG
+#define DIST_FRONT_1_ALONG  0.0
+#endif
+#ifndef DIST_FRONT_1_DEPTH
+#define DIST_FRONT_1_DEPTH  6.0
+#endif
+#ifndef DIST_FRONT_2_PORT
+#define DIST_FRONT_2_PORT   0
+#endif
+#ifndef DIST_FRONT_2_ALONG
+#define DIST_FRONT_2_ALONG  0.0
+#endif
+#ifndef DIST_FRONT_2_DEPTH
+#define DIST_FRONT_2_DEPTH  6.0
+#endif
+#ifndef DIST_BACK_1_PORT
+#define DIST_BACK_1_PORT    0
+#endif
+#ifndef DIST_BACK_1_ALONG
+#define DIST_BACK_1_ALONG   0.0
+#endif
+#ifndef DIST_BACK_1_DEPTH
+#define DIST_BACK_1_DEPTH   6.0
+#endif
+#ifndef DIST_BACK_2_PORT
+#define DIST_BACK_2_PORT    0
+#endif
+#ifndef DIST_BACK_2_ALONG
+#define DIST_BACK_2_ALONG   0.0
+#endif
+#ifndef DIST_BACK_2_DEPTH
+#define DIST_BACK_2_DEPTH   6.0
+#endif
+#ifndef DIST_LEFT_1_PORT
+#define DIST_LEFT_1_PORT    0
+#endif
+#ifndef DIST_LEFT_1_ALONG
+#define DIST_LEFT_1_ALONG   0.0
+#endif
+#ifndef DIST_LEFT_1_DEPTH
+#define DIST_LEFT_1_DEPTH   6.0
+#endif
+#ifndef DIST_LEFT_2_PORT
+#define DIST_LEFT_2_PORT    0
+#endif
+#ifndef DIST_LEFT_2_ALONG
+#define DIST_LEFT_2_ALONG   0.0
+#endif
+#ifndef DIST_LEFT_2_DEPTH
+#define DIST_LEFT_2_DEPTH   6.0
+#endif
+#ifndef DIST_RIGHT_1_PORT
+#define DIST_RIGHT_1_PORT   0
+#endif
+#ifndef DIST_RIGHT_1_ALONG
+#define DIST_RIGHT_1_ALONG  0.0
+#endif
+#ifndef DIST_RIGHT_1_DEPTH
+#define DIST_RIGHT_1_DEPTH  6.0
+#endif
+#ifndef DIST_RIGHT_2_PORT
+#define DIST_RIGHT_2_PORT   0
+#endif
+#ifndef DIST_RIGHT_2_ALONG
+#define DIST_RIGHT_2_ALONG  0.0
+#endif
+#ifndef DIST_RIGHT_2_DEPTH
+#define DIST_RIGHT_2_DEPTH  6.0
+#endif
+
 #include "LightLib/main.h"
 #include <functional>
 #include <atomic>
+#include <vector>
 #include "autons.hpp"
 #include "pros/motors.h"
 #include "LightLib/odom.hpp"
+#include "LightLib/lightcast.hpp"
 #include "LightLib/custom_selector.hpp"
 #include "LightLib/cstm_move.hpp"
 #include "LightLib/ez_extra.hpp"
+#include "ui_config.hpp"
 
 // ── Global objects built from the #defines in main.cpp ───────────────────────
 
@@ -39,7 +159,113 @@ static pros::Imu* imu2_ptr = nullptr;
 TrackingWheel leftTracker (&leftMotors,  _ROBOT_WHEEL_DIA, -TRACK_HALF_W);
 TrackingWheel rightTracker(&rightMotors, _ROBOT_WHEEL_DIA,  TRACK_HALF_W);
 
-OdomSensors sensors(&leftTracker, &rightTracker, nullptr, nullptr, &imu, imu2_ptr);
+// ── Optional unpowered rotation-sensor trackers ──────────────────────────────
+// Port 0 = not installed → nullptr → OdomSensors falls back to powered encoders.
+#if VERT_LEFT_PORT != 0
+static pros::Rotation _vertLeftRot(VERT_LEFT_PORT);
+static TrackingWheel  _vertLeftTracker(&_vertLeftRot, VERT_WHEEL_DIA, VERT_LEFT_OFFSET);
+static TrackingWheel* vertLeftPtr = &_vertLeftTracker;
+#else
+static TrackingWheel* vertLeftPtr = nullptr;
+#endif
+#if VERT_RIGHT_PORT != 0
+static pros::Rotation _vertRightRot(VERT_RIGHT_PORT);
+static TrackingWheel  _vertRightTracker(&_vertRightRot, VERT_WHEEL_DIA, VERT_RIGHT_OFFSET);
+static TrackingWheel* vertRightPtr = &_vertRightTracker;
+#else
+static TrackingWheel* vertRightPtr = nullptr;
+#endif
+#if HORIZ_1_PORT != 0
+static pros::Rotation _horiz1Rot(HORIZ_1_PORT);
+static TrackingWheel  _horiz1Tracker(&_horiz1Rot, HORIZ_WHEEL_DIA, HORIZ_1_OFFSET);
+static TrackingWheel* horiz1Ptr = &_horiz1Tracker;
+#else
+static TrackingWheel* horiz1Ptr = nullptr;
+#endif
+#if HORIZ_2_PORT != 0
+static pros::Rotation _horiz2Rot(HORIZ_2_PORT);
+static TrackingWheel  _horiz2Tracker(&_horiz2Rot, HORIZ_WHEEL_DIA, HORIZ_2_OFFSET);
+static TrackingWheel* horiz2Ptr = &_horiz2Tracker;
+#else
+static TrackingWheel* horiz2Ptr = nullptr;
+#endif
+
+// ── Optional GPS sensor ──────────────────────────────────────────────────────
+#if GPS_PORT != 0
+static pros::Gps _gpsObj(GPS_PORT, GPS_OFFSET_X, GPS_OFFSET_Y);
+static pros::Gps* gpsPtr = &_gpsObj;
+#else
+static pros::Gps* gpsPtr = nullptr;
+#endif
+
+// ── Optional distance sensors for LightCast (up to 2/face × 4 faces = 8) ────
+// Each slot declares its own pros::Distance in-place and pushes a spec with
+// the face-derived ray angle. Skip any slot with port 0.
+#if DIST_FRONT_1_PORT != 0
+static pros::Distance _dist_f1_obj(DIST_FRONT_1_PORT);
+#endif
+#if DIST_FRONT_2_PORT != 0
+static pros::Distance _dist_f2_obj(DIST_FRONT_2_PORT);
+#endif
+#if DIST_BACK_1_PORT != 0
+static pros::Distance _dist_b1_obj(DIST_BACK_1_PORT);
+#endif
+#if DIST_BACK_2_PORT != 0
+static pros::Distance _dist_b2_obj(DIST_BACK_2_PORT);
+#endif
+#if DIST_LEFT_1_PORT != 0
+static pros::Distance _dist_l1_obj(DIST_LEFT_1_PORT);
+#endif
+#if DIST_LEFT_2_PORT != 0
+static pros::Distance _dist_l2_obj(DIST_LEFT_2_PORT);
+#endif
+#if DIST_RIGHT_1_PORT != 0
+static pros::Distance _dist_r1_obj(DIST_RIGHT_1_PORT);
+#endif
+#if DIST_RIGHT_2_PORT != 0
+static pros::Distance _dist_r2_obj(DIST_RIGHT_2_PORT);
+#endif
+
+static std::vector<DistanceSensorSpec> _build_distance_specs() {
+    std::vector<DistanceSensorSpec> v;
+    using light::lightcast::Face;
+    using light::lightcast::fromFace;
+    #if DIST_FRONT_1_PORT != 0
+    v.push_back(fromFace(&_dist_f1_obj, Face::FRONT, DIST_FRONT_1_ALONG, DIST_FRONT_1_DEPTH));
+    #endif
+    #if DIST_FRONT_2_PORT != 0
+    v.push_back(fromFace(&_dist_f2_obj, Face::FRONT, DIST_FRONT_2_ALONG, DIST_FRONT_2_DEPTH));
+    #endif
+    #if DIST_BACK_1_PORT != 0
+    v.push_back(fromFace(&_dist_b1_obj, Face::BACK, DIST_BACK_1_ALONG, DIST_BACK_1_DEPTH));
+    #endif
+    #if DIST_BACK_2_PORT != 0
+    v.push_back(fromFace(&_dist_b2_obj, Face::BACK, DIST_BACK_2_ALONG, DIST_BACK_2_DEPTH));
+    #endif
+    #if DIST_LEFT_1_PORT != 0
+    v.push_back(fromFace(&_dist_l1_obj, Face::LEFT, DIST_LEFT_1_ALONG, DIST_LEFT_1_DEPTH));
+    #endif
+    #if DIST_LEFT_2_PORT != 0
+    v.push_back(fromFace(&_dist_l2_obj, Face::LEFT, DIST_LEFT_2_ALONG, DIST_LEFT_2_DEPTH));
+    #endif
+    #if DIST_RIGHT_1_PORT != 0
+    v.push_back(fromFace(&_dist_r1_obj, Face::RIGHT, DIST_RIGHT_1_ALONG, DIST_RIGHT_1_DEPTH));
+    #endif
+    #if DIST_RIGHT_2_PORT != 0
+    v.push_back(fromFace(&_dist_r2_obj, Face::RIGHT, DIST_RIGHT_2_ALONG, DIST_RIGHT_2_DEPTH));
+    #endif
+    return v;
+}
+
+// Auto-select displacement wheels: prefer unpowered rotation trackers when the
+// user provided them, fall back to powered motor encoders when not.
+static TrackingWheel* _v1_selected = vertLeftPtr  ? vertLeftPtr  : &leftTracker;
+static TrackingWheel* _v2_selected = vertRightPtr ? vertRightPtr : &rightTracker;
+
+OdomSensors sensors(_v1_selected, _v2_selected, horiz1Ptr, horiz2Ptr,
+                    &imu, imu2_ptr,
+                    gpsPtr, GPS_OFFSET_X, GPS_OFFSET_Y,
+                    _build_distance_specs());
 
 // ── Distance sensors ──────────────────────────────────────────────────────────
 // Port 0 means "not installed" — the pointer is nullptr in that case.
@@ -70,19 +296,47 @@ pros::Distance* frontDist = nullptr;
 // ── Alliance color ────────────────────────────────────────────────────────────
 Colors allianceColor = NEUTRAL;
 
-// ── Temperature + auton time display ─────────────────────────────────────────
-// auton_time_str is set by autonomous() and auton_toggle(); the temp task
-// reads it every 500 ms so both values appear in the same controller update.
+// ── Controller screen display ────────────────────────────────────────────────
+// Three configurable slots (LEFT/MID/RIGHT) chosen in ui_config.hpp print to
+// one controller line. auton_time_str is set by autonomous() and auton_toggle()
+// so the AutonTimer slot shows the last/current auton's elapsed time.
 static char auton_time_str[16] = "";
+
+static void fmt_ctrl_slot(CtrlSlot s, char* out, size_t n, double max_temp) {
+    switch (s) {
+        case CtrlSlot::MaxMotorTempC:
+            snprintf(out, n, "%.0fC", max_temp); break;
+        case CtrlSlot::AutonTimer:
+            snprintf(out, n, "%s", auton_time_str); break;
+        case CtrlSlot::BatteryPct:
+            snprintf(out, n, "%.0f%%", pros::battery::get_capacity()); break;
+        case CtrlSlot::OdomX:
+            snprintf(out, n, "X%.1f", chassis.odom_x_get()); break;
+        case CtrlSlot::OdomY:
+            snprintf(out, n, "Y%.1f", chassis.odom_y_get()); break;
+        case CtrlSlot::OdomTheta:
+            snprintf(out, n, "T%.0f", chassis.odom_theta_get()); break;
+        case CtrlSlot::None:
+        default:
+            out[0] = '\0'; break;
+    }
+}
 
 static void temp_display_task(void*) {
     uint32_t last_buzz_ms = 0;
     while (true) {
+        // max_temp is always computed — needed by the heat-buzz guard even
+        // when MaxMotorTempC isn't shown in any slot.
         double max_temp = 0.0;
         for (double t : leftMotors.get_temperature_all())  max_temp = std::max(max_temp, t);
         for (double t : rightMotors.get_temperature_all()) max_temp = std::max(max_temp, t);
         for (double t : Score.get_temperature_all())       max_temp = std::max(max_temp, t);
-        master.print(1, 0, "%.0fC  %s        ", max_temp, auton_time_str);
+
+        char a[8] = "", b[8] = "", c[8] = "";
+        fmt_ctrl_slot(UI_CTRL_SLOT_LEFT,  a, sizeof(a), max_temp);
+        fmt_ctrl_slot(UI_CTRL_SLOT_MID,   b, sizeof(b), max_temp);
+        fmt_ctrl_slot(UI_CTRL_SLOT_RIGHT, c, sizeof(c), max_temp);
+        master.print(UI_CTRL_LINE, 0, "%-6s %-5s %-5s", a, b, c);
 
         // Buzz the controller at 2-second intervals when any motor exceeds HEAT_BUZZ_TEMP
         if (HEAT_BUZZ_ENABLED && max_temp >= HEAT_BUZZ_TEMP) {
@@ -93,7 +347,7 @@ static void temp_display_task(void*) {
             }
         }
 
-        pros::delay(500);
+        pros::delay(UI_CTRL_REFRESH_MS);
     }
 }
 
@@ -198,8 +452,9 @@ void initialize() {
     cstm_move_init(chassis);
     light::ez_extra_init(&chassis, &leftMotors, &rightMotors);
 
-    OdomSensors odom_sensors(&leftTracker, &rightTracker, nullptr, nullptr, &imu, imu2_ptr);
-    light::init(odom_sensors);
+    // Use the global `sensors` built at TU scope — it carries the full config
+    // (optional rotation trackers, GPS, LightCast distance specs).
+    light::init(sensors);
 
     default_constants();           // PID / exit-condition / slew tuning (autons.cpp)
     default_positions();           // starting piston / mechanism positions (autons.cpp)

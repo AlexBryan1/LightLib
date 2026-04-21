@@ -125,22 +125,29 @@ float characterize_a_lat_max();
 // program restart.
 //
 // Params common to all four:
-//   reliefV    relay voltage amplitude (volts, ±). Must exceed kS — if the
-//              robot never moves, the tune will time out and abort without
-//              overwriting the previous PID values.
-//   cycles     number of full oscillation cycles to average (more = noisier
-//              environments tolerated, longer tune).
-//   timeoutMs  overall bail if oscillation never stabilizes.
+//   reliefV       relay voltage amplitude (volts, ±). Must exceed kS — if the
+//                 robot never moves, the tune will time out and abort without
+//                 overwriting the previous PID values.
+//   cycles        total number of full oscillation cycles to average.
+//   timeoutMs     active-time bail (cooldowns don't count against this).
+//   chunkCycles   cycles per chunk before a motor cooldown kicks in. 0 = no
+//                 cooldowns (legacy continuous behavior).
+//   coolMs        motor-off pause between chunks. Keeps drive motors cool
+//                 during long tunes. Wall time ≈ timeoutMs + (cycles/chunkCycles - 1)·coolMs.
 //
 // Space requirements:
 //   turn/swing  — about 2 ft² (in-place oscillation).
 //   drive       — ≥8 ft straight clear ahead.
 //   heading     — ≥8 ft straight lane; the robot drives forward at forwardV
 //                 while the relay corrects heading around 0.
-void autotune_turn_pid   (float reliefV = 4.0f, int cycles = 6, int timeoutMs = 15000);
-void autotune_drive_pid  (float reliefV = 6.0f, int cycles = 5, int timeoutMs = 15000);
-void autotune_swing_pid  (float reliefV = 4.0f, int cycles = 6, int timeoutMs = 15000);
+void autotune_turn_pid   (float reliefV = 4.0f, int cycles = 6, int timeoutMs = 15000,
+                          int chunkCycles = 2, int coolMs = 5000);
+void autotune_drive_pid  (float reliefV = 6.0f, int cycles = 5, int timeoutMs = 15000,
+                          int chunkCycles = 2, int coolMs = 5000);
+void autotune_swing_pid  (float reliefV = 4.0f, int cycles = 6, int timeoutMs = 15000,
+                          int chunkCycles = 2, int coolMs = 5000);
 void autotune_heading_pid(float forwardV = 3.0f, float reliefV = 2.0f,
-                          int cycles = 5, int timeoutMs = 15000);
+                          int cycles = 5, int timeoutMs = 15000,
+                          int chunkCycles = 2, int coolMs = 5000);
 
 } // namespace light

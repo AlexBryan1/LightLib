@@ -2,7 +2,10 @@
 #include "pros/imu.hpp"
 #include "pros/rotation.hpp"
 #include "pros/motor_group.hpp"
+#include "pros/gps.hpp"
+#include "pros/distance.hpp"
 #include <cmath>
+#include <vector>
 
 // ─── Pose ────────────────────────────────────────────────────────────────────
 struct Pose {
@@ -49,6 +52,19 @@ private:
     bool  powered;
 };
 
+// ─── DistanceSensorSpec ──────────────────────────────────────────────────────
+// Per-sensor mount configuration for LightCast's ray-cast sensor model.
+// offsetX/Y is the sensor body's position in robot frame (inches, center at 0).
+// angleRad is the ray direction in robot frame: 0 = forward (+Y), CCW positive.
+// Defined in `light` (not `light::lightcast`) to keep odom.hpp independent
+// of lightcast.hpp.
+struct DistanceSensorSpec {
+    pros::Distance* sensor;
+    float offsetX;
+    float offsetY;
+    float angleRad;
+};
+
 // ─── OdomSensors ─────────────────────────────────────────────────────────────
 struct OdomSensors {
     TrackingWheel* vertical1;
@@ -56,14 +72,37 @@ struct OdomSensors {
     TrackingWheel* horizontal1;
     TrackingWheel* horizontal2;
     pros::Imu*     imu;
-    pros::Imu*     imu2; // optional second IMU — pass nullptr if not used
+    pros::Imu*     imu2;         // optional second IMU — nullptr if not used
+
+    // Optional absolute-position sensors. If gps == nullptr, EKF skips the GPS
+    // update step entirely and runs on wheel+IMU alone — no regression vs prior.
+    pros::Gps*     gps;
+    float          gpsOffsetX;   // meters, mount position in robot frame
+    float          gpsOffsetY;
+
+    // Optional distance sensors for LightCast. Empty vector = LightCast
+    // inactive, system runs in EKF-only mode (still works — just no hybrid
+    // snap on divergence).
+    std::vector<DistanceSensorSpec> distanceSensors;
 
     OdomSensors(TrackingWheel* v1, TrackingWheel* v2,
                 TrackingWheel* h1, TrackingWheel* h2,
                 pros::Imu* imu, pros::Imu* imu2 = nullptr)
         : vertical1(v1), vertical2(v2),
           horizontal1(h1), horizontal2(h2),
-          imu(imu), imu2(imu2) {}
+          imu(imu), imu2(imu2),
+          gps(nullptr), gpsOffsetX(0.0f), gpsOffsetY(0.0f) {}
+
+    OdomSensors(TrackingWheel* v1, TrackingWheel* v2,
+                TrackingWheel* h1, TrackingWheel* h2,
+                pros::Imu* imu, pros::Imu* imu2,
+                pros::Gps* gps, float gpsOffsetX, float gpsOffsetY,
+                std::vector<DistanceSensorSpec> distanceSensors)
+        : vertical1(v1), vertical2(v2),
+          horizontal1(h1), horizontal2(h2),
+          imu(imu), imu2(imu2),
+          gps(gps), gpsOffsetX(gpsOffsetX), gpsOffsetY(gpsOffsetY),
+          distanceSensors(std::move(distanceSensors)) {}
 };
 
 // ─── CactusOdom ──────────────────────────────────────────────────────────────
