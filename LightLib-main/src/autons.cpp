@@ -9,36 +9,36 @@
 #include "LightLib/drive_utils.hpp"
 #include "LightLib/odom.hpp"
 #include "LightLib/ramsete.hpp"
-#include "paths.hpp"
+#include "Lightlib/paths.hpp"
 
 // ┌─────────────────────────────────────────────────────────────────────────┐
-// │                          AUTONOMOUS CODE                                 │
+// │                          AUTONOMOUS CODE                                │
 // │                                                                         │
 // │  This file has three jobs:                                              │
 // │    1. default_constants()  — tune your PID / slew / exit conditions     │
 // │    2. default_positions()  — set your pistons before every match        │
 // │    3. Auton routines       — write the actual autonomous paths          │
 // │                                                                         │
-// │  QUICK REFERENCE — common EZ-Template motion calls:                    │
+// │  QUICK REFERENCE — common EZ-Template motion calls:                     │
 // │                                                                         │
 // │  chassis.pid_drive_set(inches, speed)                                   │
-// │      Drive straight.  Negative inches = backwards.                     │
+// │      Drive straight.  Negative inches = backwards.                      │
 // │                                                                         │
 // │  chassis.pid_turn_set(degrees, speed)                                   │
-// │      Turn to an absolute heading (0–360, clockwise-positive).          │
+// │      Turn to an absolute heading (0–360, clockwise-positive).           │
 // │                                                                         │
 // │  chassis.pid_swing_set(SIDE, degrees, speed, slop, DIR)                 │
-// │      One-side swing turn.  SIDE = ez::LEFT_SWING / ez::RIGHT_SWING.    │
-// │      DIR  = ez::cw / ez::ccw (which way to swing).                     │
-// │      slop = how many degrees before exit the other side can move.      │
+// │      One-side swing turn.  SIDE = ez::LEFT_SWING / ez::RIGHT_SWING.     │
+// │      DIR  = ez::cw / ez::ccw (which way to swing).                      │
+// │      slop = how many degrees before exit the other side can move.       │
 // │                                                                         │
 // │  chassis.pid_wait()          — block until the current motion finishes  │
-// │  chassis.pid_wait_until(x)   — block until the robot reaches x         │
+// │  chassis.pid_wait_until(x)   — block until the robot reaches x          │
 // │                                (inches for drive, degrees for turn)     │
 // │  chassis.pid_wait_quick_chain() — exit early and start the next motion  │
 // │                                                                         │
-// │  light::moveToPoint(x, y, timeout, speed, reversed)                    │
-// │      Drive to a field coordinate using odometry.                       │
+// │  light::moveToPoint(x, y, timeout, speed, reversed)                     │
+// │      Drive to a field coordinate using odometry.                        │
 // └─────────────────────────────────────────────────────────────────────────┘
 
 // ── Speed presets ─────────────────────────────────────────────────────────────
@@ -50,9 +50,9 @@ const int SWING_SPEED = 127;  // max swing speed (0–127)
 
 
 // ┌─────────────────────────────────────────────────────────────────────────┐
-// │  default_positions()                                                     │
-// │  Called once from initialize() before every match.                     │
-// │  Set every piston to its safe starting state here.                     │
+// │  default_positions()                                                    │
+// │  Called once from initialize() before every match.                      │
+// │  Set every piston to its safe starting state here.                      │
 // │                                                                         │
 // │  .set(true)  = piston extended                                          │
 // │  .set(false) = piston retracted                                         │
@@ -66,14 +66,14 @@ void default_positions() {
 
 
 // ┌─────────────────────────────────────────────────────────────────────────┐
-// │  default_constants()                                                     │
-// │  Called once from initialize().  Tune your PID gains, exit conditions, │
-// │  and slew rates here.  These apply to every auton.                     │
+// │  default_constants()                                                    │
+// │  Called once from initialize().  Tune your PID gains, exit conditions,  │
+// │  and slew rates here.  These apply to every auton.                      │
 // │                                                                         │
-// │  PID format:  (kP, kI, kD)                                             │
+// │  PID format:  (kP, kI, kD)                                              │
 // │    kP — proportional: how hard the robot corrects for error             │
-// │    kI — integral: corrects for small steady-state error (keep near 0)  │
-// │    kD — derivative: dampens overshooting (increase if oscillating)     │
+// │    kI — integral: corrects for small steady-state error (keep near 0)   │
+// │    kD — derivative: dampens overshooting (increase if oscillating)      │
 // └─────────────────────────────────────────────────────────────────────────┘
 void default_constants() {
 
@@ -155,9 +155,9 @@ void default_constants() {
 
 
 // ┌─────────────────────────────────────────────────────────────────────────┐
-// │  AUTONOMOUS ROUTINES                                                     │
-// │  Write one function per auton below.  Register each one in             │
-// │  auton_config.cpp with light::auton_selector.add() so it appears       │
+// │  AUTONOMOUS ROUTINES                                                    │
+// │  Write one function per auton below.  Register each one in              │
+// │  auton_config.cpp with light::auton_selector.add() so it appears        │
 // │  on the brain screen selector.                                          │
 // └─────────────────────────────────────────────────────────────────────────┘
 

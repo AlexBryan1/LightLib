@@ -1,5 +1,5 @@
 // ┌─────────────────────────────────────────────────────────────────────────┐
-// │                       DRIVETRAIN CONFIGURATION                           │
+// │                       DRIVETRAIN CONFIGURATION                          │
 // │  Set your motor ports, wheel size, and sensor ports below.              │
 // │  Use a negative port number to reverse that motor.                      │
 // └─────────────────────────────────────────────────────────────────────────┘

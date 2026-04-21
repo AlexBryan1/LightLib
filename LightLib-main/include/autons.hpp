@@ -13,7 +13,7 @@
 // │    1. Declare it here:   void my_auton();                               │
 // │    2. Write it in autons.cpp                                            │
 // │    3. Register it in auton_config.cpp:                                  │
-// │         light::auton_selector.add("Label", "na", my_auton);            │
+// │         light::auton_selector.add("Label", "na", my_auton);             │
 // └─────────────────────────────────────────────────────────────────────────┘
 
 

@@ -11,8 +11,8 @@
 // │  Everything declared inline is available in every .cpp file that        │
 // │  includes this header — no extern declarations needed elsewhere.        │
 // │                                                                         │
-// │  The drive chassis is declared in main.cpp (built from the #defines    │
-// │  at the top of that file) and exposed here as extern Drive chassis.    │
+// │  The drive chassis is declared in main.cpp (built from the #defines     │
+// │  at the top of that file) and exposed here as extern Drive chassis.     │
 // └─────────────────────────────────────────────────────────────────────────┘
 
 // The drive chassis — configured in main.cpp, used everywhere else.
