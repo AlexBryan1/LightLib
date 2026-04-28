@@ -1,4 +1,5 @@
 #pragma once
+#include "LightLib/mcl_config.hpp"
 #include "pros/imu.hpp"
 #include "pros/rotation.hpp"
 #include "pros/motor_group.hpp"
@@ -108,7 +109,7 @@ struct OdomSensors {
 // ─── CactusOdom ──────────────────────────────────────────────────────────────
 namespace light {
     void reset();
-    void init(OdomSensors sensors);
+    void init(OdomSensors sensors, MCLConfig cfg = {});
     void stop();
     void moveToPoint(float targetX, float targetY, int timeout, float maxSpeed, bool reversed);
     Pose getPose(bool radians = false);

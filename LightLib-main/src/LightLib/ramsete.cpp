@@ -15,6 +15,8 @@
 #include "LightLib/ramsete.hpp"
 #include "LightLib/ez_extra.hpp"
 #include "LightLib/odom.hpp"
+#include "LightLib/ekf.hpp"
+#include "LightLib/lightcast.hpp"
 #include "EZ-Template/api.hpp"
 #include "pros/rtos.hpp"
 #include "pros/misc.hpp"
@@ -1044,6 +1046,135 @@ void autotune_heading_pid(float forwardV, float reliefV, int cycles, int timeout
     applyZnAndPrint("heading", r, [&](double p, double i, double d) {
         chassis->pid_heading_constants_set(p, i, d, 0.0);
     });
+}
+
+// ── EKF stationary noise calibration ────────────────────────────────────────
+// Robot must be parked. Sample wheel-encoder-derived pose and IMU heading at
+// `sampleMs` cadence for `durationMs`. Variance of per-tick deltas, divided by
+// dt, is the process-noise floor for each state. Push to live EKF.
+void autotune_ekf_noise(int sampleMs, int durationMs, int warmupMs) {
+    ez::Drive* chassis = light::getChassis();
+    if (!chassis) { printf("[AUTOTUNE][ekf] no chassis\n"); return; }
+
+    pros::MotorGroup *L = nullptr, *R = nullptr;
+    light::getDriveMotorGroups(&L, &R);
+    EzPauseGuard guard(chassis, L, R);
+    if (L) L->move_voltage(0);
+    if (R) R->move_voltage(0);
+
+    pros::delay(warmupMs);
+
+    Pose   prev      = light::getPose();
+    double prevTheta = chassis->drive_imu_get();
+    std::vector<float> dx, dy, dth;
+
+    uint32_t t0 = pros::millis();
+    while ((int)(pros::millis() - t0) < durationMs) {
+        pros::delay(sampleMs);
+        Pose   p = light::getPose();
+        double t = chassis->drive_imu_get();
+        dx .push_back(p.x - prev.x);
+        dy .push_back(p.y - prev.y);
+        dth.push_back((float)((t - prevTheta) * M_PI / 180.0));
+        prev = p; prevTheta = t;
+    }
+
+    auto var = [](const std::vector<float>& v) -> float {
+        if (v.size() < 2) return 0.0f;
+        double m = 0; for (float x : v) m += x; m /= v.size();
+        double s = 0; for (float x : v) s += (x - m) * (x - m);
+        return (float)(s / (v.size() - 1));
+    };
+
+    float dt     = sampleMs / 1000.0f;
+    float Qpos   = 0.5f * (var(dx) + var(dy)) / dt;
+    float Qtheta = var(dth) / dt;
+    float Qvel   = (dt > 1e-6f) ? (Qpos / dt) : Qpos;
+
+    MCLConfig cfg = light::ekf::config();
+    cfg.ekfQPos   = Qpos;
+    cfg.ekfQTheta = Qtheta;
+    cfg.ekfQVel   = Qvel;
+    light::ekf::setConfig(cfg);
+
+    printf("[AUTOTUNE][ekf] samples=%d  Q_pos=%.5f in^2/s  Q_theta=%.6f rad^2/s  Q_vel=%.4f\n",
+           (int)dx.size(), Qpos, Qtheta, Qvel);
+    printf("[AUTOTUNE][ekf] applied live. Transcribe into EKF_Q_* macros in main.cpp to persist.\n");
+}
+
+// ── MCL stationary distance-sensor noise calibration ────────────────────────
+// Robot must be parked with every configured distance sensor pointed at a wall
+// within range. We sample raw mm readings per sensor, convert to inches,
+// compute per-sensor std-dev, average across sensors → sensorSigmaIn.
+// outlierGapIn is set to 3·sigma (clamped ≥ 1.0 in).
+void autotune_mcl_noise(int sampleMs, int durationMs, int warmupMs) {
+    ez::Drive* chassis = light::getChassis();
+    if (!chassis) { printf("[AUTOTUNE][mcl] no chassis\n"); return; }
+
+    pros::MotorGroup *L = nullptr, *R = nullptr;
+    light::getDriveMotorGroups(&L, &R);
+    EzPauseGuard guard(chassis, L, R);
+    if (L) L->move_voltage(0);
+    if (R) R->move_voltage(0);
+
+    const auto& specs = light::lightcast::sensors();
+    if (specs.empty()) {
+        printf("[AUTOTUNE][mcl] no distance sensors configured — nothing to tune\n");
+        return;
+    }
+
+    pros::delay(warmupMs);
+
+    std::vector<std::vector<float>> samples(specs.size());
+    uint32_t t0 = pros::millis();
+    while ((int)(pros::millis() - t0) < durationMs) {
+        pros::delay(sampleMs);
+        for (size_t k = 0; k < specs.size(); ++k) {
+            if (!specs[k].sensor) continue;
+            int mm = specs[k].sensor->get();
+            if (mm <= 0 || mm >= 9999) continue;   // bad reading
+            samples[k].push_back(mm / 25.4f);       // → inches
+        }
+    }
+
+    auto stddev = [](const std::vector<float>& v) -> float {
+        if (v.size() < 2) return 0.0f;
+        double m = 0; for (float x : v) m += x; m /= v.size();
+        double s = 0; for (float x : v) s += (x - m) * (x - m);
+        return (float)std::sqrt(s / (v.size() - 1));
+    };
+
+    float sigmaSum = 0.0f;
+    int   contributing = 0;
+    for (size_t k = 0; k < specs.size(); ++k) {
+        if (samples[k].size() < 5) {
+            printf("[AUTOTUNE][mcl] sensor %d: only %d samples — skipped\n",
+                   (int)k, (int)samples[k].size());
+            continue;
+        }
+        float s = stddev(samples[k]);
+        printf("[AUTOTUNE][mcl] sensor %d: n=%d  sigma=%.3f in\n",
+               (int)k, (int)samples[k].size(), s);
+        sigmaSum += s;
+        contributing++;
+    }
+    if (contributing == 0) {
+        printf("[AUTOTUNE][mcl] no usable sensor data — aborting\n");
+        return;
+    }
+
+    float sigma = sigmaSum / contributing;
+    if (sigma < 0.25f) sigma = 0.25f;   // floor — don't lie about precision
+    float gap   = std::max(3.0f * sigma, 1.0f);
+
+    MCLConfig cfg = light::lightcast::config();
+    cfg.sensorSigmaIn = sigma;
+    cfg.outlierGapIn  = gap;
+    light::lightcast::setConfig(cfg);
+
+    printf("[AUTOTUNE][mcl] sensorSigmaIn=%.3f in  outlierGapIn=%.3f in  (avg of %d sensors)\n",
+           sigma, gap, contributing);
+    printf("[AUTOTUNE][mcl] applied live. Transcribe into MCL_SENSOR_SIGMA / MCL_OUTLIER_GAP in main.cpp to persist.\n");
 }
 
 } // namespace light

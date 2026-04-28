@@ -5,7 +5,7 @@
 
 namespace light {
 
-enum PidType   { PID_DRIVE = 0, PID_TURN, PID_SWING, PID_HEADING, PID_COUNT };
+enum PidType   { PID_DRIVE = 0, PID_TURN, PID_SWING, PID_HEADING, PID_EKF, PID_COUNT };
 enum ConstSlot { KP = 0, KI, KD, START_I, CONST_COUNT };
 
 struct PidConstants { double val[CONST_COUNT] = {0, 0, 0, 0}; };
@@ -26,8 +26,9 @@ private:
     lv_chart_series_t*  ser_left_     = nullptr;
     lv_chart_series_t*  ser_right_    = nullptr;
     lv_chart_series_t*  ser_err_      = nullptr;
-    lv_obj_t*           tab_btns_[PID_COUNT]     = {};
-    lv_obj_t*           val_labels_[CONST_COUNT] = {};
+    lv_obj_t*           tab_btns_[PID_COUNT]      = {};
+    lv_obj_t*           val_labels_[CONST_COUNT]  = {};
+    lv_obj_t*           name_labels_[CONST_COUNT] = {};
     PidType             active_pid_   = PID_DRIVE;
     PidConstants        constants_[PID_COUNT];
     bool                recording_    = false;

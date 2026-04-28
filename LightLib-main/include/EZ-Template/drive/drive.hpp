@@ -23,6 +23,15 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 using namespace ez;
 
 namespace ez {
+
+// External pose-source hook. When registered, all odom_*_get() reads return
+// the externally-supplied pose instead of EZ's wheel integrator, and
+// odom_*_set() calls forward to the supplied setter. Used by LightLib to
+// route EZ's pid_odom_* motion through the fused EKF/MCL pose estimate.
+using PoseGetterFn = pose (*)();
+using PoseSetterFn = void (*)(pose);
+void register_pose_source(PoseGetterFn getter, PoseSetterFn setter);
+
 class Drive {
  public:
   /**

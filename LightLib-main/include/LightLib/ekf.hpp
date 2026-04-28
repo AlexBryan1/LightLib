@@ -17,10 +17,11 @@
 // to snap the state to the LightCast best estimate.
 
 #include "LightLib/odom.hpp"
+#include "LightLib/mcl_config.hpp"
 
 namespace light::ekf {
 
-void init(const Pose& initial);
+void init(const Pose& initial, MCLConfig cfg = {});
 void reset(const Pose& pose);  // snap mean, reset covariance to small
 
 // Propagate mean + covariance one tick forward using local-frame arc deltas.
@@ -35,5 +36,10 @@ Pose  mean();
 Pose  velocity();
 float covTrace();  // trace(P[0:2, 0:2]) — position uncertainty in in^2
 bool  diverged(float threshold_in_sq);
+
+// Live tuning — used by the on-brain tuner to push noise constants without
+// reinitializing the filter.
+MCLConfig config();
+void      setConfig(const MCLConfig& cfg);
 
 }  // namespace light::ekf

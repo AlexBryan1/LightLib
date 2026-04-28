@@ -29,6 +29,10 @@ void register_autons() {
                               []{ light::autotune_swing_pid(); });
     light::auton_selector.add("Tune: Heading", "Relay-tune heading-correct PID (needs lane)",
                               []{ light::autotune_heading_pid(); });
+    light::auton_selector.add("Tune: EKF",     "Park robot, measure noise floor (5 s)",
+                              []{ light::autotune_ekf_noise(); });
+    light::auton_selector.add("Tune: MCL",     "Park facing walls, measure dist-sensor sigma (4 s)",
+                              []{ light::autotune_mcl_noise(); });
 
     // ── RAMSETE characterization (prints + auto-applies to live config) ─────
     // Transcribe the printed numbers into ramsete_configure() in

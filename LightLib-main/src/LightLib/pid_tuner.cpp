@@ -51,6 +51,7 @@
 
 #include "LightLib/pid_tuner.hpp"
 #include "LightLib/auton_selector.hpp"
+#include "LightLib/ekf.hpp"
 #include "pros/rtos.hpp"
 #include <cstdio>
 #include <cmath>
@@ -88,11 +89,26 @@ static constexpr int GRAPH_PTS = 100;  // number of data points on the live char
 #define C_CYAN     lv_color_make(0x00, 0xCC, 0xFF)
 #define C_ORANGE   lv_color_make(0xFF, 0x88, 0x00)
 
-// Step sizes for each constant — how much +/− buttons change the value.
-// kP gets the coarsest adjustment, kI the finest (it's very sensitive).
-static constexpr double STEP[4]             = { 0.1, 0.001, 0.01, 0.5 };
-static constexpr const char* SLOT_NAMES[4] = { "kP", "kI", "kD", "start_i" };
-static constexpr const char* PID_NAMES[4]  = { "Drive", "Turn", "Swing", "Heading" };
+// Step sizes per [PidType][slot] — EKF noise constants need much finer steps
+// than PID gains (Q_theta defaults to 0.0005). Slot 3 is unused for EKF.
+static constexpr double STEP[light::PID_COUNT][light::CONST_COUNT] = {
+    /* DRIVE   */ { 0.1, 0.001, 0.01, 0.5 },
+    /* TURN    */ { 0.1, 0.001, 0.01, 0.5 },
+    /* SWING   */ { 0.1, 0.001, 0.01, 0.5 },
+    /* HEADING */ { 0.1, 0.001, 0.01, 0.5 },
+    /* EKF     */ { 0.005, 0.0001, 0.1, 1.0 },  // Q_pos, Q_theta, Q_vel, snap_diverge
+};
+
+// Per-tab row labels. EKF reuses the 4 slots for its own constants.
+static constexpr const char* SLOT_NAMES[light::PID_COUNT][light::CONST_COUNT] = {
+    /* DRIVE   */ { "kP", "kI", "kD", "start_i" },
+    /* TURN    */ { "kP", "kI", "kD", "start_i" },
+    /* SWING   */ { "kP", "kI", "kD", "start_i" },
+    /* HEADING */ { "kP", "kI", "kD", "start_i" },
+    /* EKF     */ { "Q pos", "Q the", "Q vel", "snap" },
+};
+
+static constexpr const char* PID_NAMES[light::PID_COUNT] = { "Drive", "Turn", "Swing", "Heading", "EKF" };
 
 // ─── User-data packing ──────────────────────────────────────────────────────
 // LVGL callbacks receive a single void* user_data.  We need to pass both
@@ -137,6 +153,14 @@ void PidTuner::set_drive(ez::Drive* drive) {
     load(PID_TURN,    drive_->pid_turn_constants_get());
     load(PID_SWING,   drive_->fwd_rev_swingPID.constants_get());
     load(PID_HEADING, drive_->pid_heading_constants_get());
+
+    // EKF: read live noise constants out of the filter so the tab opens with
+    // the values that are actually in use.
+    MCLConfig ek = light::ekf::config();
+    constants_[PID_EKF].val[KP]      = ek.ekfQPos;
+    constants_[PID_EKF].val[KI]      = ek.ekfQTheta;
+    constants_[PID_EKF].val[KD]      = ek.ekfQVel;
+    constants_[PID_EKF].val[START_I] = ek.snapDiverge;
 }
 
 // start_task() — launch the background sampling task at below-default
@@ -312,10 +336,10 @@ void PidTuner::build_ui() {
     for (int i = 0; i < CONST_COUNT; i++) {
         int ry = 4 + i * row_h;
 
-        lv_obj_t* name_l = lv_label_create(ctrl);
-        lv_label_set_text(name_l, SLOT_NAMES[i]);
-        lv_obj_set_style_text_color(name_l, C_DIM, 0);
-        lv_obj_set_pos(name_l, 4, ry + (row_h / 2) - 7);
+        name_labels_[i] = lv_label_create(ctrl);
+        lv_label_set_text(name_labels_[i], SLOT_NAMES[PID_DRIVE][i]);
+        lv_obj_set_style_text_color(name_labels_[i], C_DIM, 0);
+        lv_obj_set_pos(name_labels_[i], 4, ry + (row_h / 2) - 7);
 
         lv_obj_t* dec = lv_btn_create(ctrl);
         lv_obj_set_size(dec, 26, row_h - 4);
@@ -386,12 +410,17 @@ void PidTuner::select_pid(PidType t) {
 }
 
 // refresh_value_labels() — update the on-screen text for all 4 constants
-// to reflect the current in-memory values (3 decimal places).
+// to reflect the current in-memory values, and refresh the row-name labels
+// in case the active tab changed (EKF labels differ from PID labels).
 void PidTuner::refresh_value_labels() {
+    // EKF noise constants are an order of magnitude smaller than PID gains —
+    // 4 decimals so Q_theta (0.0005) is readable.
+    const char* fmt = (active_pid_ == PID_EKF) ? "%.4f" : "%.3f";
     for (int i = 0; i < CONST_COUNT; i++) {
         char buf[16];
-        snprintf(buf, sizeof(buf), "%.3f", constants_[active_pid_].val[i]);
+        snprintf(buf, sizeof(buf), fmt, constants_[active_pid_].val[i]);
         lv_label_set_text(val_labels_[i], buf);
+        if (name_labels_[i]) lv_label_set_text(name_labels_[i], SLOT_NAMES[active_pid_][i]);
     }
 }
 
@@ -399,8 +428,18 @@ void PidTuner::refresh_value_labels() {
 // After calling this, the robot immediately uses the new constants for
 // the active PID type.  The "combined" setters apply to both fwd and rev.
 void PidTuner::apply_constants() {
-    if (!drive_) return;
     auto& v = constants_[active_pid_].val;
+    if (active_pid_ == PID_EKF) {
+        // EKF tab applies to the live filter — no chassis dependency.
+        MCLConfig cfg = light::ekf::config();
+        cfg.ekfQPos     = v[KP];
+        cfg.ekfQTheta   = v[KI];
+        cfg.ekfQVel     = v[KD];
+        cfg.snapDiverge = v[START_I];
+        light::ekf::setConfig(cfg);
+        return;
+    }
+    if (!drive_) return;
     // EZ-Template setters: pid_X_constants_set(kP, kI, kD, start_i)
     switch (active_pid_) {
         case PID_DRIVE:
@@ -467,7 +506,7 @@ void PidTuner::inc_cb(lv_event_t* e) {
     auto* self = static_cast<PidTuner*>(lv_event_get_user_data(e));
     int slot, sign;
     unpack_ud(lv_obj_get_user_data(lv_event_get_target(e)), slot, sign);
-    self->constants_[self->active_pid_].val[slot] += STEP[slot];
+    self->constants_[self->active_pid_].val[slot] += STEP[self->active_pid_][slot];
     self->refresh_value_labels();
 }
 
@@ -477,7 +516,7 @@ void PidTuner::dec_cb(lv_event_t* e) {
     int slot, sign;
     unpack_ud(lv_obj_get_user_data(lv_event_get_target(e)), slot, sign);
     double& v = self->constants_[self->active_pid_].val[slot];
-    v -= STEP[slot];
+    v -= STEP[self->active_pid_][slot];
     if (v < 0.0) v = 0.0;
     self->refresh_value_labels();
 }

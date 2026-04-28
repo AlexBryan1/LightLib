@@ -13,14 +13,10 @@
 namespace light::lightcast {
 namespace {
 
-constexpr int   NUM_PARTICLES   = 200;
-constexpr float SENSOR_SIGMA_IN = 2.5f;
-constexpr float OUTLIER_GAP_IN  = 6.0f;
-constexpr float MAX_RANGE_IN    = 144.0f;
-
 struct Particle { float x, y, theta, w; };
 
-Particle particles_[NUM_PARTICLES];
+MCLConfig cfg_;
+std::vector<Particle> particles_;
 std::vector<DistanceSensorSpec> sensors_;
 pros::Mutex mtx_;
 std::mt19937 rng_{0xC0FFEE};
@@ -39,24 +35,25 @@ float gaussian(float sigma) {
 // Low-variance resampling — prefers this over random because it preserves
 // particle diversity better when a few heavy particles dominate the weight.
 void resample() {
-    Particle out[NUM_PARTICLES];
+    int n = (int)particles_.size();
+    std::vector<Particle> out(n);
     float totalW = 0.0f;
-    for (int i = 0; i < NUM_PARTICLES; ++i) totalW += particles_[i].w;
+    for (int i = 0; i < n; ++i) totalW += particles_[i].w;
     if (totalW < 1e-12f) {
-        for (int i = 0; i < NUM_PARTICLES; ++i) particles_[i].w = 1.0f / NUM_PARTICLES;
+        for (int i = 0; i < n; ++i) particles_[i].w = 1.0f / n;
         return;
     }
-    std::uniform_real_distribution<float> u(0.0f, totalW / NUM_PARTICLES);
+    std::uniform_real_distribution<float> u(0.0f, totalW / n);
     float r = u(rng_);
     float c = particles_[0].w;
     int   i = 0;
-    for (int m = 0; m < NUM_PARTICLES; ++m) {
-        float U = r + m * (totalW / NUM_PARTICLES);
-        while (U > c && i < NUM_PARTICLES - 1) { ++i; c += particles_[i].w; }
+    for (int m = 0; m < n; ++m) {
+        float U = r + m * (totalW / n);
+        while (U > c && i < n - 1) { ++i; c += particles_[i].w; }
         out[m] = particles_[i];
-        out[m].w = 1.0f / NUM_PARTICLES;
+        out[m].w = 1.0f / n;
     }
-    std::copy(out, out + NUM_PARTICLES, particles_);
+    particles_ = std::move(out);
 }
 
 }  // namespace
@@ -72,14 +69,16 @@ DistanceSensorSpec fromFace(pros::Distance* s, Face face, float along, float dep
     return spec;
 }
 
-void init(const Pose& initial, const std::vector<DistanceSensorSpec>& sensors) {
+void init(const Pose& initial, const std::vector<DistanceSensorSpec>& sensors, MCLConfig cfg) {
     std::lock_guard<pros::Mutex> lock(mtx_);
+    cfg_ = cfg;
     sensors_ = sensors;
-    for (int i = 0; i < NUM_PARTICLES; ++i) {
+    particles_.resize(cfg_.numParticles);
+    for (int i = 0; i < cfg_.numParticles; ++i) {
         particles_[i].x     = initial.x     + gaussian(1.0f);
         particles_[i].y     = initial.y     + gaussian(1.0f);
         particles_[i].theta = wrapRad(initial.theta + gaussian(0.05f));
-        particles_[i].w     = 1.0f / NUM_PARTICLES;
+        particles_[i].w     = 1.0f / cfg_.numParticles;
     }
 }
 
@@ -90,7 +89,7 @@ void predict(float dLocalX, float dLocalY, float dTheta) {
     float posNoise  = 0.02f + 0.05f * motionMag;
     float angNoise  = 0.002f + 0.1f * std::fabs(dTheta);
 
-    for (int i = 0; i < NUM_PARTICLES; ++i) {
+    for (int i = 0; i < (int)particles_.size(); ++i) {
         Particle& p = particles_[i];
         float thetaMid = p.theta + dTheta * 0.5f;
         float s = std::sin(thetaMid);
@@ -118,9 +117,10 @@ void update() {
         measured[k] = mm / 25.4f;  // mm → inches
     }
 
-    const float twoSigSq = 2.0f * SENSOR_SIGMA_IN * SENSOR_SIGMA_IN;
+    const float twoSigSq = 2.0f * cfg_.sensorSigmaIn * cfg_.sensorSigmaIn;
+    int n = (int)particles_.size();
 
-    for (int i = 0; i < NUM_PARTICLES; ++i) {
+    for (int i = 0; i < n; ++i) {
         Particle& p = particles_[i];
         float logW = 0.0f;
         int   contributed = 0;
@@ -133,38 +133,38 @@ void update() {
             float sy = p.y + sensors_[k].offsetY * c + sensors_[k].offsetX * s;
             float sAng = p.theta + sensors_[k].angleRad;
 
-            float expected = field::raycast(sx, sy, sAng, MAX_RANGE_IN);
+            float expected = field::raycast(sx, sy, sAng, cfg_.maxRangeIn);
 
             float residual = measured[k] - expected;
             // Game-element outlier: a ball between sensor and wall reads short.
             // Treat as neutral instead of penalizing — don't localize against
             // moving objects.
-            if (residual < -OUTLIER_GAP_IN) continue;
+            if (residual < -cfg_.outlierGapIn) continue;
             logW += -(residual * residual) / twoSigSq;
             ++contributed;
         }
-        if (contributed == 0) p.w = 1.0f / NUM_PARTICLES;
+        if (contributed == 0) p.w = 1.0f / n;
         else                  p.w = std::exp(logW);
     }
 
     // Normalize + effective sample size check for resample decision.
     float sumW = 0.0f;
-    for (int i = 0; i < NUM_PARTICLES; ++i) sumW += particles_[i].w;
+    for (int i = 0; i < n; ++i) sumW += particles_[i].w;
     if (sumW < 1e-12f) return;
     float sumWSq = 0.0f;
-    for (int i = 0; i < NUM_PARTICLES; ++i) {
+    for (int i = 0; i < n; ++i) {
         particles_[i].w /= sumW;
         sumWSq += particles_[i].w * particles_[i].w;
     }
     float ess = 1.0f / sumWSq;
-    if (ess < NUM_PARTICLES / 2.0f) resample();
+    if (ess < n / 2.0f) resample();
 }
 
 Pose best() {
     std::lock_guard<pros::Mutex> lock(mtx_);
     // Weighted mean; theta uses circular mean to avoid wrap discontinuity.
     float sx = 0.0f, sy = 0.0f, ss = 0.0f, sc = 0.0f, wSum = 0.0f;
-    for (int i = 0; i < NUM_PARTICLES; ++i) {
+    for (int i = 0; i < (int)particles_.size(); ++i) {
         const Particle& p = particles_[i];
         sx += p.x * p.w;
         sy += p.y * p.w;
@@ -179,20 +179,26 @@ Pose best() {
 float convergence() {
     std::lock_guard<pros::Mutex> lock(mtx_);
     // Position standard deviation — how tight the particle cloud is.
+    int n = (int)particles_.size();
+    if (n == 0) return 0.0f;
     float mx = 0.0f, my = 0.0f;
-    for (int i = 0; i < NUM_PARTICLES; ++i) { mx += particles_[i].x; my += particles_[i].y; }
-    mx /= NUM_PARTICLES; my /= NUM_PARTICLES;
+    for (int i = 0; i < n; ++i) { mx += particles_[i].x; my += particles_[i].y; }
+    mx /= n; my /= n;
     float var = 0.0f;
-    for (int i = 0; i < NUM_PARTICLES; ++i) {
+    for (int i = 0; i < n; ++i) {
         float dx = particles_[i].x - mx;
         float dy = particles_[i].y - my;
         var += dx*dx + dy*dy;
     }
-    return std::sqrt(var / NUM_PARTICLES);
+    return std::sqrt(var / n);
 }
 
 bool converged(float threshold_in) { return convergence() < threshold_in; }
 
 int sensorCount() { return static_cast<int>(sensors_.size()); }
+const std::vector<DistanceSensorSpec>& sensors() { return sensors_; }
+
+MCLConfig config() { return cfg_; }
+void      setConfig(const MCLConfig& cfg) { cfg_ = cfg; }
 
 }  // namespace light::lightcast

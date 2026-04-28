@@ -10,7 +10,7 @@
 #define IMU_PORT    21   // primary inertial sensor
 #define IMU2_PORT    0   // second IMU — set to 0 if you only have one
 
-#define WHEEL_DIAMETER  3.25   // inches  (4" screw-hole wheels are actually ~4.125)
+#define WHEEL_DIAMETER  3.25   // inches  (4" wheels are actually ~4.125")
 #define WHEEL_RPM       450    // motor cartridge RPM × (motor sprocket / wheel sprocket)
 #define TRACK_HALF_W    3.0f   // half of robot track width in inches (used for odometry)
 
@@ -25,14 +25,48 @@
 //  1  Arcade        left stick = throttle,  right stick = turn
 //  2  Tank          left stick = left side, right stick = right side
 //  3  Single stick  left stick = throttle + turn (one hand)
-//  4  X/Mecanum  left stick = move,      right stick = turn  (needs holoDrive in subsystems.hpp)
+//  4  X/Mecanum     left stick = move,      right stick = turn  (needs holoDrive in subsystems.hpp)
 //  5  H-Drive       tank sides + strafe,    right stick = turn  (needs hDrive   in subsystems.hpp)
 #define DRIVE_TYPE  1
 
-// ── Distance sensor ports (set to 0 if not installed) ────────────────────────
+// ── MCL distance sensors — one per side (set port to 0 if not installed) ─────
+//  PORT:  VEX port number
+//  ALONG: position along that face in robot frame, inches (0 = centered)
+//  DEPTH: distance from robot center to sensor, inches
+
+#define MCL_FRONT_PORT   0
+#define MCL_FRONT_ALONG  0.0f
+#define MCL_FRONT_DEPTH  6.0f
+
+#define MCL_BACK_PORT    0
+#define MCL_BACK_ALONG   0.0f
+#define MCL_BACK_DEPTH   6.0f
+
+#define MCL_LEFT_PORT    0
+#define MCL_LEFT_ALONG   0.0f
+#define MCL_LEFT_DEPTH   6.0f
+
+#define MCL_RIGHT_PORT   0
+#define MCL_RIGHT_ALONG  0.0f
+#define MCL_RIGHT_DEPTH  6.0f
+
+// ── MCL tuning ────────────────────────────────────────────────────────────────
+#define MCL_PARTICLES    200     // particle count (reduce if CPU load is high)
+#define MCL_SENSOR_SIGMA 2.5f   // distance sensor noise std dev (inches)
+#define MCL_OUTLIER_GAP  6.0f   // readings shorter than expected by this → ignored
+#define MCL_MAX_RANGE    144.0f // max ray-cast distance (12 ft for VRC)
+
+#define EKF_Q_POS        0.02f    // position process noise  (in²/sec)
+#define EKF_Q_THETA      0.0005f  // heading process noise   (rad²/sec)
+#define EKF_Q_VEL        1.0f     // velocity process noise
+
+#define MCL_SNAP_DIVERGE  9.0f   // EKF uncertainty (in²) before MCL can snap
+#define MCL_SNAP_CONVERGE 3.0f   // MCL std dev (in) required before snapping
+
+// ── Legacy subsystem distance sensors (for WallRide / collision detect) ───────
 #define DIST_LEFT_FRONT_PORT  0
 #define DIST_LEFT_BACK_PORT   0
-#define DIST_FRONT_PORT       6
+#define DIST_FRONT_PORT       0
 
 
 #include "LightLib/robot_impl.inl"

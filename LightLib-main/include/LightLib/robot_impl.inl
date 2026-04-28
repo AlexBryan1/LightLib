@@ -55,78 +55,74 @@ static constexpr double _ROBOT_WHEEL_DIA = WHEEL_DIAMETER;
 #define GPS_OFFSET_Y        0.0
 #endif
 
-// Distance-sensor defaults — 2 per face × 4 faces = 8 slots, explicit.
-#ifndef DIST_FRONT_1_PORT
-#define DIST_FRONT_1_PORT   0
+// ── MCL distance sensors — one per face ──────────────────────────────────────
+// Port: VEX port number (0 = not installed).
+// Along: signed position along the face in robot frame (inches). 0 = centered.
+// Depth: perpendicular distance from robot center to the sensor (inches).
+#ifndef MCL_FRONT_PORT
+#define MCL_FRONT_PORT   0
 #endif
-#ifndef DIST_FRONT_1_ALONG
-#define DIST_FRONT_1_ALONG  0.0
+#ifndef MCL_FRONT_ALONG
+#define MCL_FRONT_ALONG  0.0f
 #endif
-#ifndef DIST_FRONT_1_DEPTH
-#define DIST_FRONT_1_DEPTH  6.0
+#ifndef MCL_FRONT_DEPTH
+#define MCL_FRONT_DEPTH  6.0f
 #endif
-#ifndef DIST_FRONT_2_PORT
-#define DIST_FRONT_2_PORT   0
+#ifndef MCL_BACK_PORT
+#define MCL_BACK_PORT    0
 #endif
-#ifndef DIST_FRONT_2_ALONG
-#define DIST_FRONT_2_ALONG  0.0
+#ifndef MCL_BACK_ALONG
+#define MCL_BACK_ALONG   0.0f
 #endif
-#ifndef DIST_FRONT_2_DEPTH
-#define DIST_FRONT_2_DEPTH  6.0
+#ifndef MCL_BACK_DEPTH
+#define MCL_BACK_DEPTH   6.0f
 #endif
-#ifndef DIST_BACK_1_PORT
-#define DIST_BACK_1_PORT    0
+#ifndef MCL_LEFT_PORT
+#define MCL_LEFT_PORT    0
 #endif
-#ifndef DIST_BACK_1_ALONG
-#define DIST_BACK_1_ALONG   0.0
+#ifndef MCL_LEFT_ALONG
+#define MCL_LEFT_ALONG   0.0f
 #endif
-#ifndef DIST_BACK_1_DEPTH
-#define DIST_BACK_1_DEPTH   6.0
+#ifndef MCL_LEFT_DEPTH
+#define MCL_LEFT_DEPTH   6.0f
 #endif
-#ifndef DIST_BACK_2_PORT
-#define DIST_BACK_2_PORT    0
+#ifndef MCL_RIGHT_PORT
+#define MCL_RIGHT_PORT   0
 #endif
-#ifndef DIST_BACK_2_ALONG
-#define DIST_BACK_2_ALONG   0.0
+#ifndef MCL_RIGHT_ALONG
+#define MCL_RIGHT_ALONG  0.0f
 #endif
-#ifndef DIST_BACK_2_DEPTH
-#define DIST_BACK_2_DEPTH   6.0
+#ifndef MCL_RIGHT_DEPTH
+#define MCL_RIGHT_DEPTH  6.0f
 #endif
-#ifndef DIST_LEFT_1_PORT
-#define DIST_LEFT_1_PORT    0
+
+// ── MCL tuning parameters ─────────────────────────────────────────────────────
+#ifndef MCL_PARTICLES
+#define MCL_PARTICLES    200
 #endif
-#ifndef DIST_LEFT_1_ALONG
-#define DIST_LEFT_1_ALONG   0.0
+#ifndef MCL_SENSOR_SIGMA
+#define MCL_SENSOR_SIGMA 2.5f
 #endif
-#ifndef DIST_LEFT_1_DEPTH
-#define DIST_LEFT_1_DEPTH   6.0
+#ifndef MCL_OUTLIER_GAP
+#define MCL_OUTLIER_GAP  6.0f
 #endif
-#ifndef DIST_LEFT_2_PORT
-#define DIST_LEFT_2_PORT    0
+#ifndef MCL_MAX_RANGE
+#define MCL_MAX_RANGE    144.0f
 #endif
-#ifndef DIST_LEFT_2_ALONG
-#define DIST_LEFT_2_ALONG   0.0
+#ifndef EKF_Q_POS
+#define EKF_Q_POS        0.02f
 #endif
-#ifndef DIST_LEFT_2_DEPTH
-#define DIST_LEFT_2_DEPTH   6.0
+#ifndef EKF_Q_THETA
+#define EKF_Q_THETA      0.0005f
 #endif
-#ifndef DIST_RIGHT_1_PORT
-#define DIST_RIGHT_1_PORT   0
+#ifndef EKF_Q_VEL
+#define EKF_Q_VEL        1.0f
 #endif
-#ifndef DIST_RIGHT_1_ALONG
-#define DIST_RIGHT_1_ALONG  0.0
+#ifndef MCL_SNAP_DIVERGE
+#define MCL_SNAP_DIVERGE 9.0f
 #endif
-#ifndef DIST_RIGHT_1_DEPTH
-#define DIST_RIGHT_1_DEPTH  6.0
-#endif
-#ifndef DIST_RIGHT_2_PORT
-#define DIST_RIGHT_2_PORT   0
-#endif
-#ifndef DIST_RIGHT_2_ALONG
-#define DIST_RIGHT_2_ALONG  0.0
-#endif
-#ifndef DIST_RIGHT_2_DEPTH
-#define DIST_RIGHT_2_DEPTH  6.0
+#ifndef MCL_SNAP_CONVERGE
+#define MCL_SNAP_CONVERGE 3.0f
 #endif
 
 #include "LightLib/main.h"
@@ -198,63 +194,51 @@ static pros::Gps* gpsPtr = &_gpsObj;
 static pros::Gps* gpsPtr = nullptr;
 #endif
 
-// ── Optional distance sensors for LightCast (up to 2/face × 4 faces = 8) ────
-// Each slot declares its own pros::Distance in-place and pushes a spec with
-// the face-derived ray angle. Skip any slot with port 0.
-#if DIST_FRONT_1_PORT != 0
-static pros::Distance _dist_f1_obj(DIST_FRONT_1_PORT);
+// ── Optional distance sensors for LightCast — one per face ───────────────────
+#if MCL_FRONT_PORT != 0
+static pros::Distance _dist_front_obj(MCL_FRONT_PORT);
 #endif
-#if DIST_FRONT_2_PORT != 0
-static pros::Distance _dist_f2_obj(DIST_FRONT_2_PORT);
+#if MCL_BACK_PORT != 0
+static pros::Distance _dist_back_obj(MCL_BACK_PORT);
 #endif
-#if DIST_BACK_1_PORT != 0
-static pros::Distance _dist_b1_obj(DIST_BACK_1_PORT);
+#if MCL_LEFT_PORT != 0
+static pros::Distance _dist_left_obj(MCL_LEFT_PORT);
 #endif
-#if DIST_BACK_2_PORT != 0
-static pros::Distance _dist_b2_obj(DIST_BACK_2_PORT);
-#endif
-#if DIST_LEFT_1_PORT != 0
-static pros::Distance _dist_l1_obj(DIST_LEFT_1_PORT);
-#endif
-#if DIST_LEFT_2_PORT != 0
-static pros::Distance _dist_l2_obj(DIST_LEFT_2_PORT);
-#endif
-#if DIST_RIGHT_1_PORT != 0
-static pros::Distance _dist_r1_obj(DIST_RIGHT_1_PORT);
-#endif
-#if DIST_RIGHT_2_PORT != 0
-static pros::Distance _dist_r2_obj(DIST_RIGHT_2_PORT);
+#if MCL_RIGHT_PORT != 0
+static pros::Distance _dist_right_obj(MCL_RIGHT_PORT);
 #endif
 
 static std::vector<DistanceSensorSpec> _build_distance_specs() {
     std::vector<DistanceSensorSpec> v;
     using light::lightcast::Face;
     using light::lightcast::fromFace;
-    #if DIST_FRONT_1_PORT != 0
-    v.push_back(fromFace(&_dist_f1_obj, Face::FRONT, DIST_FRONT_1_ALONG, DIST_FRONT_1_DEPTH));
+    #if MCL_FRONT_PORT != 0
+    v.push_back(fromFace(&_dist_front_obj, Face::FRONT, MCL_FRONT_ALONG, MCL_FRONT_DEPTH));
     #endif
-    #if DIST_FRONT_2_PORT != 0
-    v.push_back(fromFace(&_dist_f2_obj, Face::FRONT, DIST_FRONT_2_ALONG, DIST_FRONT_2_DEPTH));
+    #if MCL_BACK_PORT != 0
+    v.push_back(fromFace(&_dist_back_obj, Face::BACK, MCL_BACK_ALONG, MCL_BACK_DEPTH));
     #endif
-    #if DIST_BACK_1_PORT != 0
-    v.push_back(fromFace(&_dist_b1_obj, Face::BACK, DIST_BACK_1_ALONG, DIST_BACK_1_DEPTH));
+    #if MCL_LEFT_PORT != 0
+    v.push_back(fromFace(&_dist_left_obj, Face::LEFT, MCL_LEFT_ALONG, MCL_LEFT_DEPTH));
     #endif
-    #if DIST_BACK_2_PORT != 0
-    v.push_back(fromFace(&_dist_b2_obj, Face::BACK, DIST_BACK_2_ALONG, DIST_BACK_2_DEPTH));
-    #endif
-    #if DIST_LEFT_1_PORT != 0
-    v.push_back(fromFace(&_dist_l1_obj, Face::LEFT, DIST_LEFT_1_ALONG, DIST_LEFT_1_DEPTH));
-    #endif
-    #if DIST_LEFT_2_PORT != 0
-    v.push_back(fromFace(&_dist_l2_obj, Face::LEFT, DIST_LEFT_2_ALONG, DIST_LEFT_2_DEPTH));
-    #endif
-    #if DIST_RIGHT_1_PORT != 0
-    v.push_back(fromFace(&_dist_r1_obj, Face::RIGHT, DIST_RIGHT_1_ALONG, DIST_RIGHT_1_DEPTH));
-    #endif
-    #if DIST_RIGHT_2_PORT != 0
-    v.push_back(fromFace(&_dist_r2_obj, Face::RIGHT, DIST_RIGHT_2_ALONG, DIST_RIGHT_2_DEPTH));
+    #if MCL_RIGHT_PORT != 0
+    v.push_back(fromFace(&_dist_right_obj, Face::RIGHT, MCL_RIGHT_ALONG, MCL_RIGHT_DEPTH));
     #endif
     return v;
+}
+
+static MCLConfig _build_mcl_config() {
+    MCLConfig cfg;
+    cfg.numParticles  = MCL_PARTICLES;
+    cfg.sensorSigmaIn = MCL_SENSOR_SIGMA;
+    cfg.outlierGapIn  = MCL_OUTLIER_GAP;
+    cfg.maxRangeIn    = MCL_MAX_RANGE;
+    cfg.ekfQPos       = EKF_Q_POS;
+    cfg.ekfQTheta     = EKF_Q_THETA;
+    cfg.ekfQVel       = EKF_Q_VEL;
+    cfg.snapDiverge   = MCL_SNAP_DIVERGE;
+    cfg.snapConverge  = MCL_SNAP_CONVERGE;
+    return cfg;
 }
 
 // Auto-select displacement wheels: prefer unpowered rotation trackers when the
@@ -454,7 +438,7 @@ void initialize() {
 
     // Use the global `sensors` built at TU scope — it carries the full config
     // (optional rotation trackers, GPS, LightCast distance specs).
-    light::init(sensors);
+    light::init(sensors, _build_mcl_config());
 
     default_constants();           // PID / exit-condition / slew tuning (autons.cpp)
     default_positions();           // starting piston / mechanism positions (autons.cpp)

@@ -10,6 +10,16 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using namespace ez;
 
+// External pose-source hook (see drive.hpp). Null until LightLib registers.
+namespace ez {
+static PoseGetterFn g_pose_getter = nullptr;
+static PoseSetterFn g_pose_setter = nullptr;
+void register_pose_source(PoseGetterFn getter, PoseSetterFn setter) {
+  g_pose_getter = getter;
+  g_pose_setter = setter;
+}
+}  // namespace ez
+
 // Sets and gets
 void Drive::odom_x_set(double x) {
   odom_current.x = x;
@@ -55,16 +65,17 @@ void Drive::odom_pose_set(pose itarget) {
   odom_x_set(itarget.x);
   odom_y_set(itarget.y);
   odom_theta_set(itarget.theta);
+  if (ez::g_pose_setter) ez::g_pose_setter(itarget);
 }
 void Drive::odom_pose_set(united_pose itarget) { odom_pose_set(util::united_pose_to_pose(itarget)); }
 void Drive::odom_reset() { odom_pose_set({0.0, 0.0, 0.0}); }
 void Drive::odom_enable(bool input) { odometry_enabled = input; }
 bool Drive::odom_enabled() { return odometry_enabled; }
 
-double Drive::odom_x_get() { return odom_current.x; }
-double Drive::odom_y_get() { return odom_current.y; }
-double Drive::odom_theta_get() { return odom_current.theta; }
-pose Drive::odom_pose_get() { return odom_current; }
+double Drive::odom_x_get()     { return ez::g_pose_getter ? ez::g_pose_getter().x     : odom_current.x; }
+double Drive::odom_y_get()     { return ez::g_pose_getter ? ez::g_pose_getter().y     : odom_current.y; }
+double Drive::odom_theta_get() { return ez::g_pose_getter ? ez::g_pose_getter().theta : odom_current.theta; }
+pose   Drive::odom_pose_get()  { return ez::g_pose_getter ? ez::g_pose_getter()       : odom_current; }
 double Drive::drive_width_get() { return global_track_width; }
 
 std::pair<float, float> Drive::decide_vert_sensor(ez::tracking_wheel* tracker, bool is_tracker_enabled, float ime, float ime_track) {

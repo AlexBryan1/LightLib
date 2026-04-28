@@ -150,4 +150,18 @@ void autotune_heading_pid(float forwardV = 3.0f, float reliefV = 2.0f,
                           int cycles = 5, int timeoutMs = 15000,
                           int chunkCycles = 2, int coolMs = 5000);
 
+// Stationary EKF process-noise calibration. Robot must be parked on the field
+// throughout. Per-tick variance of (x,y,theta) over the sample window is
+// integrated to Q values and pushed into the live EKF via setConfig().
+//   sampleMs    sample period (default 10 ms — matches odom tick).
+//   durationMs  total wall time to sample (default 5000 ms).
+//   warmupMs    discard initial transient before sampling (default 500 ms).
+void autotune_ekf_noise(int sampleMs = 10, int durationMs = 5000, int warmupMs = 500);
+
+// Stationary MCL distance-sensor noise calibration. Robot must be parked with
+// every configured distance sensor pointed at a wall in range. Per-sensor
+// std-dev of raw range readings (in inches) is averaged to set sensorSigmaIn,
+// and outlierGapIn is set to ~3·sigma. Pushed into live MCL via setConfig().
+void autotune_mcl_noise(int sampleMs = 20, int durationMs = 4000, int warmupMs = 300);
+
 } // namespace light

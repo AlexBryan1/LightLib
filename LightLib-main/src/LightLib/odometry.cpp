@@ -69,6 +69,7 @@
 #include "LightLib/odom.hpp"
 #include "LightLib/ekf.hpp"
 #include "LightLib/lightcast.hpp"
+#include "EZ-Template/drive/drive.hpp"
 #include <cmath>
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -82,6 +83,7 @@ static float radToDeg(float rad) { return rad * 180.0f / M_PI; }
 // odomSpeed:      global-frame velocity (smoothed via EMA), in inches/sec
 // odomLocalSpeed: robot-frame velocity (forward/strafe/turn), in inches/sec
 static OdomSensors odomSensors(nullptr, nullptr, nullptr, nullptr, nullptr);
+static MCLConfig   odomCfg;
 
 static Pose odomPose;
 static Pose odomSpeed;
@@ -320,10 +322,13 @@ void light::update() {
     // best estimate. Rate-limited to prevent oscillation.
     static int snapCooldown = 0;
     if (snapCooldown > 0) --snapCooldown;
+    // Read snap thresholds from ekf::config() so on-brain tuner edits take
+    // effect without re-init.
+    MCLConfig liveCfg = light::ekf::config();
     if (snapCooldown == 0 &&
         light::lightcast::sensorCount() >= 2 &&
-        light::ekf::diverged(9.0f) &&
-        light::lightcast::converged(3.0f)) {
+        light::ekf::diverged(liveCfg.snapDiverge) &&
+        light::lightcast::converged(liveCfg.snapConverge)) {
         light::ekf::reset(light::lightcast::best());
         snapCooldown = 50;  // 500 ms at 100 Hz
     }
@@ -345,13 +350,14 @@ void light::update() {
 // init() — call once in initialize() to start the odometry background task.
 // Pass in your OdomSensors struct with all tracking wheels and IMU(s).
 // The task runs update() every 10 ms (100 Hz) in the background.
-void light::init(OdomSensors sensors) {
+void light::init(OdomSensors sensors, MCLConfig cfg) {
     odomSensors = sensors;
+    odomCfg     = cfg;
 
     // Bring the fused pose estimators online before the tick task starts so
     // the first update() has valid state to update.
-    light::ekf::init(odomPose);
-    light::lightcast::init(odomPose, odomSensors.distanceSensors);
+    light::ekf::init(odomPose, cfg);
+    light::lightcast::init(odomPose, odomSensors.distanceSensors, cfg);
     if (!odomSensors.distanceSensors.empty()) {
         light::lightcast::startTask();
     }
@@ -364,6 +370,19 @@ void light::init(OdomSensors sensors) {
             }
         });
     }
+
+    // Route EZ-Template's odom_*_get / odom_*_set through the fused pose so
+    // pid_odom_* motion closes the loop on the EKF/MCL estimate instead of the
+    // wheel integrator. Both APIs use inches/degrees and CCW-from-+y, so no
+    // unit/frame conversion is needed.
+    ez::register_pose_source(
+        []() -> ez::pose {
+            Pose p = light::getPose();
+            return ez::pose{p.x, p.y, p.theta};
+        },
+        [](ez::pose p) {
+            light::setPose({(float)p.x, (float)p.y, (float)p.theta});
+        });
 }
 // reset() — zero out the "previous" encoder snapshots so the next update()
 // doesn't see a massive delta and teleport the robot.  Call this after

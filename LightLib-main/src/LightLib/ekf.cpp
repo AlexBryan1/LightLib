@@ -14,12 +14,7 @@ namespace {
 
 float x_[6]      = {0};
 float P_[6][6]   = {{0}};
-
-// Process noise per unit dt. Larger = less confidence in motion model →
-// measurements pull the state more. Tune after first track.
-constexpr float Q_POS   = 0.02f;    // in^2 per second
-constexpr float Q_THETA = 0.0005f;  // rad^2 per second
-constexpr float Q_VEL   = 1.0f;     // velocity less trusted than position
+MCLConfig cfg_;
 
 float wrapRad(float a) {
     while (a >  M_PI) a -= 2.0f * M_PI;
@@ -34,7 +29,8 @@ void zeroP() {
 
 }  // namespace
 
-void init(const Pose& p) {
+void init(const Pose& p, MCLConfig cfg) {
+    cfg_ = cfg;
     x_[0] = p.x;
     x_[1] = p.y;
     x_[2] = p.theta;
@@ -80,12 +76,12 @@ void predict(float dLocalX, float dLocalY, float dTheta, float dt) {
         x_[5] = dTheta  / dt;
     }
 
-    P_[0][0] += Q_POS   * dt;
-    P_[1][1] += Q_POS   * dt;
-    P_[2][2] += Q_THETA * dt;
-    P_[3][3] += Q_VEL   * dt;
-    P_[4][4] += Q_VEL   * dt;
-    P_[5][5] += Q_THETA * dt;
+    P_[0][0] += cfg_.ekfQPos   * dt;
+    P_[1][1] += cfg_.ekfQPos   * dt;
+    P_[2][2] += cfg_.ekfQTheta * dt;
+    P_[3][3] += cfg_.ekfQVel   * dt;
+    P_[4][4] += cfg_.ekfQVel   * dt;
+    P_[5][5] += cfg_.ekfQTheta * dt;
 }
 
 // Scalar Kalman update on state[idx]. Shared helper for 1D measurements.
@@ -155,5 +151,8 @@ Pose  mean()      { return {x_[0], x_[1], x_[2]}; }
 Pose  velocity()  { return {x_[3], x_[4], x_[5]}; }
 float covTrace()  { return P_[0][0] + P_[1][1]; }
 bool  diverged(float t) { return covTrace() > t; }
+
+MCLConfig config() { return cfg_; }
+void      setConfig(const MCLConfig& cfg) { cfg_ = cfg; }
 
 }  // namespace light::ekf

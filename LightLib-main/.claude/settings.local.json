@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(grep -rn \"max_speed\\\\|MAX_SPEED\\\\|127\\\\|speed.*limit\\\\|-127\" /c/Users/cactu/OneDrive/Documents/GitHub/LightLib/LightLib-main/include/LightLib/*.hpp)"
+      "Bash(grep -rn \"max_speed\\\\|MAX_SPEED\\\\|127\\\\|speed.*limit\\\\|-127\" /c/Users/cactu/OneDrive/Documents/GitHub/LightLib/LightLib-main/include/LightLib/*.hpp)",
+      "PowerShell($env:TEMP = \"$env:USERPROFILE\\\\AppData\\\\Local\\\\Temp\"; $env:TMP = \"$env:USERPROFILE\\\\AppData\\\\Local\\\\Temp\"; make lightlib 2>&1 | Select-Object -Last 10)",
+      "PowerShell($env:TEMP = \"$env:USERPROFILE\\\\AppData\\\\Local\\\\Temp\"; $env:TMP = \"$env:USERPROFILE\\\\AppData\\\\Local\\\\Temp\"; pros build 2>&1 | Select-Object -Last 8)"
     ]
   }
 }
