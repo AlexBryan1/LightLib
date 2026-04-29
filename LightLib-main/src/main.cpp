@@ -4,15 +4,15 @@
 // │  Use a negative port number to reverse that motor.                      │
 // └─────────────────────────────────────────────────────────────────────────┘
 
-#define LEFT_PORTS  {-10, -9, -8}   // left drive motors
-#define RIGHT_PORTS { 20, 19, 18}   // right drive motors
+#define LEFT_PORTS  {-1, -2, -3, -4, -5}   // left drive motors
+#define RIGHT_PORTS { 6, 7, 8, 9, 10}   // right drive motors
 
-#define IMU_PORT    21   // primary inertial sensor
+#define IMU_PORT    0   // primary inertial sensor
 #define IMU2_PORT    0   // second IMU — set to 0 if you only have one
 
-#define WHEEL_DIAMETER  3.25   // inches  (4" wheels are actually ~4.125")
-#define WHEEL_RPM       450    // motor cartridge RPM × (motor sprocket / wheel sprocket)
-#define TRACK_HALF_W    3.0f   // half of robot track width in inches (used for odometry)
+#define WHEEL_DIAMETER  2.6   // inches  (4" wheels are actually ~4.125")
+#define WHEEL_RPM       600    // motor cartridge RPM × (motor sprocket / wheel sprocket)
+#define TRACK_HALF_W    8.0f   // half of robot track width in inches (used for odometry)
 
 #define JOYSTICK_CURVE    0.2f   // expo curve strength (0 = linear, higher = more curve)
 #define JOYSTICK_DEADZONE 10     // joystick values ±this are treated as 0 (0–127)
@@ -77,7 +77,9 @@
 // │  The chassis, IMU, and auton selector are already ready by this point.  │
 // └─────────────────────────────────────────────────────────────────────────┘
 void user_initialize() {
-
+    // Stiff hold for the snapping lift, and define boot pose as 0°.
+    LiftMotor.set_brake_mode(pros::E_MOTOR_BRAKE_HOLD);
+    LiftRot.reset_position();
 }
 
 // ┌─────────────────────────────────────────────────────────────────────────┐
@@ -114,6 +116,13 @@ void opcontrol() {
                 Score.move(-127), Hood.set(true), MidGoal.set(false);
             else
                 Score.move(0);
+
+            // ── Lift (snaps to nearest preset on release) ──────────────────
+            // Joystick provides analog control; UP/DOWN buttons override it.
+            int liftInput = master.get_analog(ANALOG_RIGHT_Y);
+            if      (master.get_digital(DIGITAL_UP))   liftInput =  100;
+            else if (master.get_digital(DIGITAL_DOWN)) liftInput = -100;
+            Lift.update(liftInput);
         }
 
         // ── Toggle buttons ────────────────────────────────────────────────

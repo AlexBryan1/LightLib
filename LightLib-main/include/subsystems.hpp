@@ -2,6 +2,7 @@
 
 #include "EZ-Template/api.hpp"
 #include "LightLib/api.h"
+#include "LightLib/rotational_snap.hpp"
 #include "pros/motors.hpp"
 
 // ┌─────────────────────────────────────────────────────────────────────────┐
@@ -38,6 +39,26 @@ inline pros::MotorGroup  Score({17, 7});   // Top + Bottom together
 
 inline pros::Motor       turret(0);        // set port to 0 if not installed
 inline pros::Optical     optical(15);
+
+
+// ── Lift with rotational snapping ─────────────────────────────────────────────
+// A motor + rotation sensor pair that snaps to the nearest preset angle when
+// the operator stops driving it. While DIGITAL_UP / DIGITAL_DOWN is held — or
+// the right joystick is deflected — the motor moves manually. As soon as the
+// operator releases, the lift latches the closest snap angle and runs a P
+// controller to it, then holds (motor brake mode is set to HOLD in main.cpp).
+//
+// To use: replace port 0 with your real motor / rotation-sensor ports, then
+// edit the snap angles (degrees) to match your mechanism's rest stops.
+inline pros::Motor    LiftMotor(0);   // 0 = disabled until you set the port
+inline pros::Rotation LiftRot  (0);
+
+inline light::RotationalSnap Lift(
+    LiftMotor, LiftRot,
+    /* snap_angles_deg = */ { 0.0, 45.0, 90.0, 135.0, 180.0 },
+    /* kP             = */ 1.5,
+    /* tolerance_deg  = */ 1.0,
+    /* max_snap_speed = */ 80);
 
 
 // ── Pistons (ADI / 3-wire) ────────────────────────────────────────────────────
