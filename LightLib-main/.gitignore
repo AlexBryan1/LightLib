@@ -34,3 +34,20 @@ temp.log
 temp.errors
 *.ini
 .d/
+
+# PROS template artifacts (re-fetch via `pros c fetch`)
+firmware/libc.a
+firmware/libm.a
+firmware/libpros.a
+firmware/liblvgl.a
+firmware/okapilib.a
+firmware/liblightlib.a
+firmware/libeztemplate.a
+include/liblvgl/
+include/pros/
+include/okapi/
+include/squiggles/
+include/fmt/
+
+# Old EZ-Template archive
+*.zip

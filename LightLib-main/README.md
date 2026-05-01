@@ -2,6 +2,17 @@
 ![](https://github.com/EZ-Robotics/EZ-Template/workflows/Build/badge.svg)
 [![License: MPL 2.0](https://img.shields.io/badge/License-MPL%202.0-brightgreen.svg)](https://opensource.org/licenses/MPL-2.0)
 
+## Building
+
+After cloning, fetch the PROS template dependencies (these are no longer
+checked into the repo to keep the clone small):
+
+```
+pros c fetch okapilib
+pros c fetch liblvgl
+pros make
+```
+
 ⚡️ **coding made ez** ⚡️
 
 💅 **docs and tutorials** 💅 

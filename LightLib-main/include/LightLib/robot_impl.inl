@@ -48,6 +48,8 @@ static constexpr double _ROBOT_WHEEL_DIA = WHEEL_DIAMETER;
 #ifndef GPS_PORT
 #define GPS_PORT            0
 #endif
+// GPS_OFFSET_X / GPS_OFFSET_Y are the GPS sensor's mount position relative to
+// the robot's center, in INCHES.
 #ifndef GPS_OFFSET_X
 #define GPS_OFFSET_X        0.0
 #endif
@@ -107,7 +109,7 @@ static constexpr double _ROBOT_WHEEL_DIA = WHEEL_DIAMETER;
 #define MCL_OUTLIER_GAP  6.0f
 #endif
 #ifndef MCL_MAX_RANGE
-#define MCL_MAX_RANGE    144.0f
+#define MCL_MAX_RANGE    light::field::FIELD_SIZE_IN
 #endif
 #ifndef EKF_Q_POS
 #define EKF_Q_POS        0.02f
@@ -131,16 +133,16 @@ static constexpr double _ROBOT_WHEEL_DIA = WHEEL_DIAMETER;
 #include <vector>
 #include "autons.hpp"
 #include "pros/motors.h"
-#include "LightLib/odom.hpp"
+#include "LightLib/odometry.hpp"
 #include "LightLib/lightcast.hpp"
 #include "LightLib/custom_selector.hpp"
-#include "LightLib/cstm_move.hpp"
+#include "LightLib/custom_move.hpp"
 #include "LightLib/ez_extra.hpp"
 #include "ui_config.hpp"
 
 // ── Global objects built from the #defines in main.cpp ───────────────────────
 
-ez::Drive chassis(LEFT_PORTS, RIGHT_PORTS, IMU_PORT, _ROBOT_WHEEL_DIA, WHEEL_RPM);
+light::Drive chassis(LEFT_PORTS, RIGHT_PORTS, IMU_PORT, _ROBOT_WHEEL_DIA, WHEEL_RPM);
 
 pros::MotorGroup leftMotors (LEFT_PORTS);
 pros::MotorGroup rightMotors(RIGHT_PORTS);
@@ -187,8 +189,10 @@ static TrackingWheel* horiz2Ptr = nullptr;
 #endif
 
 // ── Optional GPS sensor ──────────────────────────────────────────────────────
+static constexpr double _GPS_OFFSET_X_M = (double)GPS_OFFSET_X * light::units::M_PER_IN;
+static constexpr double _GPS_OFFSET_Y_M = (double)GPS_OFFSET_Y * light::units::M_PER_IN;
 #if GPS_PORT != 0
-static pros::Gps _gpsObj(GPS_PORT, GPS_OFFSET_X, GPS_OFFSET_Y);
+static pros::Gps _gpsObj(GPS_PORT, _GPS_OFFSET_X_M, _GPS_OFFSET_Y_M);
 static pros::Gps* gpsPtr = &_gpsObj;
 #else
 static pros::Gps* gpsPtr = nullptr;
@@ -248,34 +252,8 @@ static TrackingWheel* _v2_selected = vertRightPtr ? vertRightPtr : &rightTracker
 
 OdomSensors sensors(_v1_selected, _v2_selected, horiz1Ptr, horiz2Ptr,
                     &imu, imu2_ptr,
-                    gpsPtr, GPS_OFFSET_X, GPS_OFFSET_Y,
+                    gpsPtr, (float)_GPS_OFFSET_X_M, (float)_GPS_OFFSET_Y_M,
                     _build_distance_specs());
-
-// ── Distance sensors ──────────────────────────────────────────────────────────
-// Port 0 means "not installed" — the pointer is nullptr in that case.
-
-#if DIST_LEFT_FRONT_PORT != 0
-static pros::Distance _left_front_obj(DIST_LEFT_FRONT_PORT);
-pros::Distance* left_front_sensor = &_left_front_obj;
-#else
-pros::Distance* left_front_sensor = nullptr;
-#endif
-
-#if DIST_LEFT_BACK_PORT != 0
-static pros::Distance _left_back_obj(DIST_LEFT_BACK_PORT);
-pros::Distance* left_back_sensor = &_left_back_obj;
-pros::Distance* leftDist         = &_left_back_obj;  // alias used by WallRide
-#else
-pros::Distance* left_back_sensor = nullptr;
-pros::Distance* leftDist         = nullptr;
-#endif
-
-#if DIST_FRONT_PORT != 0
-static pros::Distance _front_obj(DIST_FRONT_PORT);
-pros::Distance* frontDist = &_front_obj;
-#else
-pros::Distance* frontDist = nullptr;
-#endif
 
 // ── Alliance color ────────────────────────────────────────────────────────────
 Colors allianceColor = NEUTRAL;
@@ -338,7 +316,7 @@ static void temp_display_task(void*) {
 // ── Auton-during-driver task ──────────────────────────────────────────────────
 static std::atomic<bool> auton_running{false};
 static pros::Task* auton_task = nullptr;
-static uint32_t auton_start_ms = 0;
+static uint32_t practice_auton_start_ms = 0;
 
 static void auton_task_fn(void*) {
     autonomous();
@@ -354,12 +332,12 @@ static void auton_toggle() {
     }
     if (master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_UP)) {
         if (auton_task == nullptr) {
-            auton_start_ms = pros::millis();
+            practice_auton_start_ms = pros::millis();
             auton_running.store(true);
             auton_task = new pros::Task(auton_task_fn, nullptr, TASK_PRIORITY_DEFAULT,
                                         TASK_STACK_DEPTH_DEFAULT, "Auton Task");
         } else {
-            uint32_t elapsed_ms = pros::millis() - auton_start_ms;
+            uint32_t elapsed_ms = pros::millis() - practice_auton_start_ms;
             uint32_t secs = elapsed_ms / 1000;
             uint32_t ms   = elapsed_ms % 1000;
             snprintf(auton_time_str, sizeof(auton_time_str), "S:%lu.%03lus", secs, ms);
@@ -431,9 +409,22 @@ void user_autonomous();
 void initialize() {
     pros::delay(300);
     chassis.initialize();          // calibrates IMU internally
-    pros::delay(300);
+    {
+        const uint32_t imu_calib_deadline = pros::millis() + 3000;
+        auto still_calibrating = [&]() -> bool {
+            bool a = imu.is_calibrating();
+            bool b = imu2_ptr ? imu2_ptr->is_calibrating() : false;
+            return a || b;
+        };
+        while (still_calibrating() && pros::millis() < imu_calib_deadline) {
+            pros::delay(20);
+        }
+        if (still_calibrating()) {
+            printf("[INIT] IMU calibration timeout — odometry may be biased\n");
+        }
+    }
     chassis.drive_imu_reset();
-    cstm_move_init(chassis);
+    custom_move_init(chassis);
     light::ez_extra_init(&chassis, &leftMotors, &rightMotors);
 
     // Use the global `sensors` built at TU scope — it carries the full config

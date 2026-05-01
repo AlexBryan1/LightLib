@@ -23,16 +23,17 @@
 // │  Use it when you want direct control over the PID tuning.                  │
 // └─────────────────────────────────────────────────────────────────────────────┘
 
-#include "LightLib/main.h"
-#include "pros/motors.h"
-#include "LightLib/odom.hpp"
-#include "subsystems.hpp"
-#include "LightLib/odom.hpp"
-#include "pros/rtos.hpp"
 #include "LightLib/ez_extra.hpp"
-#include <cmath>
+
 #include <algorithm>
 #include <atomic>
+#include <cmath>
+
+#include "LightLib/main.h"
+#include "LightLib/odometry.hpp"
+#include "pros/motors.h"
+#include "pros/rtos.hpp"
+#include "subsystems.hpp"
 
 // If any motor exceeds this temperature (Celsius), the controller will rumble.
 #define MOTOR_TEMP_THRESHOLD 55.0
@@ -40,39 +41,39 @@
 // Runtime pointers to the user's drivetrain.  Set by light::ez_extra_init()
 // from initialize() — LightLib lives in the cold package and cannot reference
 // hot-defined externs directly, so callers register their objects instead.
-static ez::Drive*        g_chassis      = nullptr;
-static pros::MotorGroup* g_leftMotors   = nullptr;
-static pros::MotorGroup* g_rightMotors  = nullptr;
+static light::Drive* g_chassis = nullptr;
+static pros::MotorGroup* g_leftMotors = nullptr;
+static pros::MotorGroup* g_rightMotors = nullptr;
 
-void light::ez_extra_init(ez::Drive* chassis,
+void light::ez_extra_init(light::Drive* chassis,
                           pros::MotorGroup* leftMotors,
                           pros::MotorGroup* rightMotors) {
-    g_chassis     = chassis;
-    g_leftMotors  = leftMotors;
-    g_rightMotors = rightMotors;
+  g_chassis = chassis;
+  g_leftMotors = leftMotors;
+  g_rightMotors = rightMotors;
 }
 
 void light::getDriveMotorGroups(pros::MotorGroup** leftOut,
                                 pros::MotorGroup** rightOut) {
-    if (leftOut)  *leftOut  = g_leftMotors;
-    if (rightOut) *rightOut = g_rightMotors;
+  if (leftOut) *leftOut = g_leftMotors;
+  if (rightOut) *rightOut = g_rightMotors;
 }
 
-ez::Drive* light::getChassis() { return g_chassis; }
+light::Drive* light::getChassis() { return g_chassis; }
 
 // ─── Brain screen helpers ────────────────────────────────────────────────────
 // These display tracking wheel data and odom readings on the V5 Brain screen.
 // Useful for debugging sensor calibration and odom accuracy in the pits.
 
 // Print a single tracking wheel's current value and its distance-to-center offset
-void screen_print_tracker(ez::tracking_wheel *tracker, std::string name, int line) {
+void screen_print_tracker(light::tracking_wheel* tracker, std::string name, int line) {
   std::string tracker_value = "", tracker_width = "";
   // Check if the tracker exists
   if (tracker != nullptr) {
     tracker_value = name + " tracker: " + util::to_string_with_precision(tracker->get());             // Make text for the tracker value
     tracker_width = "  width: " + util::to_string_with_precision(tracker->distance_to_center_get());  // Make text for the distance to center
   }
-  ez::screen_print(tracker_value + tracker_width, line);  // Print final tracker text
+  light::screen_print(tracker_value + tracker_width, line);  // Print final tracker text
 }
 // Background task that shows live odom data on the brain screen.
 // Run this as a PROS task from initialize():
@@ -86,27 +87,24 @@ void ez_screen_task() {
   while (true) {
     if (!pros::competition::is_connected()) {
       if (g_chassis && g_chassis->odom_enabled() && !g_chassis->pid_tuner_enabled()) {
-        if (ez::as::page_blank_is_on(0)) {
-          // Show current robot position from odometry
-          ez::screen_print("x: " + util::to_string_with_precision(g_chassis->odom_x_get()) +
-                               "\ny: " + util::to_string_with_precision(g_chassis->odom_y_get()) +
-                               "\na: " + util::to_string_with_precision(g_chassis->odom_theta_get()),
-                           1);  // line 1 — don't overwrite the page title on line 0
+        // Show current robot position from odometry. snprintf into a stack
+        // buffer instead of chained std::string + — saves ~6 heap allocs per tick.
+        char odom_buf[64];
+        snprintf(odom_buf, sizeof(odom_buf), "x: %.2f\ny: %.2f\na: %.2f",
+                 g_chassis->odom_x_get(),
+                 g_chassis->odom_y_get(),
+                 g_chassis->odom_theta_get());
+        light::screen_print(std::string(odom_buf), 1);  // line 1 — don't overwrite the page title on line 0
 
-          // Show each tracking wheel's raw value and its distance-to-center
-          screen_print_tracker(g_chassis->odom_tracker_left, "l", 4);
-          screen_print_tracker(g_chassis->odom_tracker_right, "r", 5);
-          screen_print_tracker(g_chassis->odom_tracker_back, "b", 6);
-          screen_print_tracker(g_chassis->odom_tracker_front, "f", 7);
-        }
+        // Show each tracking wheel's raw value and its distance-to-center
+        screen_print_tracker(g_chassis->odom_tracker_left, "l", 4);
+        screen_print_tracker(g_chassis->odom_tracker_right, "r", 5);
+        screen_print_tracker(g_chassis->odom_tracker_back, "b", 6);
+        screen_print_tracker(g_chassis->odom_tracker_front, "f", 7);
       }
-    } else {
-      // In competition mode, clear debug pages so the driver sees match info
-      if (ez::as::page_blank_amount() > 0)
-        ez::as::page_blank_remove_all();
     }
 
-    pros::delay(ez::util::DELAY_TIME);
+    pros::delay(light::util::DELAY_TIME);
   }
 }
 // ─── EZ-Template PID tuner toggle ────────────────────────────────────────────
@@ -136,32 +134,29 @@ void ez_template_extras() {
   }
 }
 
-
-
 // ─── Motor temperature warning ───────────────────────────────────────────────
 // Call periodically in opcontrol() to warn the driver when intake/scoring motors
 // are overheating.  The controller vibrates with ". . ." and pauses 2 seconds
 // so the driver knows to ease off before a motor cuts out.
 void checkMotorTemp(pros::Controller& controller, pros::Motor& Top, pros::Motor& Bottom) {
-    if (Top.get_temperature() >= MOTOR_TEMP_THRESHOLD ||
-        Bottom.get_temperature() >= MOTOR_TEMP_THRESHOLD) {
-        controller.rumble(". . .");
-        pros::delay(2000);
-    }
+  if (Top.get_temperature() >= MOTOR_TEMP_THRESHOLD ||
+      Bottom.get_temperature() >= MOTOR_TEMP_THRESHOLD) {
+    controller.rumble(". . .");
+    pros::delay(2000);
+  }
 }
 
 // ─── Turret re-homing ────────────────────────────────────────────────────────
 // Drives the turret motor back to its zero position, nudges it slightly past
 // zero to remove backlash, then resets the encoder.  Call this after a shot
 // so the turret is ready for the next track_basket() aim cycle.
-void turret_reset(){
-    turret.move_absolute(0, 127);  // drive to encoder position 0
-    turret.move(-20);              // nudge past zero to seat against hard stop
-    pros::delay(300);
-    turret.move(0);                // stop
-    turret.tare_position();        // reset encoder to 0 at the hard stop
+void turret_reset() {
+  turret.move_absolute(0, 127);  // drive to encoder position 0
+  turret.move(-20);              // nudge past zero to seat against hard stop
+  pros::delay(300);
+  turret.move(0);          // stop
+  turret.tare_position();  // reset encoder to 0 at the hard stop
 }
-
 
 // ─── moveToPoint — Odometry drive-to-coordinate ──────────────────────────────
 // Drives the robot to a field-relative (x, y) position using LightLib's odom
@@ -191,72 +186,71 @@ void turret_reset(){
 // Motor groups are passed in via light::ez_extra_init() — see top of file.
 
 void light::moveToPoint(float targetX, float targetY, int timeout, float maxSpeed, bool reversed) {
+  if (!g_leftMotors || !g_rightMotors) return;  // not registered — nothing to drive
 
-    if (!g_leftMotors || !g_rightMotors) return;  // not registered — nothing to drive
+  // Two separate PID controllers — one for distance, one for heading.
+  // Tune these for your robot.  Good starting points:
+  //   linearPID:  ~125% of your EZ-Template drive PID (since this runs open-loop on motors)
+  //   angularPID: ~100% of your EZ-Template swing PID
+  LightPID linearPID(9.0f, 0.0f, 125.0f);
+  LightPID angularPID(6.0f, 0.0f, 50.0f);
 
-    // Two separate PID controllers — one for distance, one for heading.
-    // Tune these for your robot.  Good starting points:
-    //   linearPID:  ~125% of your EZ-Template drive PID (since this runs open-loop on motors)
-    //   angularPID: ~100% of your EZ-Template swing PID
-    LightPID linearPID (9.0f, 0.0f, 125.0f);
-    LightPID angularPID( 6.0f, 0.0f, 50.0f);
+  const float LINEAR_EXIT = 0.2f;  // inches — "close enough" to stop
 
-    const float LINEAR_EXIT = 0.2f;  // inches — "close enough" to stop
+  uint32_t startTime = pros::millis();
 
-    uint32_t startTime = pros::millis();
+  while (pros::millis() - startTime < (uint32_t)timeout) {
+    Pose pose = light::getPose();  // current position (inches, degrees)
 
-    while (pros::millis() - startTime < (uint32_t)timeout) {
-        Pose pose = light::getPose();  // current position (inches, degrees)
+    // Vector from robot to target
+    float dx = targetX - pose.x;
+    float dy = targetY - pose.y;
+    float distance = sqrtf(dx * dx + dy * dy);
 
-        // Vector from robot to target
-        float dx = targetX - pose.x;
-        float dy = targetY - pose.y;
-        float distance = sqrtf(dx * dx + dy * dy);
+    if (distance < LINEAR_EXIT) break;  // close enough — done
 
-        if (distance < LINEAR_EXIT) break;  // close enough — done
+    // Desired heading to face the target (degrees, 0 = +Y axis)
+    float angleToTarget = atan2f(dx, dy) * 180.0f / M_PI;
+    if (reversed) angleToTarget += 180.0f;
 
-        // Desired heading to face the target (degrees, 0 = +Y axis)
-        float angleToTarget = atan2f(dx, dy) * 180.0f / M_PI;
-        if (reversed) angleToTarget += 180.0f;
+    // Wrap heading error to [-180, 180] so the robot takes the shortest turn
+    float angularError = angleToTarget - pose.theta;
+    while (angularError > 180.0f) angularError -= 360.0f;
+    while (angularError < -180.0f) angularError += 360.0f;
 
-        // Wrap heading error to [-180, 180] so the robot takes the shortest turn
-        float angularError = angleToTarget - pose.theta;
-        while (angularError >  180.0f) angularError -= 360.0f;
-        while (angularError < -180.0f) angularError += 360.0f;
+    // Cosine scaling — if we're pointed 90° away from the target, don't
+    // drive forward at all; only turn.  cos(0°) = 1 (full speed ahead),
+    // cos(90°) = 0 (turn in place).
+    float linearScale = cosf(angularError * M_PI / 180.0f);
+    float linearError = distance * linearScale;
 
-        // Cosine scaling — if we're pointed 90° away from the target, don't
-        // drive forward at all; only turn.  cos(0°) = 1 (full speed ahead),
-        // cos(90°) = 0 (turn in place).
-        float linearScale = cosf(angularError * M_PI / 180.0f);
-        float linearError = distance * linearScale;
+    // PID outputs
+    float linearPower = linearPID.update(linearError);
+    float angularPower = angularPID.update(angularError);
 
-        // PID outputs
-        float linearPower  = linearPID.update(linearError);
-        float angularPower = angularPID.update(angularError);
+    if (reversed) linearPower = -linearPower;
 
-        if (reversed) linearPower = -linearPower;
+    linearPower = std::clamp(linearPower, -maxSpeed, maxSpeed);
 
-        linearPower = std::clamp(linearPower, -maxSpeed, maxSpeed);
+    // Mix linear + angular into left/right differential drive
+    float leftPower = linearPower + angularPower;
+    float rightPower = linearPower - angularPower;
 
-        // Mix linear + angular into left/right differential drive
-        float leftPower  = linearPower + angularPower;
-        float rightPower = linearPower - angularPower;
-
-        // If either side exceeds maxSpeed, scale both down proportionally
-        // so we don't lose the steering ratio
-        float maxOut = std::max(std::abs(leftPower), std::abs(rightPower));
-        if (maxOut > maxSpeed) {
-            leftPower  = leftPower  / maxOut * maxSpeed;
-            rightPower = rightPower / maxOut * maxSpeed;
-        }
-
-        g_leftMotors->move(leftPower);
-        g_rightMotors->move(rightPower);
-
-        pros::delay(10);  // 10ms control loop — yields to PROS scheduler
+    // If either side exceeds maxSpeed, scale both down proportionally
+    // so we don't lose the steering ratio
+    float maxOut = std::max(std::abs(leftPower), std::abs(rightPower));
+    if (maxOut > maxSpeed) {
+      leftPower = leftPower / maxOut * maxSpeed;
+      rightPower = rightPower / maxOut * maxSpeed;
     }
 
-    // Always stop the motors when we're done
-    g_leftMotors->move(0);
-    g_rightMotors->move(0);
+    g_leftMotors->move(leftPower);
+    g_rightMotors->move(rightPower);
+
+    pros::delay(10);  // 10ms control loop — yields to PROS scheduler
+  }
+
+  // Always stop the motors when we're done
+  g_leftMotors->move(0);
+  g_rightMotors->move(0);
 }

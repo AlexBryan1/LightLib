@@ -1,15 +1,16 @@
 #pragma once
-#include "LightLib/main.h"
-#include <string>
 #include <functional>
+#include <string>
 #include <vector>
 
+#include "LightLib/main.h"
+
 struct CustomAuton {
-  std::string           name;
+  std::string name;
   std::function<void()> fn;
 };
 void display_splash(const char* mode);
 void custom_selector_add(const std::string& name, std::function<void()> fn);
 void custom_selector_init();
-int  custom_selector_get();
+int custom_selector_get();
 void custom_selector_run();

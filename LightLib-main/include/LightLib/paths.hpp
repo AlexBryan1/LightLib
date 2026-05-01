@@ -23,19 +23,20 @@
 // false without invoking the follower.
 
 #include <vector>
+
 #include "LightLib/ramsete.hpp"
 
 namespace light {
 
 bool runPath(const char* name,
              bool reversed = false,
-             int  timeoutMs = -1,
+             int timeoutMs = -1,
              float poseErrBailIn = 8.0f);
 
 bool runPath(const char* name,
              std::vector<PathEvent> events,
              bool reversed = false,
-             int  timeoutMs = -1,
+             int timeoutMs = -1,
              float poseErrBailIn = 8.0f);
 
-} // namespace light
+}  // namespace light

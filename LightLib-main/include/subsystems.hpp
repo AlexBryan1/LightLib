@@ -1,7 +1,7 @@
 #pragma once
 
-#include "EZ-Template/api.hpp"
 #include "LightLib/api.h"
+#include "LightLib/ez_api.hpp"
 #include "LightLib/rotational_snap.hpp"
 #include "pros/motors.hpp"
 
@@ -19,7 +19,6 @@
 // The drive chassis — configured in main.cpp, used everywhere else.
 extern Drive chassis;
 
-
 // ── Motors ────────────────────────────────────────────────────────────────────
 // Syntax:   inline pros::Motor  name(PORT);
 //           inline pros::Motor  name(-PORT);   // negative port = reversed
@@ -33,13 +32,12 @@ extern Drive chassis;
 //   name.get_temperature()    — degrees C (>55 = hot, >70 = thermal limit)
 //   name.get_actual_velocity()
 
-inline pros::Motor       Top(7);
-inline pros::Motor       Bottom(17);
-inline pros::MotorGroup  Score({17, 7});   // Top + Bottom together
+inline pros::Motor Top(7);
+inline pros::Motor Bottom(17);
+inline pros::MotorGroup Score({17, 7});  // Top + Bottom together
 
-inline pros::Motor       turret(0);        // set port to 0 if not installed
-inline pros::Optical     optical(15);
-
+inline pros::Motor turret(0);  // set port to 0 if not installed
+inline pros::Optical optical(15);
 
 // ── Lift with rotational snapping ─────────────────────────────────────────────
 // A motor + rotation sensor pair that snaps to the nearest preset angle when
@@ -50,41 +48,28 @@ inline pros::Optical     optical(15);
 //
 // To use: replace port 0 with your real motor / rotation-sensor ports, then
 // edit the snap angles (degrees) to match your mechanism's rest stops.
-inline pros::Motor    LiftMotor(0);   // 0 = disabled until you set the port
-inline pros::Rotation LiftRot  (0);
+inline pros::Motor LiftMotor(0);  // 0 = disabled until you set the port
+inline pros::Rotation LiftRot(0);
 
 inline light::RotationalSnap Lift(
     LiftMotor, LiftRot,
-    /* snap_angles_deg = */ { 0.0, 45.0, 90.0, 135.0, 180.0 },
+    /* snap_angles_deg = */ {0.0, 45.0, 90.0, 135.0, 180.0},
     /* kP             = */ 1.5,
     /* tolerance_deg  = */ 1.0,
     /* max_snap_speed = */ 80);
 
-
 // ── Pistons (ADI / 3-wire) ────────────────────────────────────────────────────
-// Syntax:  inline ez::Piston name('PORT');
+// Syntax:  inline light::Piston name('PORT');
 // PORT is the letter A–H matching the 3-wire port on the brain or expander.
 //
-// ez::Piston tracks toggle state and supports:
+// light::Piston tracks toggle state and supports:
 //   name.set(true / false)      — extend / retract
 //   name.button_toggle(btn)     — toggle state when btn is newly pressed
 
-inline ez::Piston Wings     ('A');   // intake wings / expander
-inline ez::Piston Loader    ('C');   // ball loader / indexer
-inline ez::Piston MidGoal   ('D');   // mid-goal clamp or mechanism
-inline ez::Piston Hood      ('E');   // scoring hood
-
-
-// ── Distance sensors ──────────────────────────────────────────────────────────
-// Defined conditionally in main.cpp based on DIST_*_PORT.
-// If a port macro is 0 the pointer is nullptr — always null-check before use:
-//   if (leftDist && leftDist->get() < 100) { ... }
-
-extern pros::Distance* left_front_sensor;  // left-front distance sensor
-extern pros::Distance* left_back_sensor;   // left-back  distance sensor
-extern pros::Distance* leftDist;           // alias for left_back_sensor (WallRide)
-extern pros::Distance* frontDist;          // forward-facing distance sensor
-
+inline light::Piston Wings('A');    // intake wings / expander
+inline light::Piston Loader('C');   // ball loader / indexer
+inline light::Piston MidGoal('D');  // mid-goal clamp or mechanism
+inline light::Piston Hood('E');     // scoring hood
 
 // ── Alliance color ────────────────────────────────────────────────────────────
 // Set allianceColor at the start of autonomous (in user_autonomous() or your
@@ -92,9 +77,10 @@ extern pros::Distance* frontDist;          // forward-facing distance sensor
 //   allianceColor = RED;    // sort out blue rings
 //   allianceColor = BLUE;   // sort out red rings
 //   allianceColor = NEUTRAL; // sort nothing
-enum Colors { BLUE = 0, NEUTRAL = 1, RED = 2 };
+enum Colors { BLUE = 0,
+              NEUTRAL = 1,
+              RED = 2 };
 extern Colors allianceColor;
-
 
 // ── Holonomic / non-tank drives (optional) ────────────────────────────────────
 // Uncomment ONE block below if you are using a holonomic drive instead of (or

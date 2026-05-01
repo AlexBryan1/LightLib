@@ -1,6 +1,7 @@
 #include "LightLib/field_map.hpp"
-#include <cmath>
+
 #include <algorithm>
+#include <cmath>
 
 namespace light::field {
 
@@ -9,26 +10,26 @@ namespace light::field {
 // More robust than segment intersection when the ray origin is near a wall,
 // and cheap enough to run 200 particles × N sensors per LightCast tick.
 float raycast(float x, float y, float angleRad, float max_range) {
-    if (x < -FIELD_HALF || x > FIELD_HALF ||
-        y < -FIELD_HALF || y > FIELD_HALF) return 0.0f;
+  if (x < -FIELD_HALF || x > FIELD_HALF ||
+      y < -FIELD_HALF || y > FIELD_HALF) return 0.0f;
 
-    const float dx = std::sin(angleRad);
-    const float dy = std::cos(angleRad);
+  const float dx = std::sin(angleRad);
+  const float dy = std::cos(angleRad);
 
-    float tMin = max_range;
+  float tMin = max_range;
 
-    auto hit = [&](float denom, float num) {
-        if (std::fabs(denom) < 1e-6f) return;
-        float t = num / denom;
-        if (t > 0.0f && t < tMin) tMin = t;
-    };
+  auto hit = [&](float denom, float num) {
+    if (std::fabs(denom) < 1e-6f) return;
+    float t = num / denom;
+    if (t > 0.0f && t < tMin) tMin = t;
+  };
 
-    hit(dx,  FIELD_HALF - x);  // right wall
-    hit(dx, -FIELD_HALF - x);  // left wall
-    hit(dy,  FIELD_HALF - y);  // front wall
-    hit(dy, -FIELD_HALF - y);  // back wall
+  hit(dx, FIELD_HALF - x);   // right wall
+  hit(dx, -FIELD_HALF - x);  // left wall
+  hit(dy, FIELD_HALF - y);   // front wall
+  hit(dy, -FIELD_HALF - y);  // back wall
 
-    return std::min(tMin, max_range);
+  return std::min(tMin, max_range);
 }
 
 }  // namespace light::field

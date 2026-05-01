@@ -1,12 +1,11 @@
 #pragma once
 
-#include "EZ-Template/api.hpp"
 #include "LightLib/api.h"
-#include "LightLib/odom.hpp"
+#include "LightLib/ez_api.hpp"
+#include "LightLib/odometry.hpp"
 #include "pros/motor_group.hpp"
 
-
-void screen_print_tracker(ez::tracking_wheel *tracker, std::string name, int line);
+void screen_print_tracker(light::tracking_wheel* tracker, std::string name, int line);
 void ez_screen_task();
 void ez_template_extras();
 void checkMotorTemp(pros::Controller& controller, pros::Motor& Top, pros::Motor& Bottom);
@@ -18,35 +17,42 @@ void track_basket();
 // used.  Takes pointers rather than externing globals so LightLib can live in
 // the PROS cold package without linker errors.
 namespace light {
-    void ez_extra_init(ez::Drive* chassis,
-                       pros::MotorGroup* leftMotors,
-                       pros::MotorGroup* rightMotors);
+void ez_extra_init(light::Drive* chassis,
+                   pros::MotorGroup* leftMotors,
+                   pros::MotorGroup* rightMotors);
 
-    // Accessors used by RAMSETE/characterization so they command the same
-    // motor groups the user registered via ez_extra_init. Returns nullptr
-    // through the out-params if ez_extra_init hasn't been called.
-    void getDriveMotorGroups(pros::MotorGroup** leftOut,
-                             pros::MotorGroup** rightOut);
-    ez::Drive* getChassis();
-}
-
+// Accessors used by RAMSETE/characterization so they command the same
+// motor groups the user registered via ez_extra_init. Returns nullptr
+// through the out-params if ez_extra_init hasn't been called.
+void getDriveMotorGroups(pros::MotorGroup** leftOut,
+                         pros::MotorGroup** rightOut);
+light::Drive* getChassis();
+}  // namespace light
 
 // Simple PID controller struct
 struct LightPID {
-    float kP, kI, kD;
-    float prevError = 0;
-    float integral  = 0;
+  float kP, kI, kD;
+  float prevError = 0;
+  float integral = 0;
+  float integralCap = 1000.0f;
 
-    LightPID(float kP, float kI, float kD) : kP(kP), kI(kI), kD(kD) {}
+  LightPID(float kP, float kI, float kD) : kP(kP), kI(kI), kD(kD) {}
 
-    float update(float error) {
-        integral += error;
-        float derivative = error - prevError;
-        prevError = error;
-        return kP * error + kI * integral + kD * derivative;
+  float update(float error) {
+    integral += error;
+    if (integralCap > 0.0f) {
+      if (integral > integralCap) integral = integralCap;
+      if (integral < -integralCap) integral = -integralCap;
     }
+    float derivative = error - prevError;
+    prevError = error;
+    return kP * error + kI * integral + kD * derivative;
+  }
 
-    void reset() { prevError = 0; integral = 0; }
+  void reset() {
+    prevError = 0;
+    integral = 0;
+  }
 };
 
 // Move to a field-relative (x, y) point

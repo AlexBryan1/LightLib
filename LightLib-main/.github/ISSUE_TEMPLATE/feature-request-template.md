@@ -7,11 +7,11 @@ assignees: ''
 ---
 
 ## Is this feature related to a problem?  
-<!-- What problem exists within EZ-Template for this feature to help? -->
+<!-- What problem exists within LightLib for this feature to help? -->
 <!-- Eg. "I'm always frustrated when I have to spend hours manually tuning PID" -->
 
 ## What should be added?
-<!-- What should be added to EZ-Template? -->
+<!-- What should be added to LightLib? -->
 <!-- Eg. "Autonomous PID tuning" -->
 
 ## OPTIONAL: Describe any solutions you've considered

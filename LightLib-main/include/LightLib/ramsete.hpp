@@ -20,6 +20,7 @@
 
 #include <functional>
 #include <vector>
+
 #include "LightLib/trajectory.hpp"
 
 namespace light {
@@ -38,23 +39,23 @@ namespace light {
 // the next tick will read the new pose and the RAMSETE error term will
 // correct against the unchanged trajectory.
 struct PathEvent {
-    int atWaypoint = 0;
-    std::function<void()> action;
+  int atWaypoint = 0;
+  std::function<void()> action;
 };
 
 struct RamseteConfig {
-    float b    = 2.0f;   // aggressiveness  — larger = more correction
-    float zeta = 0.7f;   // damping         — [0, 1], 0.7 is classic
-    float trackWidthIn = 12.0f;
-    float wheelDiamIn  = 3.25f;
-    float gearRatio    = 0.75f;  // wheel_rpm / motor_rpm (0.75 = 36:48 blue)
+  float b = 2.0f;     // aggressiveness  — larger = more correction
+  float zeta = 0.7f;  // damping         — [0, 1], 0.7 is classic
+  float trackWidthIn = 12.0f;
+  float wheelDiamIn = 3.25f;
+  float gearRatio = 0.75f;  // wheel_rpm / motor_rpm (0.75 = 36:48 blue)
 };
 
 struct DriveFF {
-    float kS = 0.0f;   // V to break static friction
-    float kV = 0.0f;   // V per (in/s) steady-state
-    float kA = 0.0f;   // V per (in/s²)
-    float kP = 0.0f;   // V per (in/s) velocity-error
+  float kS = 0.0f;  // V to break static friction
+  float kV = 0.0f;  // V per (in/s) steady-state
+  float kA = 0.0f;  // V per (in/s²)
+  float kP = 0.0f;  // V per (in/s) velocity-error
 };
 
 void ramsete_configure(RamseteConfig rc, DriveFF ff, TrajConstraints defaultCons);
@@ -109,7 +110,7 @@ bool runJerryioPathFromSD(const char* filePath,
                           float poseErrBailIn = 8.0f);
 
 // Characterization — run each as its own selectable auton.
-void  characterize_kV_kA_kS(float maxVoltage = 10.0f, float rampVps = 0.25f);
+void characterize_kV_kA_kS(float maxVoltage = 10.0f, float rampVps = 0.25f);
 float characterize_track_width(int rotations = 10);
 float characterize_a_lat_max();
 
@@ -140,12 +141,12 @@ float characterize_a_lat_max();
 //   drive       — ≥8 ft straight clear ahead.
 //   heading     — ≥8 ft straight lane; the robot drives forward at forwardV
 //                 while the relay corrects heading around 0.
-void autotune_turn_pid   (float reliefV = 4.0f, int cycles = 6, int timeoutMs = 15000,
-                          int chunkCycles = 2, int coolMs = 5000);
-void autotune_drive_pid  (float reliefV = 6.0f, int cycles = 5, int timeoutMs = 15000,
-                          int chunkCycles = 2, int coolMs = 5000);
-void autotune_swing_pid  (float reliefV = 4.0f, int cycles = 6, int timeoutMs = 15000,
-                          int chunkCycles = 2, int coolMs = 5000);
+void autotune_turn_pid(float reliefV = 4.0f, int cycles = 6, int timeoutMs = 15000,
+                       int chunkCycles = 2, int coolMs = 5000);
+void autotune_drive_pid(float reliefV = 6.0f, int cycles = 5, int timeoutMs = 15000,
+                        int chunkCycles = 2, int coolMs = 5000);
+void autotune_swing_pid(float reliefV = 4.0f, int cycles = 6, int timeoutMs = 15000,
+                        int chunkCycles = 2, int coolMs = 5000);
 void autotune_heading_pid(float forwardV = 3.0f, float reliefV = 2.0f,
                           int cycles = 5, int timeoutMs = 15000,
                           int chunkCycles = 2, int coolMs = 5000);
@@ -164,4 +165,4 @@ void autotune_ekf_noise(int sampleMs = 10, int durationMs = 5000, int warmupMs =
 // and outlierGapIn is set to ~3·sigma. Pushed into live MCL via setConfig().
 void autotune_mcl_noise(int sampleMs = 20, int durationMs = 4000, int warmupMs = 300);
 
-} // namespace light
+}  // namespace light

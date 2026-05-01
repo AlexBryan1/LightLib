@@ -11,7 +11,7 @@
 namespace light::field {
 
 constexpr float FIELD_SIZE_IN = 144.0f;  // 12 ft × 12 ft
-constexpr float FIELD_HALF    = FIELD_SIZE_IN / 2.0f;
+constexpr float FIELD_HALF = FIELD_SIZE_IN / 2.0f;
 
 // Cast a ray from (x, y) in direction angleRad (world frame).
 // Returns distance to nearest obstacle along the ray, clamped to max_range.

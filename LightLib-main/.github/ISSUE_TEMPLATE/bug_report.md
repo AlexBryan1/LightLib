@@ -18,7 +18,7 @@ assignees: ''
 ## Versions
 <!-- Run `pros conduct info-project` to see what versions you're running. -->
 PROS Kernel Version: <!-- eg. 4.1.0 -->
-EZ-Template Version: <!-- eg. v3.1.0 -->
+LightLib Version: <!-- eg. v3.1.0 -->
 Other Libraries: <!-- eg. LemLib, VOSS, etc. -->
 
 ## OPTIONAL: Additional Information

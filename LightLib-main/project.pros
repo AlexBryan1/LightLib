@@ -401,7 +401,7 @@
     "upload_options": {
       "compress_bin": true,
       "description": "Shotgun Mech uploading...",
-      "remote_name": "EZ-Template",
+      "remote_name": "LightLib",
       "slot": 1,
       "after": "run",
       "icon": "X"

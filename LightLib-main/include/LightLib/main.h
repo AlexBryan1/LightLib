@@ -41,12 +41,11 @@
  */
 // #include "okapi/api.hpp"
 // #include "pros/api_legacy.h"
-#include "EZ-Template/api.hpp"
+#include "LightLib/ez_api.hpp"
 
 // More includes here...
 #include "autons.hpp"
 #include "subsystems.hpp"
-#include "LightLib/auton_config.hpp"
 #include "LightLib/auton_selector.hpp"
 #include "LightLib/pid_tuner.hpp"
 #include "LightLib/drive.hpp"
@@ -67,7 +66,7 @@
 // using namespace pros;
 // using namespace pros::literals;
 // using namespace okapi;
-// using namespace ez;
+// using namespace light;
 using namespace okapi::literals;
 
 /**
