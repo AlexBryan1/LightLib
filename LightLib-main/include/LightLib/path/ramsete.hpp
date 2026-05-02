@@ -21,7 +21,7 @@
 #include <functional>
 #include <vector>
 
-#include "LightLib/trajectory.hpp"
+#include "LightLib/path/trajectory.hpp"
 
 namespace light {
 
@@ -113,6 +113,12 @@ bool runJerryioPathFromSD(const char* filePath,
 void characterize_kV_kA_kS(float maxVoltage = 10.0f, float rampVps = 0.25f);
 float characterize_track_width(int rotations = 10);
 float characterize_a_lat_max();
+
+// Friction-FF auto-ID for the non-trajectory PID controllers. Sweeps voltage
+// open-loop, fits  V = kS·sgn(v) + kV·v + kQ·v·|v|  in motor-cmd units, and
+// applies the result via chassis.friction_constants_set(). Raw samples are
+// written to /usd/friction_id.csv when an SD card is present.
+void characterize_friction(float maxVoltage = 10.0f, float stepV = 0.5f);
 
 // ── Relay-feedback (Åström-Hägglund) PID auto-tune ──────────────────────────
 //

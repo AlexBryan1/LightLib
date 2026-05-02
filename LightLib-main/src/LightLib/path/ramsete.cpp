@@ -12,7 +12,7 @@
 //   * RAMSETE owns the motors exclusively. Do not call any chassis.pid_*
 //     motion while a trajectory is running.
 
-#include "LightLib/ramsete.hpp"
+#include "LightLib/path/ramsete.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -21,12 +21,12 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "LightLib/ekf.hpp"
-#include "LightLib/ez_api.hpp"
-#include "LightLib/ez_extra.hpp"
-#include "LightLib/lightcast.hpp"
-#include "LightLib/odometry.hpp"
-#include "LightLib/util.hpp"
+#include "LightLib/drive/ekf.hpp"
+#include "LightLib/lib.hpp"
+#include "LightLib/util/extras.hpp"
+#include "LightLib/drive/lightcast.hpp"
+#include "LightLib/drive/odometry.hpp"
+#include "LightLib/util/util.hpp"
 #include "pros/misc.hpp"
 #include "pros/motor_group.hpp"
 #include "pros/rtos.hpp"
@@ -197,7 +197,7 @@ static bool followTrajectoryCore(const Trajectory& traj,
   pros::MotorGroup* right = nullptr;
   light::getDriveMotorGroups(&left, &right);
   if (!left || !right) {
-    printf("[RAMSETE] motor groups not registered via ez_extra_init\n");
+    printf("[RAMSETE] motor groups not registered via extras_init\n");
     return false;
   }
 
@@ -869,6 +869,138 @@ float characterize_a_lat_max() {
     printf("[CHAR][FAILED] aLatMax invalid — TrajConstraints unchanged\n");
   }
   return aLatSafe;
+}
+
+// ── Friction-feedforward characterization ──────────────────────────────────
+//
+// Open-loop voltage sweep, fits the per-side steady-state model
+//     V = kS·sgn(v) + kV·v + kQ·v·|v|
+// with V and v both in motor-cmd units (-127..127). Coefficients are fed
+// to chassis.friction_constants_set() and (when an SD card is present)
+// raw samples are dumped to /usd/friction_id.csv.
+//
+// This is the FF for the non-trajectory PID controllers (drive/turn/swing/xy).
+// RAMSETE has its own per-wheel FF and is not affected.
+void characterize_friction(float maxVoltage, float stepV) {
+  light::Drive* chassis = light::getChassis();
+  pros::MotorGroup* L = nullptr;
+  pros::MotorGroup* R = nullptr;
+  light::getDriveMotorGroups(&L, &R);
+  if (!L || !R || !chassis) {
+    printf("[FRIC] no motor groups / chassis\n");
+    return;
+  }
+
+  double maxRpm = chassis->drive_rpm_get();
+  if (maxRpm < 1.0) {
+    printf("[FRIC] invalid cartridge rpm (%g) — aborting\n", maxRpm);
+    return;
+  }
+
+  EzPauseGuard guard(chassis, L, R);
+
+  FILE* f = nullptr;
+  if (light::util::SD_CARD_ACTIVE) {
+    f = fopen("/usd/friction_id.csv", "w");
+    if (f) fputs("v_cmd_applied,v_cmd_velocity\n", f);
+  }
+
+  std::vector<double> v_arr;       // measured velocity in motor-cmd units
+  std::vector<double> Vapp_arr;    // applied motor-cmd-unit voltage
+  v_arr.reserve(64);
+  Vapp_arr.reserve(64);
+
+  // Quasi-static ramp. Hold each step long enough for steady state, then
+  // average velocity over a short window. Skip samples below a noise floor
+  // (encoder quantization dominates the reading there).
+  for (float vApplied = 0.0f; vApplied <= maxVoltage + 1e-3f; vApplied += stepV) {
+    driveAllVolts(L, R, vApplied);
+    pros::delay(800);  // settle
+
+    double sumRpm = 0.0;
+    int n = 0;
+    uint32_t tStart = pros::millis();
+    while (pros::millis() - tStart < 200) {
+      double sL = (double)L->get_actual_velocity();
+      double sR = (double)R->get_actual_velocity();
+      sumRpm += 0.5 * (std::fabs(sL) + std::fabs(sR));
+      n++;
+      pros::delay(10);
+    }
+    double rpmAvg = (n > 0) ? sumRpm / n : 0.0;
+    double v_cmd_velocity = (rpmAvg / maxRpm) * 127.0;
+    double Vapp_cmd = vApplied * (127.0 / 12.0);
+
+    if (f) fprintf(f, "%.3f,%.3f\n", Vapp_cmd, v_cmd_velocity);
+
+    if (v_cmd_velocity > 2.0) {  // noise floor — encoder quantization
+      v_arr.push_back(v_cmd_velocity);
+      Vapp_arr.push_back(Vapp_cmd);
+    }
+  }
+
+  driveAllVolts(L, R, 0);
+  pros::delay(500);
+  if (f) fclose(f);
+
+  size_t N = v_arr.size();
+  if (N < 5) {
+    printf("[FRIC] not enough usable samples (%u) — fit aborted\n",
+           (unsigned)N);
+    return;
+  }
+
+  // Solve normal equations for [kS, kV, kQ] given basis [sgn(v), v, v·|v|].
+  // All v > 0 here, so sgn(v) = 1 — the system is conditioned on the kV/kQ
+  // separation being driven by the curvature of the data.
+  double M[3][3] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
+  double bvec[3] = {0, 0, 0};
+  for (size_t i = 0; i < N; ++i) {
+    double v = v_arr[i];
+    double s = 1.0;       // forward sweep, sgn(v) = 1
+    double vv = v * v;    // v·|v| with v > 0
+    double Va = Vapp_arr[i];
+    double basis[3] = {s, v, vv};
+    for (int r = 0; r < 3; ++r) {
+      for (int c = 0; c < 3; ++c) M[r][c] += basis[r] * basis[c];
+      bvec[r] += basis[r] * Va;
+    }
+  }
+
+  auto det3 = [](double m[3][3]) {
+    return m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
+         - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
+         + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+  };
+  double D = det3(M);
+  if (std::fabs(D) < 1e-9) {
+    printf("[FRIC] singular fit matrix — aborting\n");
+    return;
+  }
+  auto subDet = [&](int col) {
+    double T[3][3];
+    for (int r = 0; r < 3; ++r)
+      for (int c = 0; c < 3; ++c)
+        T[r][c] = (c == col) ? bvec[r] : M[r][c];
+    return det3(T);
+  };
+  double kS = subDet(0) / D;
+  double kV = subDet(1) / D;
+  double kQ = subDet(2) / D;
+
+  printf("[FRIC] kS=%.3f kV=%.4f kQ=%.5f over %u samples\n",
+         kS, kV, kQ, (unsigned)N);
+
+  if (kS >= 0.0 && kV >= 0.0) {
+    chassis->friction_constants_set(kS, kV, kQ);
+    printf("[FRIC][APPLIED] friction_constants_set(%.3f, %.4f, %.5f)\n",
+           kS, kV, kQ);
+  } else {
+    printf("[FRIC][FAILED] negative coefficients — chassis unchanged\n");
+  }
+  if (light::util::SD_CARD_ACTIVE) {
+    printf("[FRIC] raw data: /usd/friction_id.csv\n");
+  }
 }
 
 // ── Relay-feedback PID auto-tune ────────────────────────────────────────────

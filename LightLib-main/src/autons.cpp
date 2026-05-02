@@ -2,14 +2,14 @@
 
 #include <cmath>
 
-#include "LightLib/auton_timer.hpp"
-#include "LightLib/custom_move.hpp"
-#include "LightLib/drive_utils.hpp"
+#include "LightLib/util/auton_timer.hpp"
+#include "LightLib/drive/custom_move.hpp"
+#include "LightLib/drive/drive_utils.hpp"
 #include "LightLib/main.h"
-#include "LightLib/odometry.hpp"
-#include "LightLib/ramsete.hpp"
-#include "LightLib/util.hpp"
-#include "Lightlib/paths.hpp"
+#include "LightLib/drive/odometry.hpp"
+#include "LightLib/path/ramsete.hpp"
+#include "LightLib/util/util.hpp"
+#include "LightLib/path/paths.hpp"
 #include "pros/motors.h"
 #include "subsystems.hpp"
 

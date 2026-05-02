@@ -4,7 +4,7 @@
 // touch one file when adding a new path. This file just looks the name up
 // and hands the CSV off to the RAMSETE follower via runJerryioPath.
 
-#include "Lightlib/paths.hpp"
+#include "LightLib/path/paths.hpp"
 
 #include <cstdio>
 #include <cstring>

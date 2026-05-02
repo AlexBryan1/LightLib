@@ -11,7 +11,7 @@
 // Arclength: each segment builds a 65-sample s(u) trapezoid table once at
 // construction; s→u lookup is a binary search + linear interp.
 
-#include "LightLib/spline.hpp"
+#include "LightLib/path/spline.hpp"
 
 #include <algorithm>
 #include <cmath>

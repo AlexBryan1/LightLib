@@ -10,15 +10,13 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #include <iostream>
 #include <tuple>
 
-#include "LightLib/pid.hpp"
-#include "LightLib/slew.hpp"
-#include "LightLib/tracking_wheel.hpp"
-#include "LightLib/util.hpp"
-#include "okapi/api/units/QAngle.hpp"
-#include "okapi/api/units/QLength.hpp"
-#include "okapi/api/units/QTime.hpp"
-#include "pros/motor_group.hpp"
-#include "pros/motors.h"
+#include "LightLib/control/pid.hpp"
+#include "LightLib/control/slew.hpp"
+#include "LightLib/drive/tracking_wheel.hpp"
+#include "LightLib/util/util.hpp"
+#include "light/motor_group.hpp"
+#include "light/motors.h"
+#include "light/units.hpp"
 
 using namespace light;
 
@@ -150,6 +148,37 @@ class Drive {
   light::slew slew_swing_forward;
   light::slew slew_swing_backward;
   light::slew slew_swing;
+
+  /**
+   * Friction-feedforward coefficients in motor-command units (-127..127).
+   * Default zero — when unset, friction_ff() returns 0 and behavior is
+   * unchanged from a pure PID. Identify with the "Char: Friction" auton.
+   *
+   *   ff(v) = kS * sgn(v) + kV * v + kQ * v * |v|
+   */
+  double friction_kS = 0.0;
+  double friction_kV = 0.0;
+  double friction_kQ = 0.0;
+
+  /**
+   * Sets the friction-feedforward coefficients. Pass all zeros to disable.
+   *
+   * \param kS  static break-away (motor-cmd units, -127..127)
+   * \param kV  viscous coefficient
+   * \param kQ  quadratic-drag coefficient
+   */
+  void friction_constants_set(double kS, double kV = 0.0, double kQ = 0.0);
+
+  /**
+   * Returns {kS, kV, kQ}.
+   */
+  std::vector<double> friction_constants_get();
+
+  /**
+   * Computes the friction-feedforward term for a target motor-cmd-unit
+   * velocity. Returns 0 when all coefficients are 0.
+   */
+  double friction_ff(double v_target);
 
   /**
    * Sets constants for slew for swing movements.

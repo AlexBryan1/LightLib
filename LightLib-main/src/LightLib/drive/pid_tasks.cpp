@@ -5,7 +5,7 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
 #include "LightLib/drive/drive.hpp"
-#include "LightLib/util.hpp"
+#include "LightLib/util/util.hpp"
 #include "pros/misc.hpp"
 
 using namespace light;
@@ -84,6 +84,11 @@ void Drive::drive_pid_task() {
     r_out *= (max_slew_out / faster_side);
   }
 
+  // Friction feedforward — adds a velocity-dependent boost so the PID isn't
+  // fighting Coulomb/viscous/quadratic friction. Returns 0 if not configured.
+  l_out += friction_ff(l_out);
+  r_out += friction_ff(r_out);
+
   // Set motors
   if (drive_toggle)
     private_drive_set(l_out, r_out);
@@ -115,9 +120,16 @@ void Drive::turn_pid_task() {
       gyro_out = util::clamp(gyro_out, pid_turn_min_get(), -pid_turn_min_get());
   }
 
+  // Friction feedforward — applied per side; ff() is odd in v_target, so the
+  // right side's negation produces the right sign automatically.
+  double turn_l = gyro_out;
+  double turn_r = -gyro_out;
+  turn_l += friction_ff(turn_l);
+  turn_r += friction_ff(turn_r);
+
   // Set motors
   if (drive_toggle)
-    private_drive_set(gyro_out, -gyro_out);
+    private_drive_set(turn_l, turn_r);
 }
 
 // Swing PID task
@@ -147,10 +159,14 @@ void Drive::swing_pid_task() {
     // Check if left or right swing, then set motors accordingly
     if (current_swing == LEFT_SWING) {
       opposite_output = swing_opposite_speed == 0 ? rightPID.output : (swing_opposite_speed * scale);
-      private_drive_set(swing_out, opposite_output);
+      double l_v = swing_out;
+      double r_v = opposite_output;
+      private_drive_set(l_v + friction_ff(l_v), r_v + friction_ff(r_v));
     } else if (current_swing == RIGHT_SWING) {
       opposite_output = swing_opposite_speed == 0 ? leftPID.output : -(swing_opposite_speed * scale);
-      private_drive_set(opposite_output, -swing_out);
+      double l_v = opposite_output;
+      double r_v = -swing_out;
+      private_drive_set(l_v + friction_ff(l_v), r_v + friction_ff(r_v));
     }
   }
 }
@@ -208,6 +224,10 @@ void Drive::ptp_task() {
     l_out *= (max_slew_out / faster_side);
     r_out *= (max_slew_out / faster_side);
   }
+
+  // Friction feedforward (see drive_pid_task for rationale).
+  l_out += friction_ff(l_out);
+  r_out += friction_ff(r_out);
 
   // printf("lr out (%.2f, %.2f)   xy/a(%.2f, %.2f)   lr slew (%.2f, %.2f)\n", l_out, r_out, xy_out, a_out, slew_left.output(), slew_right.output());
   // printf("max_slew_out %.2f      headingerr: %.2f\n", max_slew_out, aPID.error);

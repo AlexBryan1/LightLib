@@ -1,19 +1,19 @@
 #pragma once
 
 // LightCast — ray-cast Monte-Carlo localization. A particle filter driven by
-// distance-sensor ray-casts against the field map. Runs at 5 Hz alongside the
+// distance-sensor ray-casts against the field map. Runs at 10 Hz alongside the
 // 100 Hz EKF. Purpose: give the hybrid fusion a second opinion that the EKF
 // can snap to when the EKF's own covariance blows up (e.g. after a hard wall
 // ram).
 //
 // predict() runs inline from the 100 Hz odom tick to stay synchronized with
 // wheel arc deltas — cheap (no ray-casts).
-// update() runs from the LightCast task (lightcast.cpp) at 5 Hz — reads
+// update() runs from the LightCast task (lightcast.cpp) at 10 Hz — reads
 // distance sensors, computes per-particle likelihoods via field::raycast(),
 // resamples.
 
-#include "LightLib/mcl_config.hpp"
-#include "LightLib/odometry.hpp"
+#include "LightLib/drive/mcl_config.hpp"
+#include "LightLib/drive/odometry.hpp"
 
 namespace light::lightcast {
 
@@ -31,12 +31,17 @@ DistanceSensorSpec fromFace(pros::Distance* s, Face face, float along, float dep
 void init(const Pose& initial, const std::vector<DistanceSensorSpec>& sensors, MCLConfig cfg = {});
 void predict(float dLocalX, float dLocalY, float dTheta);
 void update();
-void startTask();  // spawns the 5 Hz LightCast update task; call after init()
+void startTask();  // spawns the 10 Hz LightCast update task; call after init()
 Pose best();
 float convergence();
 bool converged(float threshold_in = 3.0f);
 int sensorCount();
-const std::vector<DistanceSensorSpec>& sensors();
+std::vector<DistanceSensorSpec> sensors();
+
+// Number of ticks where the filter saw all-degenerate weights and reset to
+// uniform (motion-model only). Increments without printing — caller can
+// poll on its own schedule for diagnostics.
+uint32_t degenerateTickCount();
 
 // Live tuning — mirrors the ekf API so the autotune routine and on-brain
 // tuner can push noise constants without reinitializing the filter.

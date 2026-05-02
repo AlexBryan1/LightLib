@@ -32,7 +32,7 @@
 //   The light::Drive reference is stored as a pointer at runtime inside
 //   custom_move_init(), avoiding the PROS cold/hot package linker constraint.
 
-#include "LightLib/ez_api.hpp"  // provides light::Drive
+#include "LightLib/lib.hpp"  // provides light::Drive
 #include "LightLib/main.h"      // PROS umbrella — provides pros::Distance, pros::millis, etc.
 
 // driveWallTrack — drives the robot forward while:

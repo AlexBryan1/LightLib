@@ -1,29 +1,28 @@
 #pragma once
 
-#include "LightLib/api.h"
-#include "LightLib/ez_api.hpp"
-#include "LightLib/odometry.hpp"
+#include "LightLib/lib.hpp"
+#include "LightLib/drive/odometry.hpp"
 #include "pros/motor_group.hpp"
 
 void screen_print_tracker(light::tracking_wheel* tracker, std::string name, int line);
-void ez_screen_task();
-void ez_template_extras();
+void screen_task();
+void lib_extras();
 void checkMotorTemp(pros::Controller& controller, pros::Motor& Top, pros::Motor& Bottom);
 void default_positions();
 void track_basket();
 
 // Register the user's drivetrain objects with LightLib.  Must be called once
-// in initialize() before ez_screen_task / ez_template_extras / moveToPoint are
-// used.  Takes pointers rather than externing globals so LightLib can live in
-// the PROS cold package without linker errors.
+// in initialize() before screen_task / lib_extras / moveToPoint are used.
+// Takes pointers rather than externing globals so LightLib can live in the
+// PROS cold package without linker errors.
 namespace light {
-void ez_extra_init(light::Drive* chassis,
-                   pros::MotorGroup* leftMotors,
-                   pros::MotorGroup* rightMotors);
+void extras_init(light::Drive* chassis,
+                 pros::MotorGroup* leftMotors,
+                 pros::MotorGroup* rightMotors);
 
 // Accessors used by RAMSETE/characterization so they command the same
-// motor groups the user registered via ez_extra_init. Returns nullptr
-// through the out-params if ez_extra_init hasn't been called.
+// motor groups the user registered via extras_init. Returns nullptr
+// through the out-params if extras_init hasn't been called.
 void getDriveMotorGroups(pros::MotorGroup** leftOut,
                          pros::MotorGroup** rightOut);
 light::Drive* getChassis();

@@ -32,7 +32,7 @@
 // │    A baseSpeed of 80 ≈ 63% power, a safe starting point for wall rides.       │
 // └───────────────────────────────────────────────────────────────────────────────┘
 
-#include "LightLib/custom_move.hpp"
+#include "LightLib/drive/custom_move.hpp"
 
 #include <algorithm>
 #include <cmath>

@@ -1,10 +1,10 @@
-#include "LightLib/ekf.hpp"
+#include "LightLib/drive/ekf.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <mutex>
 
-#include "LightLib/util.hpp"
+#include "LightLib/util/util.hpp"
 #include "pros/rtos.hpp"
 
 // Pragmatic 6-state EKF for V5. Mean is advanced by the arc integration the

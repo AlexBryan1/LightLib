@@ -5,8 +5,8 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
 #include "LightLib/drive/drive.hpp"
-#include "LightLib/tracking_wheel.hpp"
-#include "LightLib/util.hpp"
+#include "LightLib/drive/tracking_wheel.hpp"
+#include "LightLib/util/util.hpp"
 
 using namespace light;
 

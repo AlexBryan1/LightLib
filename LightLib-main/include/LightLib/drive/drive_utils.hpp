@@ -3,9 +3,9 @@
 #include <cmath>
 
 #include "LightLib/drive/drive.hpp"
-#include "LightLib/field_map.hpp"
-#include "LightLib/odometry.hpp"
-#include "LightLib/util.hpp"
+#include "LightLib/path/field_map.hpp"
+#include "LightLib/drive/odometry.hpp"
+#include "LightLib/util/util.hpp"
 #include "okapi/api/units/QLength.hpp"
 #include "pros/distance.hpp"
 #include "subsystems.hpp"

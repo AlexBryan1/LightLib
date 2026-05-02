@@ -3,8 +3,8 @@
 // screen.hpp would pull in the weak inline definition and cause a redefinition
 // error. By keeping this TU clean, the linker replaces the weak symbol with
 // our strong definition, which runs before PROS applies its blue material theme.
-#include "liblvgl/extra/themes/default/lv_theme_default.h"
 #include "liblvgl/lvgl.h"
+#include "liblvgl/extra/themes/default/lv_theme_default.h"
 #include "ui_config.hpp"
 
 void lvgl_init() {

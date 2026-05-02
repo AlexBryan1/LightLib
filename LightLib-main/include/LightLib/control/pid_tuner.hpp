@@ -1,8 +1,8 @@
 #pragma once
 #include <array>
 
-#include "LightLib/ez_api.hpp"
-#include "liblvgl/lvgl.h"
+#include "LightLib/lib.hpp"
+#include "light/lvgl.h"
 
 namespace light {
 

@@ -1,5 +1,5 @@
 // ┌─────────────────────────────────────────────────────────────────────────────┐
-// │  ez_extra.cpp — Utilities that extend EZ-Template                          │
+// │  extras.cpp — Helper utilities that extend the LightLib chassis API        │
 // │                                                                            │
 // │  This file contains helper functions that sit on top of EZ-Template and    ���
 // │  PROS.  Nothing here is called automatically — you wire these into         │
@@ -8,29 +8,29 @@
 // │  CONTENTS:                                                                 │
 // │                                                                            │
 // │  1. screen_print_tracker()  — prints a tracking wheel's value on the brain │
-// │  2. ez_screen_task()        — background task that displays odom data on   │
+// │  2. screen_task()           — background task that displays odom data on   │
 // │                               the brain screen when not in competition     │
-// │  3. ez_template_extras()    — enables the EZ-Template PID tuner via the    ��
+// │  3. lib_extras()            — enables the on-brain PID tuner via the��
 // │                               controller's X button (practice mode only)   │
 // │  4. checkMotorTemp()        — rumbles the controller if motors are hot     │
 // │  5. turret_reset()          — re-homes a turret motor to its zero position │
-// │  6. light::moveToPoint()    — drives to an (x, y) field coordinate using  │
+// │  6. light::moveToPoint()    — drives to an (x, y) field coordinate using   │
 // │                               odometry and a dual-PID (linear + angular)   │
 // │                               control loop                                 │
 // │                                                                            │
 // │  The most important function here is moveToPoint() — it's a standalone    │
-// │  odom drive-to-point that doesn't depend on EZ-Template's built-in odom.  │
+// │  odom drive-to-point that doesn't depend on the chassis' built-in odom.   │
 // │  Use it when you want direct control over the PID tuning.                  │
 // └─────────────────────────────────────────────────────────────────────────────┘
 
-#include "LightLib/ez_extra.hpp"
+#include "LightLib/util/extras.hpp"
 
 #include <algorithm>
 #include <atomic>
 #include <cmath>
 
 #include "LightLib/main.h"
-#include "LightLib/odometry.hpp"
+#include "LightLib/drive/odometry.hpp"
 #include "pros/motors.h"
 #include "pros/rtos.hpp"
 #include "subsystems.hpp"
@@ -38,16 +38,16 @@
 // If any motor exceeds this temperature (Celsius), the controller will rumble.
 #define MOTOR_TEMP_THRESHOLD 55.0
 
-// Runtime pointers to the user's drivetrain.  Set by light::ez_extra_init()
+// Runtime pointers to the user's drivetrain.  Set by light::extras_init()
 // from initialize() — LightLib lives in the cold package and cannot reference
 // hot-defined externs directly, so callers register their objects instead.
 static light::Drive* g_chassis = nullptr;
 static pros::MotorGroup* g_leftMotors = nullptr;
 static pros::MotorGroup* g_rightMotors = nullptr;
 
-void light::ez_extra_init(light::Drive* chassis,
-                          pros::MotorGroup* leftMotors,
-                          pros::MotorGroup* rightMotors) {
+void light::extras_init(light::Drive* chassis,
+                        pros::MotorGroup* leftMotors,
+                        pros::MotorGroup* rightMotors) {
   g_chassis = chassis;
   g_leftMotors = leftMotors;
   g_rightMotors = rightMotors;
@@ -77,13 +77,13 @@ void screen_print_tracker(light::tracking_wheel* tracker, std::string name, int 
 }
 // Background task that shows live odom data on the brain screen.
 // Run this as a PROS task from initialize():
-//   pros::Task screen_task(ez_screen_task);
+//   pros::Task task(screen_task);
 //
 // When NOT connected to a competition switch (i.e., practice/pit mode):
 //   - Shows X, Y, Angle and all tracking wheel readings on a blank page
 // When connected to competition:
 //   - Removes all blank pages so the auton selector / match info is visible
-void ez_screen_task() {
+void screen_task() {
   while (true) {
     if (!pros::competition::is_connected()) {
       if (g_chassis && g_chassis->odom_enabled() && !g_chassis->pid_tuner_enabled()) {
@@ -107,7 +107,7 @@ void ez_screen_task() {
     pros::delay(light::util::DELAY_TIME);
   }
 }
-// ─── EZ-Template PID tuner toggle ────────────────────────────────────────────
+// ─── PID tuner toggle ────────────────────────────────────────────────────────
 // Call this every loop iteration inside opcontrol().
 // In practice mode (no competition switch):
 //   - Press X on the controller to toggle the PID tuner on/off
@@ -116,7 +116,7 @@ void ez_screen_task() {
 //   - Once you find good values, copy them into default_constants() in autons.cpp
 // In competition mode:
 //   - The PID tuner is automatically disabled so it can't interfere with a match
-void ez_template_extras() {
+void lib_extras() {
   if (!g_chassis) return;
   if (!pros::competition::is_connected()) {
     if (master.get_digital_new_press(DIGITAL_X))
@@ -183,7 +183,7 @@ void turret_reset() {
 //   maxSpeed         — motor speed cap, 0–127 (default 127)
 //   reversed         — if true, drive to the point backwards
 
-// Motor groups are passed in via light::ez_extra_init() — see top of file.
+// Motor groups are passed in via light::extras_init() — see top of file.
 
 void light::moveToPoint(float targetX, float targetY, int timeout, float maxSpeed, bool reversed) {
   if (!g_leftMotors || !g_rightMotors) return;  // not registered — nothing to drive

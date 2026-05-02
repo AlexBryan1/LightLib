@@ -1,6 +1,6 @@
 #pragma once
 
-#include "LightLib/field_map.hpp"
+#include "LightLib/path/field_map.hpp"
 
 // MCLConfig — runtime tuning for LightCast (particle filter) and the EKF.
 // Build one in main.cpp using the MCL_* / EKF_* macros and pass it to
@@ -11,6 +11,8 @@ struct MCLConfig {
   float sensorSigmaIn = 2.5f;                      // distance sensor noise std dev (inches)
   float outlierGapIn = 6.0f;                       // readings this much shorter than expected → neutral
   float maxRangeIn = light::field::FIELD_SIZE_IN;  // max ray-cast distance
+  float initPosSigmaIn = 1.0f;                     // initial particle x/y spread around starting pose
+  float initHeadingSigmaRad = 0.05f;               // initial particle heading spread (~3°)
 
   // EKF process noise (larger = trust sensors more over motion model)
   float ekfQPos = 0.02f;      // in² per second

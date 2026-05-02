@@ -26,7 +26,10 @@
       "Bash(git rm *)",
       "Bash(git --git-dir=\"C:/Users/User/Downloads/EZ-Template-main/EZ-Template-main/EZ-Template-Example-Project/LightLib/.git\" ls-files)",
       "Bash(xargs -I{} stat --printf=\"%s\\\\n\" {})",
-      "Bash(awk '{s+=$1} END {printf \"%.1f MB\\\\n\", s/1024/1024}')"
+      "Bash(awk '{s+=$1} END {printf \"%.1f MB\\\\n\", s/1024/1024}')",
+      "Bash(pros c *)",
+      "Bash(pros make *)",
+      "Bash(git mv *)"
     ]
   }
 }

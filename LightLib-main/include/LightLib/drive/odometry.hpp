@@ -2,12 +2,12 @@
 #include <cmath>
 #include <vector>
 
-#include "LightLib/mcl_config.hpp"
-#include "pros/distance.hpp"
-#include "pros/gps.hpp"
-#include "pros/imu.hpp"
-#include "pros/motor_group.hpp"
-#include "pros/rotation.hpp"
+#include "LightLib/drive/mcl_config.hpp"
+#include "light/distance.hpp"
+#include "light/gps.hpp"
+#include "light/imu.hpp"
+#include "light/motor_group.hpp"
+#include "light/rotation.hpp"
 
 // ─── Pose ────────────────────────────────────────────────────────────────────
 struct Pose {

@@ -6,7 +6,7 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 #include <list>
 
-#include "LightLib/ez_api.hpp"
+#include "LightLib/lib.hpp"
 #include "okapi/api/units/QAngle.hpp"
 #include "pros/llemu.hpp"
 #include "pros/screen.hpp"
@@ -239,6 +239,26 @@ void Drive::private_drive_set(int left, int right) {
   for (auto i : right_motors) {
     if (!pto_check(i)) i.move_voltage(right * (12000.0 / 127.0));  // If the motor is in the pto list, don't do anything to the motor.
   }
+}
+
+void Drive::friction_constants_set(double kS, double kV, double kQ) {
+  friction_kS = kS;
+  friction_kV = kV;
+  friction_kQ = kQ;
+}
+
+std::vector<double> Drive::friction_constants_get() {
+  return {friction_kS, friction_kV, friction_kQ};
+}
+
+double Drive::friction_ff(double v_target) {
+  if (friction_kS == 0.0 && friction_kV == 0.0 && friction_kQ == 0.0) return 0.0;
+  // Deadband around zero — keeps kS from kicking a settled motor and causing
+  // chatter near the setpoint. 1 motor-cmd unit is well below any realistic kS.
+  if (fabs(v_target) < 1.0) return 0.0;
+  return util::sgn(v_target) * friction_kS
+       + friction_kV * v_target
+       + friction_kQ * v_target * fabs(v_target);
 }
 
 void Drive::drive_set(int left, int right) {

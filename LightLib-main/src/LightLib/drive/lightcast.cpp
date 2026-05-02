@@ -1,12 +1,13 @@
-#include "LightLib/lightcast.hpp"
+#include "LightLib/drive/lightcast.hpp"
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <mutex>
 #include <random>
 
-#include "LightLib/field_map.hpp"
-#include "LightLib/util.hpp"
+#include "LightLib/path/field_map.hpp"
+#include "LightLib/util/util.hpp"
 #include "pros/rtos.hpp"
 
 // LightCast particle-filter implementation. The particle array is protected by
@@ -17,6 +18,8 @@
 namespace light::lightcast {
 namespace {
 
+constexpr float kWeightEpsilon = 1e-12f;
+
 struct Particle {
   float x, y, theta, w;
 };
@@ -26,6 +29,7 @@ std::vector<Particle> particles_;
 std::vector<DistanceSensorSpec> sensors_;
 pros::Mutex mtx_;
 std::mt19937 rng_{0xC0FFEE};
+uint32_t degenerateCount_ = 0;
 
 using ::light::util::wrap_rad;
 
@@ -38,11 +42,10 @@ float gaussian(float sigma) {
 // particle diversity better when a few heavy particles dominate the weight.
 void resample() {
   int n = (int)particles_.size();
-  static std::vector<Particle> out;
-  out.resize(n);
+  std::vector<Particle> out(n);
   float totalW = 0.0f;
   for (int i = 0; i < n; ++i) totalW += particles_[i].w;
-  if (totalW < 1e-12f) {
+  if (totalW < kWeightEpsilon) {
     for (int i = 0; i < n; ++i) particles_[i].w = 1.0f / n;
     return;
   }
@@ -97,9 +100,9 @@ void init(const Pose& initial, const std::vector<DistanceSensorSpec>& sensors, M
   sensors_ = sensors;
   particles_.resize(cfg_.numParticles);
   for (int i = 0; i < cfg_.numParticles; ++i) {
-    particles_[i].x = initial.x + gaussian(1.0f);
-    particles_[i].y = initial.y + gaussian(1.0f);
-    particles_[i].theta = wrap_rad(initial.theta + gaussian(0.05f));
+    particles_[i].x = initial.x + gaussian(cfg_.initPosSigmaIn);
+    particles_[i].y = initial.y + gaussian(cfg_.initPosSigmaIn);
+    particles_[i].theta = wrap_rad(initial.theta + gaussian(cfg_.initHeadingSigmaRad));
     particles_[i].w = 1.0f / cfg_.numParticles;
   }
 }
@@ -107,6 +110,8 @@ void init(const Pose& initial, const std::vector<DistanceSensorSpec>& sensors, M
 void predict(float dLocalX, float dLocalY, float dTheta) {
   std::lock_guard<pros::Mutex> lock(mtx_);
   // Noise scales with motion magnitude (more motion = more uncertainty).
+  // Coefficients model: 0.05 in/in odometry slip + 0.02 in static jitter,
+  // 0.1 rad/rad heading drift + 0.002 rad static IMU noise.
   float motionMag = std::sqrt(dLocalX * dLocalX + dLocalY * dLocalY);
   float posNoise = 0.02f + 0.05f * motionMag;
   float angNoise = 0.002f + 0.1f * std::fabs(dTheta);
@@ -143,8 +148,14 @@ void update() {
   const float twoSigSq = 2.0f * cfg_.sensorSigmaIn * cfg_.sensorSigmaIn;
   int n = (int)particles_.size();
 
+  // Two-pass to enable log-sum-exp normalization. First pass accumulates
+  // log-likelihood; second pass exponentiates relative to the max so even
+  // very negative log-weights survive instead of underflowing to 0.
+  std::vector<float> logWeights(n, 0.0f);
+  std::vector<int> contribCounts(n, 0);
+  float maxLogW = -std::numeric_limits<float>::infinity();
   for (int i = 0; i < n; ++i) {
-    Particle& p = particles_[i];
+    const Particle& p = particles_[i];
     float logW = 0.0f;
     int contributed = 0;
     for (size_t k = 0; k < sensors_.size(); ++k) {
@@ -166,22 +177,33 @@ void update() {
       logW += -(residual * residual) / twoSigSq;
       ++contributed;
     }
-    if (contributed == 0)
-      p.w = 1.0f / n;
+    logWeights[i] = logW;
+    contribCounts[i] = contributed;
+    if (contributed > 0 && logW > maxLogW) maxLogW = logW;
+  }
+
+  // If no particle contributed anything, the entire tick is uninformative —
+  // reset to uniform and bail before resampling.
+  if (maxLogW == -std::numeric_limits<float>::infinity()) {
+    for (int i = 0; i < n; ++i) particles_[i].w = 1.0f / n;
+    return;
+  }
+
+  // Second pass: exp(logW - maxLogW) so the heaviest particle gets w=1 and
+  // others get well-scaled relative weights. Mathematically identical to
+  // normalize-after-exp, but underflow-free.
+  for (int i = 0; i < n; ++i) {
+    if (contribCounts[i] == 0)
+      particles_[i].w = 1.0f / n;
     else
-      p.w = std::exp(logW);
+      particles_[i].w = std::exp(logWeights[i] - maxLogW);
   }
 
   // Normalize + effective sample size check for resample decision.
   float sumW = 0.0f;
   for (int i = 0; i < n; ++i) sumW += particles_[i].w;
-  if (sumW < 1e-12f) {
-    static uint32_t last_warn = 0;
-    uint32_t now = pros::millis();
-    if (now - last_warn > 1000) {
-      printf("[LightCast] degenerate weights — particles uniform, motion-model only\n");
-      last_warn = now;
-    }
+  if (sumW < kWeightEpsilon) {
+    ++degenerateCount_;
     for (int i = 0; i < n; ++i) particles_[i].w = 1.0f / n;
     return;
   }
@@ -206,7 +228,7 @@ Pose best() {
     sc += std::cos(p.theta) * p.w;
     wSum += p.w;
   }
-  if (wSum < 1e-12f) return {0, 0, 0};
+  if (wSum < kWeightEpsilon) return {0, 0, 0};
   return {sx / wSum, sy / wSum, std::atan2(ss, sc)};
 }
 
@@ -233,11 +255,28 @@ float convergence() {
 
 bool converged(float threshold_in) { return convergence() < threshold_in; }
 
-int sensorCount() { return static_cast<int>(sensors_.size()); }
-const std::vector<DistanceSensorSpec>& sensors() { return sensors_; }
+int sensorCount() {
+  std::lock_guard<pros::Mutex> lock(mtx_);
+  return static_cast<int>(sensors_.size());
+}
+std::vector<DistanceSensorSpec> sensors() {
+  std::lock_guard<pros::Mutex> lock(mtx_);
+  return sensors_;
+}
 
-MCLConfig config() { return cfg_; }
-void setConfig(const MCLConfig& cfg) { cfg_ = cfg; }
+MCLConfig config() {
+  std::lock_guard<pros::Mutex> lock(mtx_);
+  return cfg_;
+}
+void setConfig(const MCLConfig& cfg) {
+  std::lock_guard<pros::Mutex> lock(mtx_);
+  cfg_ = cfg;
+}
+
+uint32_t degenerateTickCount() {
+  std::lock_guard<pros::Mutex> lock(mtx_);
+  return degenerateCount_;
+}
 
 // 10 Hz LightCast update task. Spawned by light::init() after lightcast::init().
 // predict() runs inline on the 100 Hz odom task; only update() (the expensive

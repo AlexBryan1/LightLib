@@ -16,8 +16,8 @@
 // When LightCast converges and EKF is uncertain, odometry.cpp calls reset()
 // to snap the state to the LightCast best estimate.
 
-#include "LightLib/mcl_config.hpp"
-#include "LightLib/odometry.hpp"
+#include "LightLib/drive/mcl_config.hpp"
+#include "LightLib/drive/odometry.hpp"
 
 namespace light::ekf {
 

@@ -133,11 +133,11 @@ static constexpr double _ROBOT_WHEEL_DIA = WHEEL_DIAMETER;
 #include <vector>
 #include "autons.hpp"
 #include "pros/motors.h"
-#include "LightLib/odometry.hpp"
-#include "LightLib/lightcast.hpp"
-#include "LightLib/custom_selector.hpp"
-#include "LightLib/custom_move.hpp"
-#include "LightLib/ez_extra.hpp"
+#include "LightLib/drive/odometry.hpp"
+#include "LightLib/drive/lightcast.hpp"
+#include "LightLib/ui/custom_selector.hpp"
+#include "LightLib/drive/custom_move.hpp"
+#include "LightLib/util/extras.hpp"
 #include "ui_config.hpp"
 
 // ── Global objects built from the #defines in main.cpp ───────────────────────
@@ -425,7 +425,7 @@ void initialize() {
     }
     chassis.drive_imu_reset();
     custom_move_init(chassis);
-    light::ez_extra_init(&chassis, &leftMotors, &rightMotors);
+    light::extras_init(&chassis, &leftMotors, &rightMotors);
 
     // Use the global `sensors` built at TU scope — it carries the full config
     // (optional rotation trackers, GPS, LightCast distance specs).

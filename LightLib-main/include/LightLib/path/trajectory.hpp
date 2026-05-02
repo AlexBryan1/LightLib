@@ -10,7 +10,7 @@
 
 #include <vector>
 
-#include "LightLib/spline.hpp"
+#include "LightLib/path/spline.hpp"
 
 namespace light {
 

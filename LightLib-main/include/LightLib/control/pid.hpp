@@ -7,7 +7,7 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #pragma once
 
 #include "LightLib/api.h"
-#include "LightLib/util.hpp"
+#include "LightLib/util/util.hpp"
 
 namespace light {
 class PID {

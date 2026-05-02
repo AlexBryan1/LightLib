@@ -35,12 +35,12 @@
 // │     light::auton_selector.run();    // call in autonomous() to execute      │
 // └─────────────────────────────────────────────────────────────────────────────┘
 
-#include "LightLib/auton_selector.hpp"
+#include "LightLib/ui/auton_selector.hpp"
 
 #include <cstring>
 
-#include "LightLib/odometry.hpp"
-#include "LightLib/pid_tuner.hpp"
+#include "LightLib/drive/odometry.hpp"
+#include "LightLib/control/pid_tuner.hpp"
 #include "ui_config.hpp"
 
 // LVGL image assets — these are defined elsewhere and converted from image files

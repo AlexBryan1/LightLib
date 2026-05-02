@@ -10,7 +10,7 @@
 //   dt = 2·ds / (v[i] + v[i+1])
 // accumulating time until the path runs out.
 
-#include "LightLib/trajectory.hpp"
+#include "LightLib/path/trajectory.hpp"
 
 #include <algorithm>
 #include <cmath>

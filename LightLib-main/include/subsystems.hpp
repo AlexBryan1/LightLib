@@ -1,8 +1,7 @@
 #pragma once
 
-#include "LightLib/api.h"
-#include "LightLib/ez_api.hpp"
-#include "LightLib/rotational_snap.hpp"
+#include "LightLib/lib.hpp"
+#include "LightLib/util/rotational_snap.hpp"
 #include "pros/motors.hpp"
 
 // ┌─────────────────────────────────────────────────────────────────────────┐

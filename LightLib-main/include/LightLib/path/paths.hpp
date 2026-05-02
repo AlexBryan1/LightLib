@@ -24,7 +24,7 @@
 
 #include <vector>
 
-#include "LightLib/ramsete.hpp"
+#include "LightLib/path/ramsete.hpp"
 
 namespace light {
 

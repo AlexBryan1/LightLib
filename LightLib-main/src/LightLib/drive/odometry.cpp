@@ -69,10 +69,10 @@
 #include <cmath>
 
 #include "LightLib/drive/drive.hpp"
-#include "LightLib/ekf.hpp"
-#include "LightLib/lightcast.hpp"
-#include "LightLib/odometry.hpp"
-#include "LightLib/util.hpp"
+#include "LightLib/drive/ekf.hpp"
+#include "LightLib/drive/lightcast.hpp"
+#include "LightLib/drive/odometry.hpp"
+#include "LightLib/util/util.hpp"
 #include "pros/rtos.hpp"
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

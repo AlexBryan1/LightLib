@@ -5,8 +5,8 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
 #include "LightLib/drive/drive.hpp"
-#include "LightLib/util.hpp"
-#include "liblvgl/llemu.hpp"
+#include "LightLib/util/util.hpp"
+#include "light/lvgl_llemu.hpp"
 #include "pros/llemu.hpp"
 #include "pros/misc.h"
 

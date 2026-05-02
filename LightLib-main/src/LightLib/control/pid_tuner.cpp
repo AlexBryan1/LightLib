@@ -49,13 +49,13 @@
 // |    with yellow accents, matching the auton selector.                        |
 // +-----------------------------------------------------------------------------+
 
-#include "LightLib/pid_tuner.hpp"
+#include "LightLib/control/pid_tuner.hpp"
 
 #include <cmath>
 #include <cstdio>
 
-#include "LightLib/auton_selector.hpp"
-#include "LightLib/ekf.hpp"
+#include "LightLib/ui/auton_selector.hpp"
+#include "LightLib/drive/ekf.hpp"
 #include "pros/rtos.hpp"
 
 // ─── Layout constants ────────────────────────────────────────────────────────

@@ -1,9 +1,9 @@
-#include "LightLib/rotational_snap.hpp"
+#include "LightLib/util/rotational_snap.hpp"
 
 #include <algorithm>
 #include <cmath>
 
-#include "LightLib/holo_drive.hpp"  // light::wrap180
+#include "LightLib/drive/holo_drive.hpp"  // light::wrap180
 
 namespace light {
 

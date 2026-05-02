@@ -1,13 +1,12 @@
 #pragma once
 
-#include "LightLib/ez_api.hpp"
-#include "LightLib/util.hpp"
+#include "LightLib/lib.hpp"
 
 const double WHEEL_DIAMETER = 3.3369184232;
 const double ROBOT_WIDTH = 11.4375;
 const int KEY = 267267;
 
-enum Distance {
+enum DistanceSide {
   BACK = 0,
   RIGHT = 1,
   LEFT = 2
@@ -52,7 +51,7 @@ std::vector<Coordinate> injectPath(std::vector<Coordinate> coordList, double loo
 // Set position wrappers
 void setPosition(double x, double y);
 void setPosition(double x, double y, double t);
-double getDistanceActual(Distance sensor, bool use_theta, double failsafe);
+double getDistanceActual(DistanceSide sensor, bool use_theta, double failsafe);
 
 // Wait wrappers
 void pidWait(Wait type);

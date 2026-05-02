@@ -1,5 +1,5 @@
-#include "LightLib/auton_selector.hpp"
-#include "LightLib/ramsete.hpp"
+#include "LightLib/ui/auton_selector.hpp"
+#include "LightLib/path/ramsete.hpp"
 #include "autons.hpp"
 
 // ┌─────────────────────────────────────────────────────────────────────────┐
@@ -43,4 +43,6 @@ void register_autons() {
                             [] { light::characterize_track_width(); });
   light::auton_selector.add("Char: aLatMax", "Constant-radius circle, find lat-accel cap",
                             [] { light::characterize_a_lat_max(); });
+  light::auton_selector.add("Char: Friction", "Sweep voltage, fit kS/kV/kQ for PID FF (needs 8 ft)",
+                            [] { light::characterize_friction(); });
 }

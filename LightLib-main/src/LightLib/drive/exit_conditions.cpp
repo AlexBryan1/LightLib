@@ -5,7 +5,7 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 */
 
 #include "LightLib/drive/drive.hpp"
-#include "LightLib/util.hpp"
+#include "LightLib/util/util.hpp"
 
 using namespace light;
 

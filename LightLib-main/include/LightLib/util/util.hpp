@@ -21,9 +21,7 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #include <vector>
 
 #include "LightLib/api.h"
-#include "okapi/api/units/QAngle.hpp"
-#include "okapi/api/units/QLength.hpp"
-#include "okapi/api/units/QTime.hpp"
+#include "light/units.hpp"
 
 using namespace okapi::literals;
 

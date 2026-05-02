@@ -51,6 +51,11 @@ TEMPLATE_FILES=$(INCDIR)/LightLib/*.hpp $(INCDIR)/LightLib/*.h $(INCDIR)/LightLi
 ########## Nothing below this line should be edited by typical users ###########
 -include ./common.mk
 
+# Silence "LOAD segment with RWX permissions" linker warning. V5 has no
+# MMU/MPU enforcement of W^X, so the warning is purely cosmetic here. Must
+# be appended after common.mk because common.mk uses `=` for LNK_FLAGS.
+LNK_FLAGS+=--no-warn-rwx-segments
+
 ################################################################################
 # Asset library — image data compiled into the cold package.
 # Symbols are available to hot code via -R cold.elf at link time.

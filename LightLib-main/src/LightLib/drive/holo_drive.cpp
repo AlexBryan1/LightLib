@@ -56,7 +56,7 @@
 // │    10ms cycles ("settled" counter), or when the timeout expires.          │
 // └───────────────────────────────────────────────────────────────────────────┘
 
-#include "LightLib/holo_drive.hpp"
+#include "LightLib/drive/holo_drive.hpp"
 
 #include <algorithm>
 #include <cmath>

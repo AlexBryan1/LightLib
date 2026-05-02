@@ -34,26 +34,25 @@
  */
 #define PROS_USE_LITERALS
 
-#include "LightLib/api.h"
+#include "LightLib/lib.hpp"
 
 /**
  * You should add more #includes here
  */
 // #include "okapi/api.hpp"
 // #include "pros/api_legacy.h"
-#include "LightLib/ez_api.hpp"
 
 // More includes here...
 #include "autons.hpp"
 #include "subsystems.hpp"
-#include "LightLib/auton_selector.hpp"
-#include "LightLib/pid_tuner.hpp"
+#include "LightLib/ui/auton_selector.hpp"
+#include "LightLib/control/pid_tuner.hpp"
 #include "LightLib/drive.hpp"
-#include "LightLib/holo_drive.hpp"
-#include "LightLib/auton_timer.hpp"
-#include "LightLib/spline.hpp"
-#include "LightLib/trajectory.hpp"
-#include "LightLib/ramsete.hpp"
+#include "LightLib/drive/holo_drive.hpp"
+#include "LightLib/util/auton_timer.hpp"
+#include "LightLib/path/spline.hpp"
+#include "LightLib/path/trajectory.hpp"
+#include "LightLib/path/ramsete.hpp"
 
 /**
  * If you find doing pros::Motor() to be tedious and you'd prefer just to do

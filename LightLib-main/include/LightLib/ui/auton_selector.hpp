@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 
-#include "liblvgl/lvgl.h"
+#include "light/lvgl.h"
 
 namespace light {
 

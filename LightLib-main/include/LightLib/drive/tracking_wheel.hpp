@@ -6,8 +6,8 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 #pragma once
 
-#include "pros/adi.hpp"
-#include "pros/rotation.hpp"
+#include "light/adi.hpp"
+#include "light/rotation.hpp"
 
 namespace light {
 class tracking_wheel {
