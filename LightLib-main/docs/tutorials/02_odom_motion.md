@@ -74,6 +74,7 @@ printf("vx=%.2f in/s, vy=%.2f in/s, omega=%.2f deg/s\n", v.x, v.y, v.theta);
 ```
 
 LightLib's pose convention:
+
 - `+X` is right, `+Y` is forward (toward the opposite alliance wall).
 - `θ` is in degrees by default, CW-positive (matching IMU output).
 - Origin: wherever you last called `setPose()` — typically robot's

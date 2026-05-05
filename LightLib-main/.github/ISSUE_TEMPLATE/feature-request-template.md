@@ -6,7 +6,7 @@ labels: enhancement
 assignees: ''
 ---
 
-## Is this feature related to a problem?  
+## Is this feature related to a problem?
 <!-- What problem exists within LightLib for this feature to help? -->
 <!-- Eg. "I'm always frustrated when I have to spend hours manually tuning PID" -->
 
