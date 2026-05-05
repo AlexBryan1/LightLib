@@ -32,6 +32,9 @@ jobs:
       - name: Generate docs
         run: doxygen Doxyfile
 
+      - name: Copy CNAME into site
+        run: cp docs/CNAME docs/html/CNAME
+
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
