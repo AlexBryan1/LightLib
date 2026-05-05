@@ -1,0 +1,19 @@
+var searchData=
+[
+  ['b_0',['b',['../structlight_1_1_ramsete_config.html#a0a3b0205f72a516e47e98edc9b5392ce',1,'light::RamseteConfig']]],
+  ['backward_5fdrivepid_1',['backward_drivePID',['../classlight_1_1_drive.html#a3f908d352350ca999f34fe0d086a3637',1,'light::Drive']]],
+  ['backward_5fswingpid_2',['backward_swingPID',['../classlight_1_1_drive.html#affc035546e9679b1c94a97135b6a99e9',1,'light::Drive']]],
+  ['banner_3',['banner',['../structlight_1_1_auton.html#a1ac323ac29bcb90ee85666cccc50aacc',1,'light::Auton']]],
+  ['bar_4',['bar',['../namespaceokapi.html#a0b54d28853182078db748ab94cb8cd45',1,'okapi']]],
+  ['behavior_5',['behavior',['../class_coordinate.html#a1ecebac0e67818b71dd636ec57c848af',1,'Coordinate']]],
+  ['best_6',['best',['../structokapi_1_1_p_i_d_tuner_1_1_particle.html#a5b52868df1aae1367f6ec138e2494e09',1,'okapi::PIDTuner::Particle']]],
+  ['besterror_7',['bestError',['../structokapi_1_1_p_i_d_tuner_1_1_particle_set.html#aa81c4efddb45291d23eb13593bee6d25',1,'okapi::PIDTuner::ParticleSet']]],
+  ['beta_8',['beta',['../classokapi_1_1_dema_filter.html#ae3ed95c39828a178e68dd72078ddbfcc',1,'okapi::DemaFilter']]],
+  ['big_5ferror_9',['big_error',['../structlight_1_1_p_i_d_1_1exit__condition__.html#adccaa370460cd06fe1892fcbf7b872c4',1,'light::PID::exit_condition_']]],
+  ['big_5fexit_5ftime_10',['big_exit_time',['../structlight_1_1_p_i_d_1_1exit__condition__.html#a2cb345530f53f38fae030bc5e0e9e43e',1,'light::PID::exit_condition_']]],
+  ['boomerangpid_11',['boomerangPID',['../classlight_1_1_drive.html#aa8dc59bf7fb23ff86db6872fc746dfa4',1,'light::Drive']]],
+  ['bottomleftmotor_12',['bottomLeftMotor',['../classokapi_1_1_x_drive_model.html#ac4c184a14b3431a1dda1136ca1133400',1,'okapi::XDriveModel']]],
+  ['bottomrightmotor_13',['bottomRightMotor',['../classokapi_1_1_x_drive_model.html#a43ba3ac3a9750895b2bfd5b8c121ca7e',1,'okapi::XDriveModel']]],
+  ['btn_14',['btn',['../classokapi_1_1_controller_button.html#aec7d466c709dac6876d8f27245afde1e',1,'okapi::ControllerButton']]],
+  ['buttonarray_15',['buttonArray',['../classokapi_1_1_controller.html#a687a8678fd01b6d62f013b96c1cac6e4',1,'okapi::Controller']]]
+];

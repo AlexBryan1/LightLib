@@ -1,0 +1,21 @@
+var searchData=
+[
+  ['r1_0',['R1',['../namespaceokapi.html#af5040b3f1f33d27698871423e1453ab6acda522d4353b166cc2dee84673307b4e',1,'okapi']]],
+  ['r2_1',['R2',['../namespaceokapi.html#af5040b3f1f33d27698871423e1453ab6a8c6d22ff6f63fc6711cfa315cb80b314',1,'okapi']]],
+  ['raw_2',['raw',['../namespacelight.html#a2636df31c4325b64702ae85498fa415aa5530610449922bb5b2c3725e22a871e6',1,'light']]],
+  ['red_3',['RED',['../subsystems_8hpp.html#a55ecd4f2ec2ebfe8d5b0163e4ac2a967af80f9a890089d211842d59625e561f88',1,'subsystems.hpp']]],
+  ['red_4',['red',['../classokapi_1_1_abstract_motor.html#a88aaa6ea2fa10f5520a537bbf26774d5abda9643ac6601722a28f238714274da4',1,'okapi::AbstractMotor']]],
+  ['rev_5',['REV',['../namespacelight.html#ad48407d1ce9d6071b49921230af5e071ab0a1580884c032d61d69457ee3d65a71',1,'light']]],
+  ['rev_6',['rev',['../namespacelight.html#ad48407d1ce9d6071b49921230af5e071ac74db6afdd66a8eb28510eacf3b0307c',1,'light']]],
+  ['reverse_7',['REVERSE',['../namespacelight.html#ad48407d1ce9d6071b49921230af5e071a98d555877237c8dec1a542552164ac99',1,'light']]],
+  ['reverse_8',['reverse',['../namespacelight.html#ad48407d1ce9d6071b49921230af5e071ad94e4206e865e1258449eb9352dddff2',1,'light']]],
+  ['right_9',['RIGHT',['../drive_8hpp.html#a836d2f74e954aa5a28f392c583d70414aec8379af7490bb9eaaf579cf17876f38',1,'RIGHT:&#160;drive.hpp'],['../namespacelight_1_1lightcast.html#aadb48aa761774c1ad8a3ad1dc6d528f1a21507b40c80068eda19865706fdc2403',1,'light::lightcast::RIGHT']]],
+  ['right_10',['right',['../namespaceokapi.html#af5040b3f1f33d27698871423e1453ab6a7c4f29407893c334a6cb7a87bf045c0d',1,'okapi']]],
+  ['right_5fswing_11',['RIGHT_SWING',['../namespacelight.html#a74498d9a68ecf43ad3f1d43593296d10a2ca23809f186d8145d1e513c2894c731',1,'light']]],
+  ['right_5fturn_12',['RIGHT_TURN',['../namespacelight.html#a2636df31c4325b64702ae85498fa415aa9a3e926c7ac67b7926e4c33b646502f5',1,'light']]],
+  ['right_5fturn_13',['right_turn',['../namespacelight.html#a2636df31c4325b64702ae85498fa415aac7a156efe688494b0d761f3763c56fdf',1,'light']]],
+  ['rightx_14',['rightX',['../namespaceokapi.html#afcc83d6a64f075a4dba212ff612c31d0a94088c1fced51079ed44e8ba1dcc75f3',1,'okapi']]],
+  ['righty_15',['rightY',['../namespaceokapi.html#afcc83d6a64f075a4dba212ff612c31d0ac20bbbc67cdeace3cad45d4afd635695',1,'okapi']]],
+  ['rotations_16',['rotations',['../classokapi_1_1_abstract_motor.html#ae811cd825099f2defadeb1b7f7e7764cad52e30a99086786b005c11c05b280215',1,'okapi::AbstractMotor']]],
+  ['running_17',['RUNNING',['../namespacelight.html#aae3c385f1d70dd5f23b6ca2c43b206ada0b0bd65a438b25bda60d0ccb5d2cbfd5',1,'light']]]
+];

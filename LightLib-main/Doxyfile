@@ -8,14 +8,14 @@ PROJECT_LOGO           =
 OUTPUT_DIRECTORY       = docs
 
 # What to scan
-INPUT                  = include README.md
+INPUT                  = include README.md docs/tutorials
 RECURSIVE              = YES
 FILE_PATTERNS          = *.h *.hpp *.cpp *.md
 EXCLUDE                = include/pros \
                          include/liblvgl \
                          include/api.h \
                          include/main.h
-EXCLUDE_PATTERNS       = */firmware/*
+EXCLUDE_PATTERNS       = */firmware/* */docs/html/*
 
 USE_MDFILE_AS_MAINPAGE = README.md
 

@@ -1,0 +1,28 @@
+var searchData=
+[
+  ['name_0',['name',['../structlight_1_1_drive_1_1const__and__name.html#a8b36c954b2b341e04d58b5957b1bca4d',1,'light::Drive::const_and_name::name'],['../structlight_1_1_auton.html#a3b3d33541e7beedba754e8ffa8e1f9fa',1,'light::Auton::name'],['../struct_custom_auton.html#a99306c064613ab081bcfc52f57fd9a5d',1,'CustomAuton::name'],['../structlight_1_1paths_1_1_path_entry.html#ae3d22ee596a2e54b106f806a076b3fcc',1,'light::paths::PathEntry::name']]],
+  ['name_5fget_1',['name_get',['../classlight_1_1_p_i_d.html#a7146a264c741a9ad96edc11f4dad6935',1,'light::PID']]],
+  ['name_5fset_2',['name_set',['../classlight_1_1_p_i_d.html#a932e714bb651b9533a401a3fd81c92d9',1,'light::PID']]],
+  ['namespaces_2ehpp_3',['namespaces.hpp',['../namespaces_8hpp.html',1,'']]],
+  ['nearly_5fequal_4',['nearly_equal',['../namespacesquiggles.html#af5e181b5b9049ada3c72439d7b883906',1,'squiggles']]],
+  ['neutral_5',['NEUTRAL',['../subsystems_8hpp.html#a55ecd4f2ec2ebfe8d5b0163e4ac2a967af46d14eb9d5d71afc9f6e747689fcb56',1,'subsystems.hpp']]],
+  ['newmovement_6',['newMovement',['../classokapi_1_1_chassis_controller_p_i_d.html#ad83f673aa55a0d76854421ba49716e00',1,'okapi::ChassisControllerPID']]],
+  ['newticks_7',['newTicks',['../classokapi_1_1_two_encoder_odometry.html#a501958376980a769fc33669480676aaa',1,'okapi::TwoEncoderOdometry']]],
+  ['newton_8',['newton',['../namespaceokapi.html#a66d91011ac90f25dc5e518f092cc5a74',1,'okapi']]],
+  ['newtonmeter_9',['newtonMeter',['../namespaceokapi.html#a3d685da47b39ff4bdf1936c2e12076ee',1,'okapi']]],
+  ['noise_20—_20autotune_5fekf_5fnoise_10',['5. EKF process noise — &lt;span class=&quot;tt&quot;&gt;autotune_ekf_noise&lt;/span&gt;',['../md_docs_2tutorials_205__characterization.html#autotoc_md73',1,'']]],
+  ['noise_20—_20autotune_5fmcl_5fnoise_11',['6. MCL sensor noise — &lt;span class=&quot;tt&quot;&gt;autotune_mcl_noise&lt;/span&gt;',['../md_docs_2tutorials_205__characterization.html#autotoc_md76',1,'']]],
+  ['none_12',['None',['../ui__config_8hpp.html#af488ad026573ebbd612552db39748a6ea6adf97f83acf6453d4a6a4b1070f3754',1,'ui_config.hpp']]],
+  ['none_13',['none',['../classokapi_1_1_chassis_controller_p_i_d.html#a74792367688870f72f88c486c96b8368a7727725f70ef5c5845fdc2004c6cedd7',1,'okapi::ChassisControllerPID']]],
+  ['normalturns_14',['normalTurns',['../classokapi_1_1_chassis_controller_integrated.html#a76f6d35c280f998a9d8af013e9131f90',1,'okapi::ChassisControllerIntegrated::normalTurns'],['../classokapi_1_1_chassis_controller_p_i_d.html#a12fdde8486bd712e728b8e538a640387',1,'okapi::ChassisControllerPID::normalTurns']]],
+  ['not_20just_20chain_20pid_5fodom_5fset_20calls_15',['Why not just chain &lt;span class=&quot;tt&quot;&gt;pid_odom_set&lt;/span&gt; calls?',['../md_docs_2tutorials_204__path__following.html#autotoc_md44',1,'']]],
+  ['not_5fcomp_5finitialize_5ftask_16',['NOT_COMP_INITIALIZE_TASK',['../core_pros_a_p_i_8hpp.html#af80195330bb3cb1c9fef9808f08ab8d4',1,'coreProsAPI.hpp']]],
+  ['not_5finitialize_5ftask_17',['NOT_INITIALIZE_TASK',['../core_pros_a_p_i_8hpp.html#a85124d2acb067f9dd5256580ebc30fd9',1,'coreProsAPI.hpp']]],
+  ['notifytake_18',['notifyTake',['../class_crossplatform_thread.html#a1341b0d1b14cf779c5bd47a5a848fdef',1,'CrossplatformThread']]],
+  ['notifywhendeleting_19',['notifyWhenDeleting',['../class_crossplatform_thread.html#a6bce45b009db95074707b96858f63f33',1,'CrossplatformThread']]],
+  ['notifywhendeletingraw_20',['notifyWhenDeletingRaw',['../class_crossplatform_thread.html#a231ab0d069a7f2dc2dc9f6a2ebe314ab',1,'CrossplatformThread']]],
+  ['notparentedtocurrenttask_21',['notParentedToCurrentTask',['../classokapi_1_1_chassis_controller_builder.html#a1fcfad731fc317b44b310aa8b89c9953',1,'okapi::ChassisControllerBuilder::notParentedToCurrentTask()'],['../classokapi_1_1_async_motion_profile_controller_builder.html#abdd950548deb6ed3a8bb3f206a03d6e9',1,'okapi::AsyncMotionProfileControllerBuilder::notParentedToCurrentTask()'],['../classokapi_1_1_async_pos_controller_builder.html#a9f9bf5e46f7c98b13cb3cf86f64e12c6',1,'okapi::AsyncPosControllerBuilder::notParentedToCurrentTask()'],['../classokapi_1_1_async_vel_controller_builder.html#a49799282479ad7f29645265838b99ae0',1,'okapi::AsyncVelControllerBuilder::notParentedToCurrentTask()']]],
+  ['number_22',['number',['../namespaceokapi.html#a0fb4b7059bbab4566ee52e84c19f60e8',1,'okapi']]],
+  ['numiterations_23',['numIterations',['../classokapi_1_1_p_i_d_tuner.html#ad37777a3d7646873c2384e40a567c2db',1,'okapi::PIDTuner']]],
+  ['numparticles_24',['numParticles',['../struct_m_c_l_config.html#ae9e15c6e152f89b30a9320cc905bab3f',1,'MCLConfig::numParticles'],['../classokapi_1_1_p_i_d_tuner.html#ae95d28fbed3acea4722a8f24a15d7d0b',1,'okapi::PIDTuner::numParticles']]]
+];

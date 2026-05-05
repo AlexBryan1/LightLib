@@ -1,0 +1,27 @@
+var searchData=
+[
+  ['odom_0',['odom',['../classokapi_1_1_odom_chassis_controller.html#ae75e4713de4650ae2e6a6409b4ba60f0',1,'okapi::OdomChassisController']]],
+  ['odom_5fangularpid_1',['odom_angularPID',['../classlight_1_1_drive.html#a408083b7b255c2e2e632909122457d66',1,'light::Drive']]],
+  ['odom_5ftracker_5fback_2',['odom_tracker_back',['../classlight_1_1_drive.html#a5684c404c9252f10c3e4de59344274d2',1,'light::Drive']]],
+  ['odom_5ftracker_5ffront_3',['odom_tracker_front',['../classlight_1_1_drive.html#a540d1816fe03b5ebeed3ccc59c80bbff',1,'light::Drive']]],
+  ['odom_5ftracker_5fleft_4',['odom_tracker_left',['../classlight_1_1_drive.html#a2dc7f9056bb46140c11a1cb2f8ecf25f',1,'light::Drive']]],
+  ['odom_5ftracker_5fright_5',['odom_tracker_right',['../classlight_1_1_drive.html#a664426aef8651782755fd9e59f2c9e0f',1,'light::Drive']]],
+  ['odomtask_6',['odomTask',['../classokapi_1_1_odom_chassis_controller.html#a75246d7a17442c9a63afaef68bbf95e0',1,'okapi::OdomChassisController']]],
+  ['odomtaskrunning_7',['odomTaskRunning',['../classokapi_1_1_odom_chassis_controller.html#adc78c74ceaad0ec002e1307421be11a9',1,'okapi::OdomChassisController']]],
+  ['offset_8',['offset',['../classokapi_1_1_async_pos_integrated_controller.html#a6925855ac71fc3d609844f90bd09dd62',1,'okapi::AsyncPosIntegratedController::offset'],['../classokapi_1_1_offsetable_controller_input.html#a72b271a3893001de700d28256c5fbcd5',1,'okapi::OffsetableControllerInput::offset'],['../classokapi_1_1_i_m_u.html#a2ffd84eaa0c0cf2add46335a7528d1f0',1,'okapi::IMU::offset']]],
+  ['offsettableinput_9',['offsettableInput',['../classokapi_1_1_async_pos_p_i_d_controller.html#a6e7a064075af197d89f4369e3c8e48b6',1,'okapi::AsyncPosPIDController']]],
+  ['offsetx_10',['offsetX',['../struct_distance_sensor_spec.html#a52af0b96273e94ff60b0b67751d219a5',1,'DistanceSensorSpec']]],
+  ['offsety_11',['offsetY',['../struct_distance_sensor_spec.html#ae04bf86a7d293ae3f223b78e7f9e5547',1,'DistanceSensorSpec']]],
+  ['okapi_5fpros_5ferr_12',['OKAPI_PROS_ERR',['../namespaceokapi.html#a18913fb1230fd1353366981f1f78335c',1,'okapi']]],
+  ['okapi_5fpros_5ferr_5ff_13',['OKAPI_PROS_ERR_F',['../namespaceokapi.html#a0f2b0da948b0276b354ca035af11380e',1,'okapi']]],
+  ['okapiid_14',['okapiId',['../classokapi_1_1_controller.html#ac8676a8c87a223def0a78130a98ff785',1,'okapi::Controller']]],
+  ['omega_15',['omega',['../structlight_1_1_traj_state.html#afb011f2f274dbf89f5ceaccba6aaa4e9',1,'light::TrajState::omega'],['../classokapi_1_1_flywheel_simulator.html#aaf02971fd228412b827a7514c664c078',1,'okapi::FlywheelSimulator::omega']]],
+  ['ounce_16',['ounce',['../namespaceokapi.html#aa03bea36d07db8710819da96fe675a74',1,'okapi']]],
+  ['outliergapin_17',['outlierGapIn',['../struct_m_c_l_config.html#a1b9e8c89bf9c5e176976ab220a6a86ef',1,'MCLConfig']]],
+  ['output_18',['output',['../classlight_1_1_p_i_d.html#a4775cc1771d6436e71f866ab3d0449cf',1,'light::PID::output'],['../classokapi_1_1_async_linear_motion_profile_controller.html#a5a718fd422ce52e613e1d231910860a9',1,'okapi::AsyncLinearMotionProfileController::output'],['../classokapi_1_1_async_wrapper.html#a7bbdffe660513797a479cb22018fd7bf',1,'okapi::AsyncWrapper::output'],['../classokapi_1_1_iterative_pos_p_i_d_controller.html#a6cd04ec8b5112f71cc4c89e8ac795e41',1,'okapi::IterativePosPIDController::output'],['../classokapi_1_1_iterative_vel_p_i_d_controller.html#aafae6f8e5a24247978322b3d0b5913d4',1,'okapi::IterativeVelPIDController::output'],['../classokapi_1_1_p_i_d_tuner.html#ae97a91fa08ed6cfaabede054a550086a',1,'okapi::PIDTuner::output'],['../classokapi_1_1_average_filter.html#ad01d62f539475ad62ca73bb92aa3968d',1,'okapi::AverageFilter::output'],['../classokapi_1_1_composable_filter.html#ab956536a303c97c86fd2ec3af3c35eef',1,'okapi::ComposableFilter::output'],['../classokapi_1_1_ema_filter.html#a015a76278c1b89144ff5a3b6bf03d7b8',1,'okapi::EmaFilter::output'],['../classokapi_1_1_median_filter.html#a1cd7af575ee6be29f36a6b920277ef21',1,'okapi::MedianFilter::output'],['../classokapi_1_1_optical_sensor.html#af58965ee7e12e9dbf267c52ff89669a2',1,'okapi::OpticalSensor::output']]],
+  ['outputb_19',['outputB',['../classokapi_1_1_dema_filter.html#a3b5321ef933fe42ad34176bbd7ee153a',1,'okapi::DemaFilter']]],
+  ['outputmax_20',['outputMax',['../classokapi_1_1_iterative_pos_p_i_d_controller.html#adfa78710b50ab0a1fe50236370e4eecd',1,'okapi::IterativePosPIDController::outputMax'],['../classokapi_1_1_iterative_vel_p_i_d_controller.html#ad73d0f93c88697ddeb3c8c72cc006d22',1,'okapi::IterativeVelPIDController::outputMax']]],
+  ['outputmin_21',['outputMin',['../classokapi_1_1_iterative_pos_p_i_d_controller.html#af283d92615f66697282d70b3298e16d5',1,'okapi::IterativePosPIDController::outputMin'],['../classokapi_1_1_iterative_vel_p_i_d_controller.html#adfe740241f314d7965491c04dce6a5da',1,'okapi::IterativeVelPIDController::outputMin']]],
+  ['outputs_22',['outputS',['../classokapi_1_1_dema_filter.html#a546334c52b5e8d8f7463e5c4b5f567cc',1,'okapi::DemaFilter']]],
+  ['outputsum_23',['outputSum',['../classokapi_1_1_iterative_vel_p_i_d_controller.html#a5bb1e61b7ff4f5059bf8478a23c00e67',1,'okapi::IterativeVelPIDController']]]
+];

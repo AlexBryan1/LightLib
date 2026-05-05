@@ -1,0 +1,26 @@
+var searchData=
+[
+  ['—_20autotune_5fekf_5fnoise_0',['5. EKF process noise — &lt;span class=&quot;tt&quot;&gt;autotune_ekf_noise&lt;/span&gt;',['../md_docs_2tutorials_205__characterization.html#autotoc_md73',1,'']]],
+  ['—_20autotune_5fmcl_5fnoise_1',['6. MCL sensor noise — &lt;span class=&quot;tt&quot;&gt;autotune_mcl_noise&lt;/span&gt;',['../md_docs_2tutorials_205__characterization.html#autotoc_md76',1,'']]],
+  ['—_20characterization_20day_2',['Putting it all together — characterization day',['../md_docs_2tutorials_205__characterization.html#autotoc_md79',1,'']]],
+  ['—_20characterize_5fa_5flat_5fmax_3',['3. Lateral acceleration — &lt;span class=&quot;tt&quot;&gt;characterize_a_lat_max&lt;/span&gt;',['../md_docs_2tutorials_205__characterization.html#autotoc_md67',1,'']]],
+  ['—_20characterize_5ffriction_4',['4. Friction model — &lt;span class=&quot;tt&quot;&gt;characterize_friction&lt;/span&gt;',['../md_docs_2tutorials_205__characterization.html#autotoc_md70',1,'']]],
+  ['—_20characterize_5fkv_5fka_5fks_5',['1. Drive feedforward — &lt;span class=&quot;tt&quot;&gt;characterize_kV_kA_kS&lt;/span&gt;',['../md_docs_2tutorials_205__characterization.html#autotoc_md60',1,'']]],
+  ['—_20characterize_5ftrack_5fwidth_6',['2. Track width — &lt;span class=&quot;tt&quot;&gt;characterize_track_width&lt;/span&gt;',['../md_docs_2tutorials_205__characterization.html#autotoc_md64',1,'']]],
+  ['—_20light_3a_3apid_5ftuner_7',['The live PID tuner — &lt;span class=&quot;tt&quot;&gt;light::pid_tuner&lt;/span&gt;',['../md_docs_2tutorials_203__pid__tuning.html#autotoc_md40',1,'']]],
+  ['—_20pathevent_8',['Mid-path triggers — &lt;span class=&quot;tt&quot;&gt;PathEvent&lt;/span&gt;',['../md_docs_2tutorials_204__path__following.html#autotoc_md53',1,'']]],
+  ['—_20pid_5fdrive_5fset_9',['Drive PID — &lt;span class=&quot;tt&quot;&gt;pid_drive_set&lt;/span&gt;',['../md_docs_2tutorials_201__basic__motion.html#autotoc_md10',1,'']]],
+  ['—_20pid_5fodom_5fset_10',['Driving to a point — &lt;span class=&quot;tt&quot;&gt;pid_odom_set&lt;/span&gt;',['../md_docs_2tutorials_202__odom__motion.html#autotoc_md20',1,'']]],
+  ['—_20pid_5fswing_5fset_11',['Swing PID — &lt;span class=&quot;tt&quot;&gt;pid_swing_set&lt;/span&gt;',['../md_docs_2tutorials_201__basic__motion.html#autotoc_md14',1,'']]],
+  ['—_20pid_5fturn_5frelative_5fset_12',['Relative turns — &lt;span class=&quot;tt&quot;&gt;pid_turn_relative_set&lt;/span&gt;',['../md_docs_2tutorials_201__basic__motion.html#autotoc_md13',1,'']]],
+  ['—_20pid_5fturn_5fset_13',['Turn PID — &lt;span class=&quot;tt&quot;&gt;pid_turn_set&lt;/span&gt;',['../md_docs_2tutorials_201__basic__motion.html#autotoc_md12',1,'']]],
+  ['—_20runjerryiopath_14',['Jerryio paths — &lt;span class=&quot;tt&quot;&gt;runJerryioPath&lt;/span&gt;',['../md_docs_2tutorials_204__path__following.html#autotoc_md54',1,'']]],
+  ['—_20runpath_15',['The path registry — &lt;span class=&quot;tt&quot;&gt;runPath&lt;/span&gt;',['../md_docs_2tutorials_204__path__following.html#autotoc_md56',1,'']]],
+  ['—_20set_20up_20test_20autons_16',['Step 1 — set up test autons',['../md_docs_2tutorials_203__pid__tuning.html#autotoc_md33',1,'']]],
+  ['—_20the_20legacy_20free_20function_17',['&lt;span class=&quot;tt&quot;&gt;moveToPoint&lt;/span&gt; — the legacy free function',['../md_docs_2tutorials_202__odom__motion.html#autotoc_md27',1,'']]],
+  ['—_20tune_20drive_20pid_18',['Step 2 — tune drive PID',['../md_docs_2tutorials_203__pid__tuning.html#autotoc_md34',1,'']]],
+  ['—_20tune_20heading_20pid_19',['Step 3 — tune heading PID',['../md_docs_2tutorials_203__pid__tuning.html#autotoc_md35',1,'']]],
+  ['—_20tune_20swing_20pid_20',['Step 5 — tune swing PID',['../md_docs_2tutorials_203__pid__tuning.html#autotoc_md37',1,'']]],
+  ['—_20tune_20the_20odom_20angular_20pid_21',['Step 6 — tune the odom angular PID',['../md_docs_2tutorials_203__pid__tuning.html#autotoc_md38',1,'']]],
+  ['—_20tune_20turn_20pid_22',['Step 4 — tune turn PID',['../md_docs_2tutorials_203__pid__tuning.html#autotoc_md36',1,'']]]
+];

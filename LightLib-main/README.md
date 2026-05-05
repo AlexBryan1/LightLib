@@ -22,6 +22,16 @@ PROS template versions (from [project.pros](project.pros)):
 - **okapilib** 4.8.0
 - **liblvgl** 8.3.8
 
+## Tutorials
+
+Step-by-step guides for the things you actually do in practice:
+
+- [Basic Motion](docs/tutorials/01_basic_motion.md) — drive, turn, swing
+- [Odom Motion](docs/tutorials/02_odom_motion.md) — driving to a field point
+- [PID Tuning](docs/tutorials/03_pid_tuning.md) — full tuning workflow
+- [Path Following](docs/tutorials/04_path_following.md) — RAMSETE & Jerryio
+- [Characterization](docs/tutorials/05_characterization.md) — `characterize_*` and `autotune_*`
+
 ## Quick start
 
 [src/main.cpp](src/main.cpp) is the configuration entry point. Drivetrain ports, wheel size, drive style, and EKF/MCL tuning constants are all `#define`s at the top of the file. After those, `#include "LightLib/robot_impl.inl"` instantiates the chassis, IMU, trackers, distance sensors, EKF, and LightCast from those defines.

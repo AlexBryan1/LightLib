@@ -1,0 +1,38 @@
+var ui__config_8hpp =
+[
+    [ "COL_ACCENT", "ui__config_8hpp.html#a9786d24de43dd3accddba54a2521aa4a", null ],
+    [ "COL_ACCENT2", "ui__config_8hpp.html#ab3d9ec66d11a39330cec844b73df9612", null ],
+    [ "COL_BG", "ui__config_8hpp.html#adcd7808ffa993e756271674e722ad20e", null ],
+    [ "COL_BORDER", "ui__config_8hpp.html#af37e19056a4a967ea7e5feb9d347d9da", null ],
+    [ "COL_BTN_IDLE", "ui__config_8hpp.html#ae0923f44aa8e7a034fb917b89b6c323f", null ],
+    [ "COL_PANEL", "ui__config_8hpp.html#a786fb923a43f531c03dd0f3b7e3109d8", null ],
+    [ "COL_RED", "ui__config_8hpp.html#a87d30d2657caae38d671f052cb9cc0e7", null ],
+    [ "COL_TEXT", "ui__config_8hpp.html#a94d8e598975a3e013cfbe24aba7d6593", null ],
+    [ "COL_TEXT_DIM", "ui__config_8hpp.html#a77006686a7f9d3c432b595936c90ffe0", null ],
+    [ "COL_TEXT_SEL", "ui__config_8hpp.html#a5b8a13b3374c1dc8ad03e694c368ecb3", null ],
+    [ "COL_THEME_PRIMARY", "ui__config_8hpp.html#a6fde8f05fed80d5d23e7cfdeddea0aff", null ],
+    [ "COL_THEME_SECONDARY", "ui__config_8hpp.html#ae7b4872839afea01516da7af517bfcd8", null ],
+    [ "COL_YELLOW", "ui__config_8hpp.html#a6c69fd27f20f00dc82c873c6adacd56b", null ],
+    [ "UI_CTRL_LINE", "ui__config_8hpp.html#a6b747f4152c119ad2a319bdc7c716ba0", null ],
+    [ "UI_CTRL_REFRESH_MS", "ui__config_8hpp.html#ad83971268ef78a82dd779335e4597acf", null ],
+    [ "UI_CTRL_SLOT_LEFT", "ui__config_8hpp.html#a4ce38c11f22d5db2f1a91f04bd10284a", null ],
+    [ "UI_CTRL_SLOT_MID", "ui__config_8hpp.html#a0d1c748c122a57994a44f54218005434", null ],
+    [ "UI_CTRL_SLOT_RIGHT", "ui__config_8hpp.html#a0007d765d79478ad979f688e8cc80815", null ],
+    [ "UI_DEFAULT_FONT", "ui__config_8hpp.html#a41f1e9ac7feafabafb05c8dfc6742bf5", null ],
+    [ "UI_THEME_DARK", "ui__config_8hpp.html#a0638141ff1e1db2794e2a6750706a086", null ],
+    [ "CtrlSlot", "ui__config_8hpp.html#af488ad026573ebbd612552db39748a6e", [
+      [ "None", "ui__config_8hpp.html#af488ad026573ebbd612552db39748a6ea6adf97f83acf6453d4a6a4b1070f3754", null ],
+      [ "MaxMotorTempC", "ui__config_8hpp.html#af488ad026573ebbd612552db39748a6ea3189817fe780001b7dc910518258b9b7", null ],
+      [ "AutonTimer", "ui__config_8hpp.html#af488ad026573ebbd612552db39748a6ea7de229feff6961432548179c96a645c3", null ],
+      [ "BatteryPct", "ui__config_8hpp.html#af488ad026573ebbd612552db39748a6eaac28d7325f6c21cb414e49695ecf7d3f", null ],
+      [ "OdomX", "ui__config_8hpp.html#af488ad026573ebbd612552db39748a6eadbbf6235f968ebd19f8ad7d900735408", null ],
+      [ "OdomY", "ui__config_8hpp.html#af488ad026573ebbd612552db39748a6ea5ec720ca13ff2103441be95eadf8840c", null ],
+      [ "OdomTheta", "ui__config_8hpp.html#af488ad026573ebbd612552db39748a6ea37fa3bc66ef068cc70da62ac56ccb7eb", null ]
+    ] ],
+    [ "UI_ANIM_BANNER_PX_MS", "ui__config_8hpp.html#a36f44d63fe6ef545743f947b56fbe99d", null ],
+    [ "UI_ANIM_BANNER_REPEAT_DELAY_MS", "ui__config_8hpp.html#a5866aa8ec50abb4c947b35ca46caf055", null ],
+    [ "UI_ANIM_BANNER_STAGGER_MS", "ui__config_8hpp.html#a1bdd7fda9de5463d153fc8d0c6aa5fa8", null ],
+    [ "UI_ANIM_RUN_ZOOM_IN_MS", "ui__config_8hpp.html#aa5a57a7a71ad2873dbb001e955f7abd9", null ],
+    [ "UI_ANIM_RUN_ZOOM_OUT_MS", "ui__config_8hpp.html#ae1a38e75c57e5cc9be14918e49786618", null ],
+    [ "UI_ODOM_REFRESH_MS", "ui__config_8hpp.html#aa6a2eb912f71d9e300e6ded464e00be7", null ]
+];
