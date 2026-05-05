@@ -26,6 +26,20 @@ practice. Read in order if new; pick what you need otherwise.
    `autotune_*` routines. Once-per-build measurements that produce the
    real-robot constants every other tutorial assumes you have.
 
+6. **[UI Config](06_ui_config.md)** — the on-brain auton selector.
+   What each panel does (preview, live PID, live odom), how registered
+   autons end up as buttons, and the run-screen takeover during
+   autonomous.
+
+7. **[Subsystems](07_subsystems.md)** — `subsystems.hpp` end-to-end.
+   Adding motors, motor groups, and pistons; the `RotationalSnap` lift;
+   alliance color; and the holonomic / H-drive opt-ins.
+
+8. **[Auton Config](08_auton_config.md)** — the three-file workflow for
+   adding an auton (`autons.hpp` / `autons.cpp` / `auton_config.cpp`),
+   plus everything `default_constants()` and `default_positions()`
+   control.
+
 ## Suggested order on a fresh build
 
 ```
