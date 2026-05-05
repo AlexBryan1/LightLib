@@ -84,7 +84,7 @@ LightLib's pose convention:
 previous match is meaningless once you place the robot in a new starting
 position.
 
-## Driving to a point — `pid_odom_set`
+## Driving to a point: pid_odom_set
 
 The simplest odom motion targets a single pose:
 
@@ -183,7 +183,7 @@ If the robot circles past the target instead of curving in, reduce
 `boomerang_distance`. If it arrives at the right point but facing the
 wrong way, raise `boomerang_dlead`.
 
-## `odom_turn_bias_set`
+## odom_turn_bias_set
 
 ```cpp
 chassis.odom_turn_bias_set(1.0);
@@ -194,7 +194,7 @@ heading vs. the right position. `1.0` = full priority on heading
 (recommended with tracking wheels). Values closer to `0` make the robot
 accept some heading error in exchange for faster XY convergence.
 
-## `pid_odom_behavior_set`
+## pid_odom_behavior_set
 
 Sets the default angle-wrap rule for all subsequent odom turns:
 
@@ -205,7 +205,7 @@ chassis.pid_odom_behavior_set(light::shortest);
 Same enum as `pid_turn_set`'s third arg: `shortest`, `longest`, `cw`,
 `ccw`, `raw`.
 
-## `moveToPoint` — the legacy free function
+## moveToPoint: the legacy free function
 
 For very simple auton logic (or as a fallback if you don't want to deal
 with the odom struct):

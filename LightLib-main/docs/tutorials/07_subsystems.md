@@ -116,7 +116,7 @@ Called once from `initialize()`, before either `autonomous()` or
 `opcontrol()`. Put every piston in here with the state you want at the
 sound of the buzzer.
 
-## The `RotationalSnap` lift
+## The RotationalSnap lift
 
 The template includes a higher-level subsystem — a lift that snaps to
 preset angles when the operator releases the joystick. The declaration

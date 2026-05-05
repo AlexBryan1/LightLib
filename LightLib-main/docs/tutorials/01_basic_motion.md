@@ -38,7 +38,7 @@ Slew is layered on top: the drive PID's output is clamped to ramp from a
 small starting voltage up to its commanded max over the first few inches,
 so the wheels don't slip on launch.
 
-## Drive PID — `pid_drive_set`
+## Drive PID: pid_drive_set
 
 Drives forward (or backward) by a distance in inches. The IMU heading PID
 holds the starting heading throughout.
@@ -87,7 +87,7 @@ chassis.pid_turn_set(90_deg, 90);
 chassis.pid_wait();
 ```
 
-## Turn PID — `pid_turn_set`
+## Turn PID: pid_turn_set
 
 Turns to an **absolute** field heading (or a relative one — see below).
 LightLib's IMU convention is `0°` = facing the alliance wall it was zeroed
@@ -119,7 +119,7 @@ void pid_turn_set(okapi::QAngle p_target, int speed,
 The `e_angle_behavior` enum values are: `light::shortest` (default),
 `light::longest`, `light::cw`, `light::ccw`, `light::raw` (signed delta as-is).
 
-### Relative turns — `pid_turn_relative_set`
+### Relative turns: pid_turn_relative_set
 
 ```cpp
 // Rotate 90° clockwise from current heading, regardless of where it is now
@@ -131,7 +131,7 @@ Use this when the auton "doesn't care" about absolute field heading — most
 of the time, honestly. Absolute turns make sense after `setPose()` resets
 or near features keyed to the field.
 
-## Swing PID — `pid_swing_set`
+## Swing PID: pid_swing_set
 
 A swing turn locks one side of the drive and pivots around it. Half the
 turn radius of an in-place turn, useful for sweeping into a target without
@@ -156,7 +156,7 @@ The opposite-speed overload is unique to swing. Most teams ignore it, but
 it can sharpen a sweeping intake into a stack — give the locked side a
 small reverse voltage to tighten the radius.
 
-## The `pid_wait` family
+## The pid_wait family
 
 `pid_wait()` blocks until the active motion satisfies its exit conditions.
 There are four variants:

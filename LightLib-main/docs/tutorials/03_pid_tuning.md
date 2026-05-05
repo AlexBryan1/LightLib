@@ -199,7 +199,7 @@ Logic: the motion exits if **either**
 Start with the shipped defaults. Only tighten `small_error` once the PID
 is well-tuned; loose exit thresholds will mask poor PID gains.
 
-## The live PID tuner — `light::pid_tuner`
+## The live PID tuner: light::pid_tuner
 
 LightLib ships an on-brain PID tuner that lets you adjust gains live
 without rebuilding. To enable:

@@ -8,7 +8,7 @@ and produces a printout you transcribe into `default_constants()`.
 Run these once per robot build. After a major hardware change (new
 gearing, new wheels, different battery), re-run.
 
-## 1. Drive feedforward — `characterize_kV_kA_kS`
+## 1. Drive feedforward: characterize_kV_kA_kS
 
 ### Theory
 
@@ -88,7 +88,7 @@ light::ramsete_configure(
 );
 ```
 
-## 2. Track width — `characterize_track_width`
+## 2. Track width: characterize_track_width
 
 ### Theory
 
@@ -130,7 +130,7 @@ the result.
 Update the `RamseteConfig.trackWidthIn` in `ramsete_configure()` with the
 printed value.
 
-## 3. Lateral acceleration — `characterize_a_lat_max`
+## 3. Lateral acceleration: characterize_a_lat_max
 
 ### Theory
 
@@ -160,7 +160,7 @@ in circles of varying radius.
 
 Update `TrajConstraints.aLatMax` in `ramsete_configure()`.
 
-## 4. Friction model — `characterize_friction`
+## 4. Friction model: characterize_friction
 
 ### Theory
 
@@ -207,7 +207,7 @@ the program restarts. To make them permanent, transcribe into
 chassis.friction_constants_set(0.61, 0.182, 0.0014);
 ```
 
-## 5. EKF process noise — `autotune_ekf_noise`
+## 5. EKF process noise: autotune_ekf_noise
 
 ### Theory
 
@@ -241,7 +241,7 @@ Pushed into the live EKF via `setConfig()` immediately. To persist, copy
 the printed `Q` values into your `MCLConfig` definition (in
 `main.cpp`'s `EKF_*` macros).
 
-## 6. MCL sensor noise — `autotune_mcl_noise`
+## 6. MCL sensor noise: autotune_mcl_noise
 
 ### Theory
 

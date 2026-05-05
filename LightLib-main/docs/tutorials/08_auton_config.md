@@ -8,7 +8,7 @@ Once you understand the split, adding a new auton is mechanical.
 ## The three files
 
 | File | Job |
-|---|---|
+| --- | --- |
 | [`include/autons.hpp`](../../include/autons.hpp) | Declare every auton function — one line each. |
 | [`src/autons.cpp`](../../src/autons.cpp) | Write the actual auton bodies, plus `default_constants()` and `default_positions()`. |
 | [`src/auton_config.cpp`](../../src/auton_config.cpp) | Register each auton with the brain-screen picker. |
@@ -17,7 +17,7 @@ A new auton needs touches in all three. Skip any one and either it
 won't compile, won't appear on the screen, or won't be callable from
 other code.
 
-## Workflow: adding `red_left_rush`
+## Workflow: adding red_left_rush
 
 **1. Declare it in `autons.hpp`:**
 
@@ -55,7 +55,7 @@ light::auton_selector.add("Red Left",
 That's the whole loop. Recompile, flash, the button shows up on the
 brain.
 
-## `default_constants()` — the global tuning file
+## default_constants(): the global tuning file
 
 Called once from `initialize()`, before any auton runs.
 [`default_constants()`](../../src/autons.cpp) is where every PID gain,
@@ -152,7 +152,7 @@ constraints. The numbers come from the
 drive but won't track cleanly until you've replaced them with measured
 values.
 
-## `default_positions()` — pre-match piston state
+## default_positions(): pre-match piston state
 
 ```cpp
 void default_positions() {
@@ -169,7 +169,7 @@ Forgetting one isn't a compile error — it's a piston that starts in
 whatever state it happened to be in when you powered on, which on a
 match field is "extended into another robot."
 
-## `auton_config.cpp` — the registration file
+## auton_config.cpp: the registration file
 
 ```cpp
 void register_autons() {
@@ -209,11 +209,13 @@ the selector doesn't care.
 Goal: add a 15-point AWP auton called "Right AWP."
 
 **`autons.hpp`:**
+
 ```cpp
 void right_awp();
 ```
 
 **`autons.cpp`:**
+
 ```cpp
 void right_awp() {
   light::setPose(Pose(-36, 60, 270));
@@ -234,6 +236,7 @@ void right_awp() {
 ```
 
 **`auton_config.cpp`:**
+
 ```cpp
 void register_autons() {
   light::auton_selector.add("Right AWP", "15-pt AWP route", right_awp);

@@ -7,7 +7,7 @@ spline + trapezoidal velocity profile.
 
 ## Theory
 
-### Why not just chain `pid_odom_set` calls?
+### Why not just chain pid_odom_set calls?
 
 `pid_odom_set` with a vector of waypoints chains boomerang motions, but
 each segment is a separate "go to that point" with its own acceleration
@@ -181,7 +181,7 @@ many inches at any point during the trajectory (e.g. someone is shoving
 it, or odom desynced), the follower gives up and returns `false`. Tune
 based on how aggressive your paths are.
 
-## Mid-path triggers — `PathEvent`
+## Mid-path triggers: PathEvent
 
 Fire an action at a specific waypoint mid-path:
 
@@ -204,7 +204,7 @@ next tick will read the new pose and RAMSETE's error term will correct
 against the unchanged trajectory. This is a clean way to handle "I rammed
 the wall, my IMU drifted, now I'm fixing it" mid-auton.
 
-## Jerryio paths — `runJerryioPath`
+## Jerryio paths: runJerryioPath
 
 [path.jerryio.com](https://path.jerryio.com) is a browser-based path
 designer. You drag waypoints around a field and it exports a CSV. LightLib
@@ -247,7 +247,7 @@ light::runJerryioPathFromSD("/usd/paths/red_left.csv");
 Same parser, just reads the file at runtime. Useful if you want to update
 paths without re-flashing.
 
-### The path registry — `runPath`
+### The path registry: runPath
 
 For multi-auton programs, register paths by name:
 
