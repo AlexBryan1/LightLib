@@ -30,10 +30,14 @@ jobs:
           sudo apt-get install -y doxygen graphviz
 
       - name: Generate docs
+        working-directory: LightLib-main
         run: doxygen Doxyfile
 
       - name: Copy CNAME into site
-        run: cp docs/CNAME docs/html/CNAME
+        run: |
+          if [ -f docs/CNAME ]; then
+            cp docs/CNAME LightLib-main/docs/html/CNAME
+          fi
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -41,7 +45,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/html
+          path: LightLib-main/docs/html
 
       - name: Deploy to GitHub Pages
         id: deployment
