@@ -9,19 +9,36 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #include "LightLib/api.h"
 #include "LightLib/util/util.hpp"
 
+/**
+ * \file slew.hpp
+ *
+ * Slew-rate limiter that ramps motor output up over a configurable distance.
+ *
+ * Used inside the chassis motion primitives to prevent wheel slip on hard
+ * starts.
+ */
+
 namespace light {
+/**
+ * Slew-rate limiter that ramps speed up linearly over a configurable distance.
+ *
+ * Initialize at the start of a motion via initialize(), then call iterate()
+ * each cycle with the current sensor position. The output ramps from
+ * `min_speed` to `maximum_speed` as the robot travels `distance_to_travel`.
+ */
 class slew {
  public:
+  /** Default constructor. Constants must be set via constants_set() before use. */
   slew();
 
   /**
-   * Struct for constants.
+   * Slew configuration constants.
    */
   struct Constants {
-    double min_speed = 0;
-    double distance_to_travel = 0;
+    double min_speed = 0;          ///< Starting speed at the beginning of a motion.
+    double distance_to_travel = 0; ///< Distance over which speed ramps to max.
   };
-  Constants constants;
+  Constants constants; ///< Active slew constants (read/write).
 
   /**
    * Sets constants for slew.  Slew ramps up the speed of the robot until the set distance is traveled.
@@ -42,6 +59,8 @@ class slew {
    *        the starting speed for the movement
    */
   void constants_set(double distance, int minimum_speed);
+
+  /** \return The current slew Constants. */
   Constants constants_get();
 
   /**

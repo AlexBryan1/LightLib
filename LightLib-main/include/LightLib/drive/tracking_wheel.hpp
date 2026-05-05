@@ -9,11 +9,28 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #include "light/adi.hpp"
 #include "light/rotation.hpp"
 
+/**
+ * \file tracking_wheel.hpp
+ *
+ * Wrapper around an ADI optical encoder or a smart `pros::Rotation` sensor
+ * that exposes the wheel's distance traveled in inches.
+ *
+ * Used as input to the EZ-Template-style odometry on tank chassis.
+ */
+
 namespace light {
+/**
+ * Single tracking wheel for odometry.
+ *
+ * Construct from either an ADI encoder pair, an ADI encoder via a 3-wire
+ * expander, or a smart Rotation sensor. The class then reports distance
+ * traveled (inches) and exposes the offset to the robot center used by the
+ * odom kinematics.
+ */
 class tracking_wheel {
  public:
-  pros::adi::Encoder adi_encoder;
-  pros::Rotation smart_encoder;
+  pros::adi::Encoder adi_encoder;  ///< Backing ADI encoder (used when constructed from ADI ports).
+  pros::Rotation smart_encoder;    ///< Backing Rotation sensor (used when constructed from a smart port).
 
   /**
    * Creates a new tracking wheel with an ADI Encoder.

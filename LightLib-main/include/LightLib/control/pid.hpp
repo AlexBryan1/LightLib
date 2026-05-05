@@ -9,7 +9,24 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #include "LightLib/api.h"
 #include "LightLib/util/util.hpp"
 
+/**
+ * \file pid.hpp
+ *
+ * Discrete PID controller with rich exit-condition support.
+ *
+ * Computes a control output from an error signal, with optional integral
+ * windup guard, derivative-kick suppression, and a configurable family of
+ * exit conditions (small/big error timers, velocity exit, current limit).
+ */
+
 namespace light {
+/**
+ * Discrete PID controller with rich exit-condition support.
+ *
+ * Configure once via the constructor or constants_set(), then call compute()
+ * each cycle with the latest sensor reading. Use exit_condition() to detect
+ * when the controller has settled.
+ */
 class PID {
  public:
   /**
@@ -48,25 +65,25 @@ class PID {
   void constants_set(double p, double i = 0, double d = 0, double p_start_i = 0);
 
   /**
-   * Struct for constants.
+   * PID gain constants.
    */
   struct Constants {
-    double kp;
-    double ki;
-    double kd;
-    double start_i;
+    double kp;       ///< Proportional gain.
+    double ki;       ///< Integral gain.
+    double kd;       ///< Derivative gain.
+    double start_i;  ///< Error threshold below which integral begins accumulating.
   };
 
   /**
-   * Struct for exit condition.
+   * Exit condition timing and thresholds.
    */
   struct exit_condition_ {
-    int small_exit_time = 0;
-    double small_error = 0;
-    int big_exit_time = 0;
-    double big_error = 0;
-    int velocity_exit_time = 0;
-    int mA_timeout = 0;
+    int small_exit_time = 0;     ///< ms to exit when error stays within `small_error`.
+    double small_error = 0;      ///< Error band that starts the small-exit timer.
+    int big_exit_time = 0;       ///< ms to exit when error stays within `big_error`.
+    double big_error = 0;        ///< Error band that starts the big-exit timer.
+    int velocity_exit_time = 0;  ///< ms of zero velocity before exiting.
+    int mA_timeout = 0;          ///< ms above current limit before exiting.
   };
 
   /**
@@ -133,14 +150,10 @@ class PID {
    */
   void variables_reset();
 
-  /**
-   * Constants.
-   */
+  /** Active PID gain constants (read/write). */
   Constants constants;
 
-  /**
-   * Exit.
-   */
+  /** Active exit-condition thresholds (read/write). */
   exit_condition_ exit;
 
   /**
@@ -269,18 +282,21 @@ class PID {
   void timers_reset();
 
   /**
-   * PID variables.
+   * \name Live PID state
+   * Updated each call to compute() / compute_error().
+   * @{
    */
-  double output = 0.0;
-  double cur = 0.0;
-  double error = 0.0;
-  double target = 0.0;
-  double prev_error = 0.0;
-  double prev_current = 0.0;
-  double integral = 0.0;
-  double derivative = 0.0;
-  long time = 0;
-  long prev_time = 0;
+  double output = 0.0;        ///< Last computed control output.
+  double cur = 0.0;           ///< Last sensor value seen.
+  double error = 0.0;         ///< Current error (target − cur).
+  double target = 0.0;        ///< Current target.
+  double prev_error = 0.0;    ///< Previous-cycle error.
+  double prev_current = 0.0;  ///< Previous-cycle sensor value.
+  double integral = 0.0;      ///< Accumulated integral term.
+  double derivative = 0.0;    ///< Last derivative term.
+  long time = 0;              ///< Timestamp of last compute (ms).
+  long prev_time = 0;         ///< Timestamp of previous compute (ms).
+  /** @} */
 
  private:
   double velocity_zero_main = 0.05;

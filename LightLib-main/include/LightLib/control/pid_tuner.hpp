@@ -4,31 +4,62 @@
 #include "LightLib/lib.hpp"
 #include "light/lvgl.h"
 
+/**
+ * \file pid_tuner.hpp
+ *
+ * Live on-brain PID tuner. Renders an LVGL screen with tabs for each PID
+ * (drive, turn, swing, heading, EKF), live-editable gain rows, and a chart
+ * of left/right wheel output and error during recording.
+ */
+
 namespace light {
 
-enum PidType { PID_DRIVE = 0,
-               PID_TURN,
-               PID_SWING,
-               PID_HEADING,
-               PID_EKF,
-               PID_COUNT };
-enum ConstSlot { KP = 0,
-                 KI,
-                 KD,
-                 START_I,
-                 CONST_COUNT };
+/** PID controller categories selectable in the tuner. */
+enum PidType { PID_DRIVE = 0, ///< Linear drive PID.
+               PID_TURN,      ///< Heading/turn-in-place PID.
+               PID_SWING,     ///< Single-side swing PID.
+               PID_HEADING,   ///< Heading correction during drive moves.
+               PID_EKF,       ///< EKF heading-fusion PID.
+               PID_COUNT };   ///< Sentinel — number of PID slots.
 
+/** Index into a PidConstants slot. */
+enum ConstSlot { KP = 0,      ///< Proportional gain.
+                 KI,          ///< Integral gain.
+                 KD,          ///< Derivative gain.
+                 START_I,     ///< Integral activation threshold.
+                 CONST_COUNT };///< Sentinel — number of editable constants.
+
+/** Container for one PID's four editable gain values. */
 struct PidConstants {
   double val[CONST_COUNT] = {0, 0, 0, 0};
 };
 
+/**
+ * Live PID tuner UI driven by LVGL.
+ *
+ * Bind a Drive instance via set_drive(), then start the background sampling
+ * task with start_task(). open() renders the screen; close() returns to the
+ * previous one. While open, gain rows live-edit the bound chassis's PIDs
+ * and the chart plots wheel output / error.
+ */
 class PidTuner {
  public:
+  /** Bind the Drive whose PIDs this tuner will edit. */
   void set_drive(light::Drive* drive);
+
+  /** Spawn the background sampling task that feeds the chart. Idempotent. */
   void start_task();
+
+  /** Render and activate the tuner screen. */
   void open();
+
+  /** Close the tuner screen and restore the previous LVGL screen. */
   void close();
+
+  /** \return true if the tuner screen is the currently active LVGL screen. */
   bool is_open() const { return screen_ != nullptr && lv_scr_act() == screen_; }
+
+  /** \return The bound Drive instance, or nullptr if none. */
   light::Drive* get_drive() const { return drive_; }
 
  private:
@@ -67,6 +98,7 @@ class PidTuner {
   static void record_cb(lv_event_t* e);
 };
 
+/** Process-wide singleton tuner instance. */
 extern PidTuner pid_tuner;
 
 }  // namespace light

@@ -1,10 +1,12 @@
-// ─────────────────────────────────────────────────────────────────────────────
-//  robot_impl.inl — LightLib boilerplate
-//
-//  This file is #included by main.cpp AFTER the #define configuration block.
-//  It expands in main.cpp's translation unit so it can see LEFT_PORTS, IMU_PORT,
-//  WHEEL_DIAMETER, etc.  Do NOT include it anywhere else.
-// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * \file robot_impl.inl
+ *
+ * LightLib boilerplate, expanded inline into main.cpp's translation unit.
+ *
+ * This file is `#include`d by main.cpp AFTER the `#define` configuration
+ * block, so that it can see `LEFT_PORTS`, `IMU_PORT`, `WHEEL_DIAMETER`,
+ * etc. Do NOT include it anywhere else.
+ */
 
 // EZ-Template's tracking_wheel.hpp and drive.hpp use WHEEL_DIAMETER as a
 // member variable name.  Save the user's value and remove the macro before

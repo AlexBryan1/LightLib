@@ -10,8 +10,34 @@
 #include "pros/distance.hpp"
 #include "subsystems.hpp"
 
-// ── drive_until_distance ──────────────────────────────────────────────────────
+/**
+ * \file drive_utils.hpp
+ *
+ * Header-only drive helpers built on top of `light::Drive`:
+ *   - drive_until_distance(): drive until a distance sensor reads under a
+ *     threshold.
+ *   - distance_reset(): re-zero one odom axis using a wall-facing sensor.
+ *   - drive_distance_reset(): re-zero one odom axis from a known coordinate.
+ *   - angle_reset(): correct heading from front+rear distance sensors on a
+ *     parallel wall.
+ */
 
+/**
+ * Drive forward (or reverse) until a distance sensor reads at or below
+ * `target`.
+ *
+ * The PID is given an arbitrarily large 5000 in target — the sensor
+ * triggers the real stop. Falls back to `pid_wait_quick_chain()` on timeout.
+ *
+ * \param target
+ *        distance threshold (with units)
+ * \param sensor
+ *        distance sensor used for the stop trigger
+ * \param speed
+ *        signed drive speed, ±127. Negative = reverse.
+ * \param timeout_ms
+ *        bail after this many ms if the threshold is never crossed
+ */
 inline void drive_until_distance(okapi::QLength target,
                                  pros::Distance& sensor,
                                  int speed = 127,
@@ -35,8 +61,28 @@ inline void drive_until_distance(okapi::QLength target,
   chassis.pid_wait_quick_chain();
 }
 
-// ── drive_distance_reset ──────────────────────────────────────────────────────
-
+/**
+ * Re-zero one odom axis (`x` or `y`) using a wall-facing distance sensor.
+ *
+ * Reads the sensor, projects its measurement through the current heading
+ * to the axis of interest, and updates the odom pose with `light::setPose`.
+ * Bails silently if the sensor returns `PROS_ERR`.
+ *
+ * \param chassis
+ *        the drivetrain (used for IMU heading)
+ * \param sensor
+ *        wall-facing distance sensor
+ * \param offset_fwd
+ *        sensor offset in inches along the robot's forward axis
+ * \param offset_side
+ *        sensor offset in inches along the robot's lateral axis
+ * \param fix_x
+ *        true = correct X, false = correct Y
+ * \param faces_positive
+ *        true if the sensor faces the positive end of the field axis
+ * \param field_size_in
+ *        field size used to flip the coordinate when `faces_positive`
+ */
 inline void distance_reset(light::Drive& chassis,
                            pros::Distance& sensor,
                            double offset_fwd,
@@ -66,8 +112,17 @@ inline void distance_reset(light::Drive& chassis,
     light::setPose(Pose(cur.x, coord, heading_deg));
 }
 
-// ── drive_distance_reset ──────────────────────────────────────────────────────
-
+/**
+ * Re-zero one odom axis from a known field coordinate (e.g. when robot is
+ * pinned against a wall whose coordinate is known a priori).
+ *
+ * \param chassis
+ *        the drivetrain (used for IMU heading)
+ * \param known_coord
+ *        the known field-frame coordinate, inches
+ * \param fix_x
+ *        true = set X, false = set Y
+ */
 inline void drive_distance_reset(light::Drive& chassis,
                                  double known_coord,
                                  bool fix_x) {
@@ -80,8 +135,22 @@ inline void drive_distance_reset(light::Drive& chassis,
     light::setPose(Pose(cur.x, known_coord, heading_deg));
 }
 
-// ── angle_reset ───────────────────────────────────────────────────────────────
-
+/**
+ * Correct heading from front- and rear-mounted distance sensors looking at
+ * the same parallel wall.
+ *
+ * The angular offset is `atan2(rear − front, separation)` and is applied to
+ * the IMU's stored offset.
+ *
+ * \param chassis
+ *        the drivetrain (IMU is reset on it)
+ * \param front_sensor
+ *        forward-mounted distance sensor
+ * \param rear_sensor
+ *        rear-mounted distance sensor on the same side
+ * \param separation
+ *        distance between the two sensors along the robot, inches
+ */
 inline void angle_reset(light::Drive& chassis,
                         pros::Distance& front_sensor,
                         pros::Distance& rear_sensor,

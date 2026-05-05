@@ -1,61 +1,77 @@
 #pragma once
 
-// custom_move.hpp
-// Custom movement primitives using EZ-Template motor control and dual distance sensors.
-//
-// DEPENDENCIES:
-//   - EZ-Template (provides light::Drive)
-//   - PROS 4 (provides pros::Distance, pros::millis, etc.)
-//   - main.h (PROS umbrella header)
-//
-// SETUP — two steps required before use:
-//
-//   Step 1: Call custom_move_init() once inside initialize() in main.cpp,
-//           passing your existing light::Drive chassis object:
-//
-//             custom_move_init(chassis);
-//
-//   Step 2: Declare two pros::Distance sensors — one on the front of the
-//           robot and one on the left side — and call driveWallTrack():
-//
-//             pros::Distance frontDist(PORT_A);
-//             pros::Distance leftDist(PORT_B);
-//             driveWallTrack(frontDist, leftDist, 6.0, 4.0);
-//               → drives forward until front sensor reads ≤ 6 inches,
-//                 maintaining 4 inches from the left wall throughout.
-//
-// MOTOR CONTROL SCALE:
-//   All speed values use EZ-Template's -127 to 127 scale (not raw millivolts).
-//   light::Drive::drive_set(left, right) is called each 10ms control cycle.
-//
-// NO EXTERN DECLARATIONS:
-//   The light::Drive reference is stored as a pointer at runtime inside
-//   custom_move_init(), avoiding the PROS cold/hot package linker constraint.
+#include "LightLib/lib.hpp"
+#include "LightLib/main.h"
 
-#include "LightLib/lib.hpp"  // provides light::Drive
-#include "LightLib/main.h"      // PROS umbrella — provides pros::Distance, pros::millis, etc.
+/**
+ * \file custom_move.hpp
+ *
+ * Custom movement primitives using LightLib's `Drive` and dual distance
+ * sensors.
+ *
+ * \par Dependencies
+ *   - LightLib (provides `light::Drive`)
+ *   - PROS 4 (provides `pros::Distance`, `pros::millis`, etc.)
+ *   - `LightLib/main.h` (PROS umbrella header)
+ *
+ * \par Setup
+ * Two steps required before use:
+ *   1. Call custom_move_init() once inside `initialize()` in main.cpp,
+ *      passing your existing `light::Drive` chassis object:
+ *      \code
+ *        custom_move_init(chassis);
+ *      \endcode
+ *   2. Declare two `pros::Distance` sensors — one on the front of the robot
+ *      and one on the left side — and call WallRide():
+ *      \code
+ *        pros::Distance frontDist(PORT_A);
+ *        pros::Distance leftDist(PORT_B);
+ *        WallRide(&frontDist, &leftDist, 6.0, 4.0);
+ *      \endcode
+ *      Drives forward until front sensor reads ≤ 6 inches, maintaining 4
+ *      inches from the left wall throughout.
+ *
+ * \par Motor control scale
+ * All speed values use LightLib's `-127`..`127` scale (not raw millivolts).
+ *
+ * \note The `light::Drive` reference is stored as a pointer at runtime inside
+ * custom_move_init(), avoiding the PROS cold/hot package linker constraint.
+ */
 
-// driveWallTrack — drives the robot forward while:
-//   (1) stopping when the front distance sensor reads ≤ stopDistIn from a wall ahead
-//   (2) maintaining targetDistIn from a left-side wall via a PD steering loop
-//
-// custom_move_init() must be called before this function is used.
-//
-// Parameters:
-//   frontSensor  : pros::Distance sensor mounted on the front of the robot.
-//                  Stop condition: reading drops to or below stopDistIn.
-//   leftSensor   : pros::Distance sensor mounted on the left side of the robot.
-//                  Used for wall-tracking PD correction to maintain targetDistIn.
-//   stopDistIn   : front distance threshold in inches — robot stops when front
-//                  sensor reads ≤ this value (i.e., a wall is this close ahead).
-//   targetDistIn : desired lateral distance to maintain from the left wall, in inches.
-//   baseSpeed    : forward drive speed, 0–127 EZ-Template scale  (default: 80)
-//   timeout      : max run duration in milliseconds before forced exit (default: 5000)
+/**
+ * Register the chassis used by the custom movement primitives.
+ *
+ * Must be called once in `initialize()` before WallRide().
+ *
+ * \param chassis
+ *        the user's Drive instance
+ */
 void custom_move_init(light::Drive& chassis);
 
-// Pass nullptr for a sensor whose port is 0 (not installed).
-// WallRide returns immediately if frontSensor is nullptr.
-// If leftSensor is nullptr, the robot drives straight (no wall correction).
+/**
+ * Drive forward while wall-tracking on the left.
+ *
+ * Combines two behaviors:
+ *   1. Stops when the front distance sensor reads ≤ `stopDistIn`.
+ *   2. Maintains `targetDistIn` from a left-side wall via a PD steering loop.
+ *
+ * Pass `nullptr` for a sensor whose port is 0 (not installed). Returns
+ * immediately if `frontSensor` is `nullptr`. If `leftSensor` is `nullptr`,
+ * the robot drives straight with no wall correction.
+ *
+ * \param frontSensor
+ *        front-facing distance sensor (stop condition)
+ * \param leftSensor
+ *        left-facing distance sensor (wall-tracking)
+ * \param stopDistIn
+ *        front threshold in inches — robot stops when front reads ≤ this
+ * \param targetDistIn
+ *        desired lateral distance from the left wall, inches
+ * \param baseSpeed
+ *        forward drive speed, 0–127
+ * \param timeout
+ *        max run duration in milliseconds before forced exit
+ */
 void WallRide(pros::Distance* frontSensor,
               pros::Distance* leftSensor,
               double stopDistIn,

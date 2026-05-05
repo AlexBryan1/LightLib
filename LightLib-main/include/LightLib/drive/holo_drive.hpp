@@ -7,23 +7,53 @@
 #include "pros/imu.hpp"
 #include "pros/motors.hpp"
 
+/**
+ * \file holo_drive.hpp
+ *
+ * Holonomic and H-drive chassis classes (alternatives to the tank `Drive`).
+ *
+ * Both classes implement opcontrol mixing, IMU-stabilized straight motions,
+ * and per-axis PID for autonomous moves.
+ */
+
 namespace light {
 
-// Normalize an angle in degrees to (-180, 180] so PID always takes the shortest path.
+/**
+ * Normalize an angle in degrees to the half-open interval (-180, 180] so
+ * PID always takes the shortest path.
+ *
+ * \param a
+ *        input angle in degrees
+ */
 double wrap180(double a);
 
-// ── Internal PID ──────────────────────────────────────────────────────────────
+/**
+ * Internal PID used by HoloDrive / HDrive.
+ *
+ * Distinct from light::PID — no exit-condition machinery, supports both
+ * error-derivative and measurement-derivative variants.
+ */
 struct HoloPID {
-  double kP = 0, kI = 0, kD = 0;
-  double integral = 0;
-  // Same gating semantics as LightPID::integralCap: > 0 enables the clamp.
-  // Default chosen to match LightPID; set to <= 0 to disable.
+  double kP = 0;            ///< Proportional gain.
+  double kI = 0;            ///< Integral gain.
+  double kD = 0;            ///< Derivative gain.
+  double integral = 0;      ///< Accumulated integral term.
+  /**
+   * Same gating semantics as `LightPID::integralCap`: > 0 enables the clamp.
+   * Default chosen to match LightPID; set to ≤ 0 to disable.
+   */
   double integralCap = 1000.0;
-  double prev_error = 0;
-  double prev_measured = 0;
-  bool seeded_err = false;
-  bool seeded_meas = false;
+  double prev_error = 0;    ///< Previous-cycle error.
+  double prev_measured = 0; ///< Previous-cycle measurement (for derivative-on-measurement).
+  bool seeded_err = false;  ///< Whether `prev_error` is valid.
+  bool seeded_meas = false; ///< Whether `prev_measured` is valid.
 
+  /**
+   * Compute output using derivative on error.
+   *
+   * \param error
+   *        current error
+   */
   double compute(double error) {
     integral += error;
     if (integralCap > 0.0) {
@@ -36,6 +66,15 @@ struct HoloPID {
     return kP * error + kI * integral + kD * deriv;
   }
 
+  /**
+   * Compute output using derivative on measurement (suppresses derivative
+   * kick on target changes).
+   *
+   * \param error
+   *        current error
+   * \param measured
+   *        current sensor measurement
+   */
   double compute(double error, double measured) {
     integral += error;
     if (integralCap > 0.0) {
@@ -48,6 +87,7 @@ struct HoloPID {
     return kP * error + kI * integral - kD * dmeas;
   }
 
+  /** Zero out integral and previous-state history. */
   void reset() {
     integral = 0;
     prev_error = 0;
@@ -55,6 +95,8 @@ struct HoloPID {
     seeded_err = false;
     seeded_meas = false;
   }
+
+  /** Set all three gains in one call. */
   void set(double p, double i = 0, double d = 0) {
     kP = p;
     kI = i;
@@ -62,62 +104,123 @@ struct HoloPID {
   }
 };
 
-// ── HoloDrive ─────────────────────────────────────────────────────────────────
-// 4-motor holonomic drive — supports X-Drive and Mecanum configurations.
-// Both use the same control math; pick the type that matches your wheel style.
-//
-// Motor layout (viewed from above, robot nose pointing up):
-//     FL  FR
-//     BL  BR
-// Use a negative port number to reverse a motor.
-//
-// Wheel mixing ("X" pattern — standard for VEX):
-//     FL = throttle − strafe + turn
-//     FR = throttle + strafe − turn
-//     BL = throttle + strafe + turn
-//     BR = throttle − strafe − turn
-// positive turn = clockwise (right), positive strafe = rightward
-//
-// Before running any autonomous method you MUST call set_*_pid() for each axis.
-// Call calibrate() once inside initialize() if no other code calibrates the IMU.
+/**
+ * 4-motor holonomic drive — supports X-Drive and Mecanum configurations.
+ *
+ * Both wheel styles use the same control math; pick the type that matches
+ * your hardware.
+ *
+ * \par Motor layout (viewed from above, robot nose pointing up)
+ * \code
+ *   FL  FR
+ *   BL  BR
+ * \endcode
+ * Use a negative port number to reverse a motor.
+ *
+ * \par Wheel mixing ("X" pattern, standard for VEX)
+ * \code
+ *   FL = throttle − strafe + turn
+ *   FR = throttle + strafe − turn
+ *   BL = throttle + strafe + turn
+ *   BR = throttle − strafe − turn
+ * \endcode
+ * Positive turn = clockwise (right). Positive strafe = rightward.
+ *
+ * \warning Before running any autonomous method you MUST call `set_*_pid()`
+ *          for each axis. Call calibrate() once inside `initialize()` if no
+ *          other code calibrates the IMU.
+ */
 class HoloDrive {
  public:
-  enum class Type { XDRIVE,
-                    MECANUM };
+  /** Wheel layout option. */
+  enum class Type { XDRIVE,   ///< Omni wheels mounted at 45°.
+                    MECANUM };///< Standard mecanum X-pattern.
 
-  // wheel_diameter: inches.
-  // gear_ratio: output_rpm / motor_rpm  (1.0 = direct drive).
+  /**
+   * Construct a 4-motor holonomic drive.
+   *
+   * \param fl_port
+   *        front-left motor port (negative = reversed)
+   * \param fr_port
+   *        front-right motor port (negative = reversed)
+   * \param bl_port
+   *        back-left motor port (negative = reversed)
+   * \param br_port
+   *        back-right motor port (negative = reversed)
+   * \param imu_port
+   *        inertial sensor port
+   * \param wheel_diameter
+   *        wheel diameter in inches
+   * \param gear_ratio
+   *        `output_rpm / motor_rpm` (1.0 = direct drive)
+   * \param type
+   *        wheel layout
+   */
   HoloDrive(int fl_port, int fr_port, int bl_port, int br_port,
             int imu_port,
             double wheel_diameter,
             double gear_ratio = 1.0,
             Type type = Type::MECANUM);
 
-  // ── Opcontrol ─────────────────────────────────────────────────────────────
-  // Pass raw joystick values (−127..127).
-  // throttle = forward/back   strafe = left/right   turn = CW/CCW
+  /**
+   * \name Opcontrol
+   * @{
+   */
+  /**
+   * Drive from joystick inputs. Pass raw joystick values −127..127.
+   *
+   * \param throttle
+   *        forward / back
+   * \param strafe
+   *        left / right
+   * \param turn
+   *        CW / CCW
+   */
   void opcontrol(int throttle, int strafe, int turn);
+  /** @} */
 
-  // ── Autonomous ────────────────────────────────────────────────────────────
-  // Straight drive / strafe hold heading via IMU throughout.
+  /**
+   * \name Autonomous moves
+   * Straight drive / strafe hold heading via IMU throughout.
+   * @{
+   */
+  /** Drive forward `inches` (negative = reverse). */
   void drive(double inches, int max_speed = 100, int timeout_ms = 3000);
+  /** Strafe right `inches` (negative = left). */
   void strafe(double inches, int max_speed = 100, int timeout_ms = 3000);
-  // turn_to: absolute heading 0–360°.   turn_relative: degrees CW (positive) or CCW (negative).
+  /** Turn to absolute heading 0–360°. */
   void turn_to(double heading_deg, int max_speed = 80, int timeout_ms = 2000);
+  /** Turn `degrees` CW (positive) or CCW (negative). */
   void turn_relative(double degrees, int max_speed = 80, int timeout_ms = 2000);
+  /** @} */
 
-  // ── PID constants ─────────────────────────────────────────────────────────
+  /**
+   * \name PID constants
+   * @{
+   */
+  /** Set the linear-drive PID gains. */
   void set_drive_pid(double kP, double kI = 0, double kD = 0);
+  /** Set the strafe PID gains. */
   void set_strafe_pid(double kP, double kI = 0, double kD = 0);
+  /** Set the turn-in-place PID gains. */
   void set_turn_pid(double kP, double kI = 0, double kD = 0);
-  // heading_pid: used during drive/strafe to maintain straight-line heading.
+  /** Set the heading-correction PID used during straight drive / strafe. */
   void set_heading_pid(double kP, double kI = 0, double kD = 0);
+  /** @} */
 
-  // ── Misc ──────────────────────────────────────────────────────────────────
-  void calibrate(bool wait = true);  // reset + wait for IMU to settle
-  void reset_sensors();              // tare motor encoders
+  /**
+   * \name Misc
+   * @{
+   */
+  /** Calibrate the IMU. \param wait if true, blocks until settled. */
+  void calibrate(bool wait = true);
+  /** Tare motor encoders. */
+  void reset_sensors();
+  /** Set brake mode for all four motors. */
   void set_brake_mode(pros::motor_brake_mode_e_t mode);
-  double get_heading() const;  // 0–360°, CW-positive
+  /** \return Current heading 0–360°, CW-positive. */
+  double get_heading() const;
+  /** @} */
 
  private:
   pros::Motor fl_, fr_, bl_, br_;
@@ -141,15 +244,33 @@ class HoloDrive {
   double strafe_pos() const;  // avg rightward encoder (−FL+FR+BL−BR)/4
 };
 
-// ── HDrive ────────────────────────────────────────────────────────────────────
-// Tank drive with a single center-mounted strafe wheel (H-drive configuration).
-// Left and right groups may contain any number of motors.
-//
-// Before running any autonomous method you MUST call set_*_pid() for each axis.
-// Call calibrate() once inside initialize() if no other code calibrates the IMU.
+/**
+ * Tank drive with a single center-mounted strafe wheel (H-drive layout).
+ *
+ * Left and right groups may contain any number of motors.
+ *
+ * \warning Before running any autonomous method you MUST call `set_*_pid()`
+ *          for each axis. Call calibrate() once inside `initialize()` if no
+ *          other code calibrates the IMU.
+ */
 class HDrive {
  public:
-  // left_ports / right_ports: use negative values for reversed motors.
+  /**
+   * Construct an H-drive.
+   *
+   * \param left_ports
+   *        left side motor ports (negative = reversed)
+   * \param right_ports
+   *        right side motor ports (negative = reversed)
+   * \param center_port
+   *        center strafe motor port
+   * \param imu_port
+   *        inertial sensor port
+   * \param wheel_diameter
+   *        wheel diameter in inches
+   * \param gear_ratio
+   *        `output_rpm / motor_rpm` (1.0 = direct drive)
+   */
   HDrive(std::vector<int> left_ports,
          std::vector<int> right_ports,
          int center_port,
@@ -157,27 +278,56 @@ class HDrive {
          double wheel_diameter,
          double gear_ratio = 1.0);
 
-  // ── Opcontrol ─────────────────────────────────────────────────────────────
-  // throttle = forward/back   strafe = center wheel (left/right)   turn = CW/CCW
+  /**
+   * \name Opcontrol
+   * @{
+   */
+  /**
+   * Drive from joystick inputs.
+   *
+   * \param throttle
+   *        forward / back
+   * \param strafe
+   *        center wheel left / right
+   * \param turn
+   *        CW / CCW
+   */
   void opcontrol(int throttle, int strafe, int turn);
+  /** @} */
 
-  // ── Autonomous ────────────────────────────────────────────────────────────
+  /**
+   * \name Autonomous moves
+   * @{
+   */
+  /** Drive forward `inches` (negative = reverse). */
   void drive(double inches, int max_speed = 100, int timeout_ms = 3000);
+  /** Strafe right `inches` (negative = left). */
   void strafe(double inches, int max_speed = 100, int timeout_ms = 3000);
+  /** Turn to absolute heading 0–360°. */
   void turn_to(double heading_deg, int max_speed = 80, int timeout_ms = 2000);
+  /** Turn `degrees` CW (positive) or CCW (negative). */
   void turn_relative(double degrees, int max_speed = 80, int timeout_ms = 2000);
+  /** @} */
 
-  // ── PID constants ─────────────────────────────────────────────────────────
+  /**
+   * \name PID constants
+   * @{
+   */
   void set_drive_pid(double kP, double kI = 0, double kD = 0);
   void set_strafe_pid(double kP, double kI = 0, double kD = 0);
   void set_turn_pid(double kP, double kI = 0, double kD = 0);
   void set_heading_pid(double kP, double kI = 0, double kD = 0);
+  /** @} */
 
-  // ── Misc ──────────────────────────────────────────────────────────────────
+  /**
+   * \name Misc
+   * @{
+   */
   void calibrate(bool wait = true);
   void reset_sensors();
   void set_brake_mode(pros::motor_brake_mode_e_t mode);
   double get_heading() const;
+  /** @} */
 
  private:
   pros::MotorGroup left_, right_;

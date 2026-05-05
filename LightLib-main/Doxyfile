@@ -1,0 +1,93 @@
+# Doxygen config for LightLib
+# Generate docs with: doxygen Doxyfile
+# Output lands in docs/html/index.html
+
+PROJECT_NAME           = "LightLib"
+PROJECT_BRIEF          = "PROS library for VEX V5: EKF/MCL localization, RAMSETE path following, high-level chassis API"
+PROJECT_LOGO           =
+OUTPUT_DIRECTORY       = docs
+
+# What to scan
+INPUT                  = include README.md
+RECURSIVE              = YES
+FILE_PATTERNS          = *.h *.hpp *.cpp *.md
+EXCLUDE                = include/pros \
+                         include/liblvgl \
+                         include/api.h \
+                         include/main.h
+EXCLUDE_PATTERNS       = */firmware/*
+
+USE_MDFILE_AS_MAINPAGE = README.md
+
+# Extraction
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = YES
+EXTRACT_LOCAL_CLASSES  = YES
+EXTRACT_ANON_NSPACES   = NO
+
+# Comment style
+JAVADOC_AUTOBRIEF      = YES
+QT_AUTOBRIEF           = NO
+MULTILINE_CPP_IS_BRIEF = NO
+INHERIT_DOCS           = YES
+SEPARATE_MEMBER_PAGES  = NO
+TAB_SIZE               = 2
+MARKDOWN_SUPPORT       = YES
+AUTOLINK_SUPPORT       = YES
+
+# C++ specifics
+BUILTIN_STL_SUPPORT    = YES
+CPP_CLI_SUPPORT        = NO
+SIP_SUPPORT            = NO
+DISTRIBUTE_GROUP_DOC   = NO
+GROUP_NESTED_COMPOUNDS = NO
+SUBGROUPING            = YES
+INLINE_GROUPED_CLASSES = NO
+INLINE_SIMPLE_STRUCTS  = NO
+TYPEDEF_HIDES_STRUCT   = NO
+
+# Source browser
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+STRIP_CODE_COMMENTS    = YES
+REFERENCED_BY_RELATION = NO
+REFERENCES_RELATION    = NO
+REFERENCES_LINK_SOURCE = YES
+VERBATIM_HEADERS       = YES
+
+# Output
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+HTML_FILE_EXTENSION    = .html
+HTML_COLORSTYLE        = AUTO_LIGHT
+GENERATE_TREEVIEW      = YES
+DISABLE_INDEX          = NO
+FULL_SIDEBAR           = NO
+SEARCHENGINE           = YES
+GENERATE_LATEX         = NO
+GENERATE_XML           = NO
+
+# Diagrams (require graphviz; harmless if not installed — falls back to plain text)
+HAVE_DOT               = NO
+CLASS_DIAGRAMS         = YES
+CLASS_GRAPH            = YES
+COLLABORATION_GRAPH    = NO
+INCLUDE_GRAPH          = NO
+INCLUDED_BY_GRAPH      = NO
+
+# Warnings
+QUIET                  = NO
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = YES
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = YES
+WARN_AS_ERROR          = NO
+
+# Preprocessor
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = NO
+EXPAND_ONLY_PREDEF     = NO
+SEARCH_INCLUDES        = YES
+INCLUDE_PATH           = include
+PREDEFINED             =

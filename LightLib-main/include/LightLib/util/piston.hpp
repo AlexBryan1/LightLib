@@ -8,12 +8,24 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 #include "LightLib/api.h"
 
+/**
+ * \file piston.hpp
+ *
+ * Stateful wrapper around `pros::adi::DigitalOut` that tracks toggle state
+ * and offers convenient button-driven activation modes.
+ */
+
 namespace light {
+/**
+ * Stateful 3-wire pneumatic piston with toggle helpers.
+ *
+ * Wraps a `pros::adi::DigitalOut` and remembers whether the piston is
+ * currently extended. Use button_toggle() for one-button toggling or
+ * buttons() for two-button extend/retract.
+ */
 class Piston {
  public:
-  /**
-   * Piston used throughout.
-   */
+  /** Underlying PROS digital output. Exposed for advanced use. */
   pros::adi::DigitalOut piston;
 
   /**
@@ -62,12 +74,12 @@ class Piston {
   void button_toggle(int toggle);
 
   /**
-   * Two buttons trigger the piston.  Active is enabled, deactive is disabled.
+   * Two-button trigger: one button extends, the other retracts.
    *
    * \param active
-   *        sets piston to true
-   * \param active
-   *        sets piston to false
+   *        button id that sets the piston to true
+   * \param deactive
+   *        button id that sets the piston to false
    */
   void buttons(int active, int deactive);
 

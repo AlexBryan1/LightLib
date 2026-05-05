@@ -20,16 +20,55 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using namespace light;
 
+/**
+ * \file drive.hpp
+ *
+ * Tank chassis class — the main user-facing API for autonomous and
+ * opcontrol drive motions. Handles motors, brake modes, drive PIDs, swing
+ * PIDs, turn PIDs, slew, and odom-based motion primitives.
+ *
+ * Build a Drive instance in main.cpp from your motor port lists and call
+ * `chassis.initialize()` (or the LightLib helpers) before using it.
+ */
+
 namespace light {
 
-// External pose-source hook. When registered, all odom_*_get() reads return
-// the externally-supplied pose instead of EZ's wheel integrator, and
-// odom_*_set() calls forward to the supplied setter. Used by LightLib to
-// route EZ's pid_odom_* motion through the fused EKF/MCL pose estimate.
+/** External pose getter used by `register_pose_source()`. */
 using PoseGetterFn = pose (*)();
+/** External pose setter used by `register_pose_source()`. */
 using PoseSetterFn = void (*)(pose);
+
+/**
+ * Register an external pose source.
+ *
+ * When registered, all `odom_*_get()` reads return the externally-supplied
+ * pose instead of LightLib's wheel integrator, and `odom_*_set()` calls
+ * forward to the supplied setter. Used internally to route the legacy
+ * `pid_odom_*` motion through the fused EKF / MCL pose estimate.
+ *
+ * \param getter
+ *        function returning the current pose
+ * \param setter
+ *        function applying a new pose
+ */
 void register_pose_source(PoseGetterFn getter, PoseSetterFn setter);
 
+/**
+ * Tank-drive chassis class.
+ *
+ * Owns the left/right motor groups, IMU, optional tracking wheels, and the
+ * full PID/slew tuning surface. After construction, autonomous moves are
+ * dispatched via the `pid_drive_set` / `pid_turn_set` / `pid_swing_set` /
+ * `pid_odom_set` family with paired `pid_wait*` calls, and the opcontrol
+ * loop is driven by `opcontrol_*` helpers.
+ *
+ * \par Lifecycle
+ *   1. Construct in main.cpp.
+ *   2. Call `initialize()` (or use the LightLib `chassis_initialize()`
+ *      wrapper) early in PROS `initialize()`.
+ *   3. Set PID + exit constants (typically in `default_constants()`).
+ *   4. Call motion primitives from autons; opcontrol helpers from opcontrol.
+ */
 class Drive {
  public:
   /**

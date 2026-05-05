@@ -6,6 +6,13 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 #pragma once
 
+/**
+ * \file util.hpp
+ *
+ * Shared types, enums, math helpers, and unit conversions used across
+ * LightLib. Pulled into nearly every other header.
+ */
+
 #include <algorithm>
 #include <atomic>
 #include <cmath>
@@ -25,9 +32,7 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 using namespace okapi::literals;
 
-/**
- * Controller.
- */
+/** Global V5 master controller, used by opcontrol throughout LightLib. */
 extern pros::Controller master;
 
 namespace light {
@@ -49,48 +54,37 @@ void ez_template_print();
  */
 void screen_print(std::string text, int line = 0);
 
-/////
-//
-// Public Variables
-//
-/////
-
 /**
- * Enum for split and single stick arcade.
+ * \name Public types and enums
+ * @{
  */
-enum e_type { SINGLE = 0,
-              SPLIT = 1 };
 
-/**
- * Enum for split and single stick arcade.
- */
-enum e_swing { LEFT_SWING = 0,
-               RIGHT_SWING = 1 };
+/** Arcade joystick layout. */
+enum e_type { SINGLE = 0, ///< Single-stick arcade (one stick = throttle + turn).
+              SPLIT = 1 };///< Split-stick arcade (left = throttle, right = turn).
 
-/**
- * Enum for PID::exit_condition outputs.
- */
-enum exit_output { RUNNING = 1,
-                   SMALL_EXIT = 2,
-                   BIG_EXIT = 3,
-                   VELOCITY_EXIT = 4,
-                   mA_EXIT = 5,
-                   ERROR_NO_CONSTANTS = 6 };
+/** Direction for swing-turn motions. */
+enum e_swing { LEFT_SWING = 0,  ///< Left side stationary, right side drives.
+               RIGHT_SWING = 1 };///< Right side stationary, left side drives.
 
-/**
- * Enum for split and single stick arcade.
- */
-enum e_mode { DISABLE = 0,
-              SWING = 1,
-              TURN = 2,
-              TURN_TO_POINT = 3,
-              DRIVE = 4,
-              POINT_TO_POINT = 5,
-              PURE_PURSUIT = 6 };
+/** Result codes returned by PID::exit_condition. */
+enum exit_output { RUNNING = 1,            ///< Still inside the motion.
+                   SMALL_EXIT = 2,         ///< Small-error timer expired.
+                   BIG_EXIT = 3,           ///< Big-error timer expired.
+                   VELOCITY_EXIT = 4,      ///< Stopped moving long enough.
+                   mA_EXIT = 5,            ///< Motor current limit hit.
+                   ERROR_NO_CONSTANTS = 6 };///< No PID constants set.
 
-/**
- * Enum for drive directions.
- */
+/** Active chassis motion mode. */
+enum e_mode { DISABLE = 0,       ///< No motion active.
+              SWING = 1,         ///< Swing turn.
+              TURN = 2,          ///< Turn-in-place to absolute heading.
+              TURN_TO_POINT = 3, ///< Turn to face a field point.
+              DRIVE = 4,         ///< Straight-line drive.
+              POINT_TO_POINT = 5,///< Drive to a field point.
+              PURE_PURSUIT = 6 };///< Pure-pursuit path follower.
+
+/** Drive direction with multiple spelling aliases. */
 enum drive_directions { FWD = 0,
                         FORWARD = FWD,
                         fwd = FWD,
@@ -100,80 +94,80 @@ enum drive_directions { FWD = 0,
                         rev = REV,
                         reverse = REV };
 
-/**
- * Enum for turn types.
- */
-enum e_angle_behavior { raw = 0,
-                        left_turn = 1,
+/** How to choose a turn direction when reaching an absolute heading. */
+enum e_angle_behavior { raw = 0,                ///< Use signed delta as-is (no wrap).
+                        left_turn = 1,          ///< Always turn counterclockwise.
                         LEFT_TURN = 1,
                         counterclockwise = 1,
                         ccw = 1,
-                        right_turn = 2,
+                        right_turn = 2,         ///< Always turn clockwise.
                         RIGHT_TURN = 2,
                         clockwise = 2,
                         cw = 2,
-                        shortest = 3,
-                        longest = 4 };
+                        shortest = 3,           ///< Pick the smaller of CW/CCW.
+                        longest = 4 };          ///< Pick the larger of CW/CCW.
 
+/** Sentinel value indicating "no angle specified". */
 const double ANGLE_NOT_SET = 0.0000000000000000000001;
+/** Sentinel value indicating "no angle specified" (united). */
 const okapi::QAngle p_ANGLE_NOT_SET = 0.0000000000000000000001_deg;
 
-/**
- * Struct for coordinates.
- */
+/** 2D pose: position (in) and heading (deg). */
 typedef struct pose {
-  double x;
-  double y;
-  double theta = ANGLE_NOT_SET;
+  double x;                    ///< X position, inches.
+  double y;                    ///< Y position, inches.
+  double theta = ANGLE_NOT_SET;///< Heading, degrees.
 } pose;
 
-/**
- * Struct for united coordinates.
- */
+/** 2D pose with okapi units. */
 typedef struct united_pose {
-  okapi::QLength x;
-  okapi::QLength y;
-  okapi::QAngle theta = p_ANGLE_NOT_SET;
+  okapi::QLength x;                      ///< X position with units.
+  okapi::QLength y;                      ///< Y position with units.
+  okapi::QAngle theta = p_ANGLE_NOT_SET; ///< Heading with units.
 } united_pose;
 
-/**
- * Struct for odom movements.
- */
+/** One waypoint of an odom-mode movement. */
 typedef struct odom {
-  pose target;
-  drive_directions drive_direction;
-  int max_xy_speed;
-  e_angle_behavior turn_behavior = shortest;
+  pose target;                                  ///< Target pose.
+  drive_directions drive_direction;             ///< Drive forward or reverse.
+  int max_xy_speed;                             ///< Speed cap, 0..127.
+  e_angle_behavior turn_behavior = shortest;    ///< How to choose turn direction.
 } odom;
 
-/**
- * Struct for united odom movements.
- */
+/** One waypoint of an odom-mode movement, with okapi units. */
 typedef struct united_odom {
-  united_pose target;
-  drive_directions drive_direction;
-  int max_xy_speed;
-  e_angle_behavior turn_behavior = shortest;
+  united_pose target;                           ///< Target pose with units.
+  drive_directions drive_direction;             ///< Drive forward or reverse.
+  int max_xy_speed;                             ///< Speed cap, 0..127.
+  e_angle_behavior turn_behavior = shortest;    ///< How to choose turn direction.
 } united_odom;
 
+/** @} */
+
 /**
- * Outputs string for exit_condition enum.
+ * Returns a human-readable name for an exit_output code.
+ *
+ * \param input
+ *        the exit_output value
  */
 std::string exit_to_string(exit_output input);
 
-// Single source of truth for unit conversions. Multiplying is faster and
-// clearer than repeating the magic literals (25.4, 0.0254, M_PI/180) inline.
+/**
+ * Single source of truth for unit conversions. Multiplying is faster and
+ * clearer than repeating the magic literals (25.4, 0.0254, M_PI/180) inline.
+ */
 namespace units {
-inline constexpr double MM_PER_IN = 25.4;
-inline constexpr double IN_PER_MM = 1.0 / 25.4;
-inline constexpr double M_PER_IN = 0.0254;
-inline constexpr double IN_PER_M = 1.0 / 0.0254;
-inline constexpr double DEG_PER_RAD = 180.0 / M_PI;
-inline constexpr double RAD_PER_DEG = M_PI / 180.0;
+inline constexpr double MM_PER_IN = 25.4;          ///< Millimeters per inch.
+inline constexpr double IN_PER_MM = 1.0 / 25.4;    ///< Inches per millimeter.
+inline constexpr double M_PER_IN = 0.0254;         ///< Meters per inch.
+inline constexpr double IN_PER_M = 1.0 / 0.0254;   ///< Inches per meter.
+inline constexpr double DEG_PER_RAD = 180.0 / M_PI;///< Degrees per radian.
+inline constexpr double RAD_PER_DEG = M_PI / 180.0;///< Radians per degree.
 }  // namespace units
 
+/** Misc math, geometry, and unit-conversion helpers. */
 namespace util {
-extern bool AUTON_RAN;
+extern bool AUTON_RAN; ///< Set true once any autonomous routine has run this match.
 
 /**
  * Returns the amount of places after a decimal, maxing out at 6.
@@ -235,14 +229,10 @@ double clamp(double input, double max, double min);
  */
 double clamp(double input, double max);
 
-/**
- * Is the SD card plugged in?
- */
+/** True if an SD card is currently inserted. Captured at program start. */
 const bool SD_CARD_ACTIVE = pros::usd::is_installed();
 
-/**
- * Delay time for tasks, this is set to 10 ms.
- */
+/** Default loop period for LightLib background tasks, in milliseconds. */
 const int DELAY_TIME = 10;
 
 /**
@@ -289,8 +279,15 @@ double distance_to_point(pose itarget, pose icurrent);
  */
 double wrap_angle(double theta);
 
-// Wraps an angle in radians to (-pi, pi]. atan2(sin, cos) is branch-free and
-// stable across very large inputs — preferred over a while-loop normalization.
+/**
+ * Wraps an angle in radians to the half-open interval (-pi, pi].
+ *
+ * Uses `atan2(sin, cos)` rather than a while-loop normalization: branch-free
+ * and stable across very large inputs.
+ *
+ * \param a
+ *        input angle in radians
+ */
 inline float wrap_rad(float a) {
   return std::atan2(std::sin(a), std::cos(a));
 }

@@ -5,26 +5,63 @@
 
 #include "light/lvgl.h"
 
+/**
+ * \file auton_selector.hpp
+ *
+ * On-brain auton picker with PID and odom side panels.
+ *
+ * `AutonSelector` is the default LightLib brain-screen UI. Register routines
+ * with add(), show the screen via show(), and call run() from the
+ * autonomous task to invoke the selected routine.
+ */
+
 namespace light {
 
+/** One registered autonomous routine. */
 struct Auton {
-  std::string name;
-  std::string description;
-  std::function<void()> fn;
-  const lv_img_dsc_t* banner = nullptr;  // optional scrolling image strip
+  std::string name;                       ///< Display name on the picker.
+  std::string description;                ///< Long-form description shown in the side panel.
+  std::function<void()> fn;               ///< Routine to invoke when selected.
+  const lv_img_dsc_t* banner = nullptr;   ///< Optional scrolling image strip.
 };
 
+/**
+ * On-brain auton picker UI.
+ *
+ * Singleton-style — use the global `auton_selector` instance. Holds the list
+ * of registered autons, manages the LVGL screen lifecycle, and exposes a
+ * compact PID-tuner side panel and live odom display.
+ */
 class AutonSelector {
  public:
   ~AutonSelector() { teardown_ui(); }
 
+  /**
+   * Register an autonomous routine.
+   *
+   * \param name
+   *        display name on the picker button
+   * \param desc
+   *        description shown in the side panel
+   * \param fn
+   *        function invoked when the routine is selected
+   */
   void add(const std::string& name, const std::string& desc, std::function<void()> fn);
-  // add() with a scrolling banner image shown inside the button
+
+  /** add() variant with a scrolling banner image shown inside the button. */
   void add(const std::string& name, const std::string& desc, std::function<void()> fn,
            const lv_img_dsc_t* banner);
+
+  /** Build the LVGL UI. Call once in `initialize()`. */
   void init();
+
+  /** Invoke the currently selected routine (call from `autonomous()`). */
   void run();
+
+  /** Activate the picker screen. */
   void show();
+
+  /** \return Index of the currently selected auton. */
   int selected() const { return selected_idx_; }
 
  private:
@@ -88,10 +125,14 @@ class AutonSelector {
   static void odom_timer_cb(lv_timer_t* timer);
 };
 
+/** Process-wide singleton selector instance. */
 extern AutonSelector auton_selector;
 
 }  // namespace light
 
-// Defined in src/auton_config.cpp. Called once at the top of initialize() to
-// populate the on-brain selector with the user's autonomous routines.
+/**
+ * Defined in `src/auton_config.cpp`. Called once at the top of
+ * `initialize()` to populate the on-brain selector with the user's
+ * autonomous routines.
+ */
 void register_autons();
