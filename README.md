@@ -87,6 +87,10 @@ src/auton_config.cpp  selector wiring
 firmware/           prebuilt static libs (libpros, okapilib, liblvgl, liblightlib)
 ```
 
+
+Claude was used to make the Doxygen Commenting and Read Me, because I didn't want to reformat it all...
+
+
 ## License
 
 [MPL-2.0](LICENSE.md), inherited from EZ-Template and the PROS kernel.
