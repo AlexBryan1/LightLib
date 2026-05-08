@@ -17,20 +17,27 @@
 // of every motion type. Full docs: docs/tutorials/.
 //
 // Motion cheat-sheet (speeds 0–127, distances in inches, angles in degrees):
-//   chassis.pid_drive_set(in, speed)             straight; negative = reverse
-//   chassis.pid_turn_set(deg, speed)             pivot to absolute heading
-//   chassis.pid_swing_set(SIDE, deg, speed)      one-side swing; SIDE = light::LEFT_SWING / RIGHT_SWING
-//   chassis.pid_odom_set({x,y,heading}, speed)   drive to a field point
+//   chassis.pid_drive_set(in [, speed])           straight; negative = reverse
+//   chassis.pid_turn_set(deg [, speed])           pivot to absolute heading
+//   chassis.pid_swing_set(SIDE, deg [, speed])    one-side swing; SIDE = light::LEFT_SWING / RIGHT_SWING
+//   chassis.pid_odom_set({x,y,heading}, speed)    drive to a field point
 //   light::moveToPoint(x, y, timeout, speed, reversed)   simple odom move
-//   light::followTrajectory(waypoints, cons)     RAMSETE smooth path
+//   light::followTrajectory(waypoints, cons)      RAMSETE smooth path
+//
+// When the speed arg is omitted, the chassis uses light::DRIVE_SPEED /
+// TURN_SPEED / SWING_SPEED (defined just below — edit those to change defaults).
 //
 //   chassis.pid_wait()              block until current motion finishes
 //   chassis.pid_wait_until(x)       block until robot passes x in/deg
 //   chassis.pid_wait_quick_chain()  exit early, start next motion immediately
 
-const int DRIVE_SPEED = 127;
-const int TURN_SPEED  = 127;
-const int SWING_SPEED = 127;
+// Default speeds for chassis.pid_drive_set / pid_turn_set / pid_swing_set when
+// the speed argument is omitted. Declared in LightLib/drive/drive.hpp.
+namespace light {
+int DRIVE_SPEED = 127;
+int TURN_SPEED  = 127;
+int SWING_SPEED = 127;
+}
 
 // Set every piston to its safe starting state. Called once before each match.
 // .set(true) = extended, .set(false) = retracted.
@@ -95,39 +102,40 @@ void default_constants() {
 //    Register any you want on the picker in auton_config.cpp. ──
 
 // pid_drive_set: straight forward, then back. Negative inches = reverse.
+// Speed arg is optional — defaults to light::DRIVE_SPEED.
 void ex_drive() {
-  chassis.pid_drive_set(24_in, DRIVE_SPEED);
+  chassis.pid_drive_set(24_in);
   chassis.pid_wait();
-  chassis.pid_drive_set(-24_in, DRIVE_SPEED);
+  chassis.pid_drive_set(-24_in);
   chassis.pid_wait();
 }
 
 // pid_turn_set: pivot in place to absolute headings.
 void ex_turn() {
-  chassis.pid_turn_set(90_deg, TURN_SPEED);
+  chassis.pid_turn_set(90_deg);
   chassis.pid_wait();
-  chassis.pid_turn_set(-90_deg, TURN_SPEED);
+  chassis.pid_turn_set(-90_deg);
   chassis.pid_wait();
-  chassis.pid_turn_set(0_deg, TURN_SPEED);
+  chassis.pid_turn_set(0_deg);
   chassis.pid_wait();
 }
 
 // pid_swing_set: turn using only one side of the drivetrain (sweeping arc).
 void ex_swing() {
-  chassis.pid_swing_set(light::LEFT_SWING, 45_deg, SWING_SPEED);
+  chassis.pid_swing_set(light::LEFT_SWING, 45_deg);
   chassis.pid_wait();
-  chassis.pid_swing_set(light::RIGHT_SWING, -45_deg, SWING_SPEED);
+  chassis.pid_swing_set(light::RIGHT_SWING, -45_deg);
   chassis.pid_wait();
 }
 
 // pid_wait_quick_chain: flow drive→turn→drive without fully stopping.
 // Each motion exits early once within its chain threshold (set in default_constants).
 void ex_chain() {
-  chassis.pid_drive_set(24_in, DRIVE_SPEED);
+  chassis.pid_drive_set(24_in);
   chassis.pid_wait_quick_chain();
-  chassis.pid_turn_set(90_deg, TURN_SPEED);
+  chassis.pid_turn_set(90_deg);
   chassis.pid_wait_quick_chain();
-  chassis.pid_drive_set(24_in, DRIVE_SPEED);
+  chassis.pid_drive_set(24_in);
   chassis.pid_wait();
 }
 

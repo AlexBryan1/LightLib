@@ -53,6 +53,12 @@ using PoseSetterFn = void (*)(pose);
  */
 void register_pose_source(PoseGetterFn getter, PoseSetterFn setter);
 
+/// Default speeds used when a `pid_drive_set` / `pid_turn_set` / `pid_swing_set`
+/// call omits the `speed` argument. Defined in `src/autons.cpp` — edit there.
+extern int DRIVE_SPEED;
+extern int TURN_SPEED;
+extern int SWING_SPEED;
+
 /**
  * Tank-drive chassis class.
  *
@@ -1795,7 +1801,7 @@ class Drive {
    * \param speed
    *        0 to 127, max speed during motion
    */
-  void pid_drive_set(okapi::QLength p_target, int speed);
+  void pid_drive_set(okapi::QLength p_target, int speed = DRIVE_SPEED);
 
   /**
    * Sets the robot to move forward using PID with okapi units, using slew if enabled for this motion.
@@ -1819,7 +1825,7 @@ class Drive {
    * \param speed
    *        0 to 127, max speed during motion
    */
-  void pid_drive_set(double target, int speed);
+  void pid_drive_set(double target, int speed = DRIVE_SPEED);
 
   /**
    * Sets the robot to move forward using PID without okapi units, using slew if enabled for this motion.
@@ -1843,7 +1849,7 @@ class Drive {
    * \param speed
    *        0 to 127, max speed during motion
    */
-  void pid_turn_set(pose itarget, drive_directions dir, int speed);
+  void pid_turn_set(pose itarget, drive_directions dir, int speed = TURN_SPEED);
 
   /**
    * Sets the robot to turn face a point using PID and odometry.
@@ -1891,7 +1897,7 @@ class Drive {
    * \param speed
    *        0 to 127, max speed during motion
    */
-  void pid_turn_set(united_pose p_itarget, drive_directions dir, int speed);
+  void pid_turn_set(united_pose p_itarget, drive_directions dir, int speed = TURN_SPEED);
 
   /**
    * Sets the robot to turn face a point using PID and odometry.
@@ -1941,7 +1947,7 @@ class Drive {
    * \param slew_on
    *        ramp up from a lower speed to your target speed
    */
-  void pid_turn_set(double target, int speed);
+  void pid_turn_set(double target, int speed = TURN_SPEED);
 
   /**
    * Sets the robot to turn relative to initial heading using PID.
@@ -1989,7 +1995,7 @@ class Drive {
    * \param speed
    *        0 to 127, max speed during motion
    */
-  void pid_turn_set(okapi::QAngle p_target, int speed);
+  void pid_turn_set(okapi::QAngle p_target, int speed = TURN_SPEED);
 
   /**
    * Sets the robot to turn relative to initial heading using PID with okapi units.
@@ -2135,7 +2141,7 @@ class Drive {
    * \param speed
    *        0 to 127, max speed during motion
    */
-  void pid_swing_set(e_swing type, double target, int speed);
+  void pid_swing_set(e_swing type, double target, int speed = SWING_SPEED);
 
   /**
    * Sets the robot to turn using only the left or right side relative to initial heading without okapi units, only using slew if globally enabled.
@@ -2251,7 +2257,7 @@ class Drive {
    * \param speed
    *        0 to 127, max speed during motion
    */
-  void pid_swing_set(e_swing type, okapi::QAngle p_target, int speed);
+  void pid_swing_set(e_swing type, okapi::QAngle p_target, int speed = SWING_SPEED);
 
   /**
    * Sets the robot to turn using only the left or right side relative to initial heading with okapi units, only using slew if globally enabled.
