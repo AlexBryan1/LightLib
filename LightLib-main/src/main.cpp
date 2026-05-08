@@ -4,14 +4,15 @@
 // │  Use a negative port number to reverse that motor.                      │
 // └─────────────────────────────────────────────────────────────────────────┘
 
-#define LEFT_PORTS {-1, -2, -3, -4, -5}  // left drive motors
-#define RIGHT_PORTS {6, 7, 8, 9, 10}     // right drive motors
+#include "subsystems.hpp"
+#define LEFT_PORTS {-4, -5, -6}  // left drive motors
+#define RIGHT_PORTS {1, 2, 3}     // right drive motors
 
-#define IMU_PORT 0   // primary inertial sensor
+#define IMU_PORT 9   // primary inertial sensor
 #define IMU2_PORT 0  // second IMU — set to 0 if you only have one
 
-#define WHEEL_DIAMETER 2.6  // inches  (4" wheels are actually ~4.125")
-#define WHEEL_RPM 600       // motor cartridge RPM × (motor sprocket / wheel sprocket)
+#define WHEEL_DIAMETER 3.25  // inches  (4" wheels are actually ~4.125")
+#define WHEEL_RPM 450       // motor cartridge RPM × (motor sprocket / wheel sprocket)
 #define TRACK_HALF_W 8.0f   // half of robot track width in inches (used for odometry)
 
 #define JOYSTICK_CURVE 0.2f   // expo curve strength (0 = linear, higher = more curve)
@@ -100,15 +101,18 @@ void opcontrol() {
 
       // ── Held buttons ──────────────────────────────────────────────
       if (master.get_digital(DIGITAL_R2))
-        MidGoal.set(false), Score.move(-127), Hood.set(false);
-      else if (master.get_digital(DIGITAL_R1))
         Score.move(127);
+      else if (master.get_digital(DIGITAL_R1))
+        Score.move(-127);
       else if (master.get_digital(DIGITAL_L2))
-        MidGoal.set(true), Score.move(-127);
+        Bottom.move(-127),
+        Top.move(0);
       else if (master.get_digital(DIGITAL_L1))
-        Score.move(-127), Hood.set(true), MidGoal.set(false);
+        Bottom.move(-127),
+        MidGoal.set(true);
       else
-        Score.move(0);
+        Score.move(0),
+        MidGoal.set(false);
 
       // ── Lift (snaps to nearest preset on release) ──────────────────
       // Joystick provides analog control; UP/DOWN buttons override it.
@@ -121,9 +125,7 @@ void opcontrol() {
     }
 
     // ── Toggle buttons ────────────────────────────────────────────────
-    Wings.button_toggle(master.get_digital(DIGITAL_B));
-    Loader.button_toggle(master.get_digital(DIGITAL_Y));
-
+    Hood.button_toggle(master.get_digital(DIGITAL_Y));
     pros::delay(10);
   }
 }

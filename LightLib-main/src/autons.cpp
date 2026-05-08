@@ -13,51 +13,27 @@
 #include "pros/motors.h"
 #include "subsystems.hpp"
 
-// ┌─────────────────────────────────────────────────────────────────────────┐
-// │                          AUTONOMOUS CODE                                │
-// │                                                                         │
-// │  This file has three jobs:                                              │
-// │    1. default_constants()  — tune your PID / slew / exit conditions     │
-// │    2. default_positions()  — set your pistons before every match        │
-// │    3. Auton routines       — write the actual autonomous paths          │
-// │                                                                         │
-// │  QUICK REFERENCE — common EZ-Template motion calls:                     │
-// │                                                                         │
-// │  chassis.pid_drive_set(inches, speed)                                   │
-// │      Drive straight.  Negative inches = backwards.                      │
-// │                                                                         │
-// │  chassis.pid_turn_set(degrees, speed)                                   │
-// │      Turn to an absolute heading (0–360, clockwise-positive).           │
-// │                                                                         │
-// │  chassis.pid_swing_set(SIDE, degrees, speed, slop, DIR)                 │
-// │      One-side swing turn.  SIDE = light::LEFT_SWING / light::RIGHT_SWING.     │
-// │      DIR  = light::cw / light::ccw (which way to swing).                      │
-// │      slop = how many degrees before exit the other side can move.       │
-// │                                                                         │
-// │  chassis.pid_wait()          — block until the current motion finishes  │
-// │  chassis.pid_wait_until(x)   — block until the robot reaches x          │
-// │                                (inches for drive, degrees for turn)     │
-// │  chassis.pid_wait_quick_chain() — exit early and start the next motion  │
-// │                                                                         │
-// │  light::moveToPoint(x, y, timeout, speed, reversed)                     │
-// │      Drive to a field coordinate using odometry.                        │
-// └─────────────────────────────────────────────────────────────────────────┘
+// Auton routines + setup. See ex_* functions below for copy-paste examples
+// of every motion type. Full docs: docs/tutorials/.
+//
+// Motion cheat-sheet (speeds 0–127, distances in inches, angles in degrees):
+//   chassis.pid_drive_set(in, speed)             straight; negative = reverse
+//   chassis.pid_turn_set(deg, speed)             pivot to absolute heading
+//   chassis.pid_swing_set(SIDE, deg, speed)      one-side swing; SIDE = light::LEFT_SWING / RIGHT_SWING
+//   chassis.pid_odom_set({x,y,heading}, speed)   drive to a field point
+//   light::moveToPoint(x, y, timeout, speed, reversed)   simple odom move
+//   light::followTrajectory(waypoints, cons)     RAMSETE smooth path
+//
+//   chassis.pid_wait()              block until current motion finishes
+//   chassis.pid_wait_until(x)       block until robot passes x in/deg
+//   chassis.pid_wait_quick_chain()  exit early, start next motion immediately
 
-// ── Speed presets ─────────────────────────────────────────────────────────────
-// Used by the test functions at the bottom of this file.
-// Your actual auton routines pass speed directly into each motion call.
-const int DRIVE_SPEED = 127;  // max drive speed (0–127)
-const int TURN_SPEED = 127;   // max turn speed  (0–127)
-const int SWING_SPEED = 127;  // max swing speed (0–127)
+const int DRIVE_SPEED = 127;
+const int TURN_SPEED  = 127;
+const int SWING_SPEED = 127;
 
-// ┌─────────────────────────────────────────────────────────────────────────┐
-// │  default_positions()                                                    │
-// │  Called once from initialize() before every match.                      │
-// │  Set every piston to its safe starting state here.                      │
-// │                                                                         │
-// │  .set(true)  = piston extended                                          │
-// │  .set(false) = piston retracted                                         │
-// └─────────────────────────────────────────────────────────────────────────┘
+// Set every piston to its safe starting state. Called once before each match.
+// .set(true) = extended, .set(false) = retracted.
 void default_positions() {
   Wings.set(true);
   Loader.set(true);
@@ -65,83 +41,44 @@ void default_positions() {
   Hood.set(true);
 }
 
-// ┌─────────────────────────────────────────────────────────────────────────┐
-// │  default_constants()                                                    │
-// │  Called once from initialize().  Tune your PID gains, exit conditions,  │
-// │  and slew rates here.  These apply to every auton.                      │
-// │                                                                         │
-// │  PID format:  (kP, kI, kD)                                              │
-// │    kP — proportional: how hard the robot corrects for error             │
-// │    kI — integral: corrects for small steady-state error (keep near 0)   │
-// │    kD — derivative: dampens overshooting (increase if oscillating)      │
-// └─────────────────────────────────────────────────────────────────────────┘
+// Tune PID gains, exit conditions, slew, and odom settings here.
+// Called once from initialize(). PID format is (kP, kI, kD); see
+// docs/tutorials/03_pid_tuning.md for what each gain does.
 void default_constants() {
-  // ── PID gains ─────────────────────────────────────────────────────────
-  // Drive: used for all straight-line motions (odom and non-odom)
-  chassis.pid_drive_constants_set(10.0, 0.1, 30.0);
+  // ── PID gains ──
+  chassis.pid_drive_constants_set(3.0, 0.0, 0.0);            // straight-line drive
+  chassis.pid_heading_constants_set(3.0, 0.0, 0.0);          // heading-hold during drive
+  chassis.pid_turn_constants_set(3.0, 0.0, 0.0);             // in-place pivot
+  chassis.pid_swing_constants_set(3.0, 0.0, 0.0);            // single-side swing
+  chassis.pid_odom_angular_constants_set(3.0, 0.0, 0.0);     // odom heading
+  chassis.pid_odom_boomerang_constants_set(3.0, 0.0, 0.0);   // boomerang angular
 
-  // Heading: keeps the robot pointed straight during a drive motion
-  chassis.pid_heading_constants_set(17.0, 0.0, 70.0);
-
-  // Turn: used for pid_turn_set() in-place pivots
-  chassis.pid_turn_constants_set(5.0, 0.0, 45.0);
-
-  // Swing: used for pid_swing_set() single-side turns
-  chassis.pid_swing_constants_set(4.0, 0.0, 45.0);
-
-  // Odom angular: heading correction during odom drive-to-point motions
-  chassis.pid_odom_angular_constants_set(1.0, 0.0, 10.0);
-
-  // Odom boomerang: angular control for boomerang (curved) odom paths
-  chassis.pid_odom_boomerang_constants_set(5.8, 0.0, 32.5);
-
-  // ── Exit conditions ───────────────────────────────────────────────────
-  // Format: (small_timeout, small_error, big_timeout, big_error, velocity_timeout, mech_timeout)
-  //   The motion exits when error stays within small_error for small_timeout,
-  //   OR within big_error for big_timeout.  Tune these to balance speed vs. accuracy.
+  // ── Exit conditions: (small_t, small_err, big_t, big_err, vel_t, mech_t) ──
+  // Exits when error stays under small_err for small_t, OR under big_err for big_t.
   chassis.pid_turn_exit_condition_set(100_ms, 3_deg, 300_ms, 7_deg, 500_ms, 500_ms);
   chassis.pid_swing_exit_condition_set(90_ms, 3_deg, 250_ms, 7_deg, 500_ms, 500_ms);
   chassis.pid_drive_exit_condition_set(50_ms, 1_in, 250_ms, 3_in, 500_ms, 500_ms);
   chassis.pid_odom_turn_exit_condition_set(90_ms, 3_deg, 250_ms, 7_deg, 500_ms, 750_ms);
   chassis.pid_odom_drive_exit_condition_set(90_ms, 1_in, 250_ms, 3_in, 500_ms, 750_ms);
 
-  // ── Chain constants ───────────────────────────────────────────────────
-  // How close to the target the robot needs to be before pid_wait_quick_chain()
-  // exits and starts the next motion.  Larger = exit sooner (faster, less accurate).
+  // ── Chain thresholds: how close before pid_wait_quick_chain() releases ──
   chassis.pid_turn_chain_constant_set(10_deg);
   chassis.pid_swing_chain_constant_set(15_deg);
   chassis.pid_drive_chain_constant_set(5_in);
 
-  // ── Slew constants ────────────────────────────────────────────────────
-  // Slew ramps the motor output up from a starting speed over a distance,
-  // so the robot doesn't spin its wheels on the first inch.
-  // Format: (distance_to_ramp_over, starting_speed)
+  // ── Slew: (ramp_distance, start_speed) — prevents wheel spin off the line ──
   chassis.slew_turn_constants_set(10_deg, 55);
-  chassis.slew_drive_constants_set(3_in, 30);
+  chassis.slew_drive_constants_set(3_in, 50);
   chassis.slew_swing_constants_set(3_in, 80);
 
-  // ── Odom settings ─────────────────────────────────────────────────────
-  // Turn bias: how much turning is prioritized over driving in odom motions.
-  // 1.0 = full priority on turns (recommended if you have tracking wheels).
-  chassis.odom_turn_bias_set(1.0);
-
-  // Look-ahead: how far ahead on the path the robot targets (boomerang/pure-pursuit).
-  chassis.odom_look_ahead_set(15_in);
-
-  // Boomerang distance: max distance the "carrot" point can be from the target.
-  chassis.odom_boomerang_distance_set(16_in);
-
-  // Boomerang dlead: aggressiveness of the approach at the end of boomerang motions.
-  // 0 = very gentle, 1 = very sharp.
-  chassis.odom_boomerang_dlead_set(0.625);
-
-  // Angle behavior: shortest path by default (robot won't spin 270° when 90° works).
+  // ── Odom settings ──
+  chassis.odom_turn_bias_set(1.0);              // 1.0 = prioritize turns (use w/ tracking wheels)
+  chassis.odom_look_ahead_set(15_in);           // pure-pursuit / boomerang lookahead
+  chassis.odom_boomerang_distance_set(16_in);   // max carrot distance
+  chassis.odom_boomerang_dlead_set(0.625);      // 0 gentle … 1 sharp
   chassis.pid_angle_behavior_set(light::shortest);
 
-  // ── RAMSETE / trajectory follower constants ──────────────────────────
-  // These come from the characterize_* routines — run them once per robot
-  // build and paste the printed numbers here. The defaults below are
-  // placeholders; they will drive but not cleanly until characterized.
+  // ── RAMSETE: paste output of the Char: * autons here once tuned ──
   light::ramsete_configure(
       // geometry
       {/*b=*/2.0f, /*zeta=*/0.7f,
@@ -152,41 +89,71 @@ void default_constants() {
       {/*vMax=*/48.0f, /*aMax=*/60.0f, /*aDecMax=*/60.0f, /*aLatMax=*/40.0f});
 }
 
-// ┌─────────────────────────────────────────────────────────────────────────┐
-// │  AUTONOMOUS ROUTINES                                                    │
-// │  Write one function per auton below.  Register each one in              │
-// │  auton_config.cpp with light::auton_selector.add() so it appears        │
-// │  on the brain screen selector.                                          │
-// └─────────────────────────────────────────────────────────────────────────┘
 
-// Turret tracking — points turret at a fixed field coordinate using odometry.
-// Set basket_x / basket_y to the target goal position and turret_p to taste.
-// Not used in competition; run in a separate task if you need it.
-void track_basket() {
-  double basket_x = 0.0;  // field X of the goal you're scoring in (inches)
-  double basket_y = 0.0;  // field Y of the goal you're scoring in (inches)
-  double turret_p = 0.0;  // proportional gain for the turret P-loop
 
-  while (true) {
-    double current_x = chassis.odom_x_get();
-    double current_y = chassis.odom_y_get();
-    double current_angle = chassis.odom_theta_get();
+// ── Example autons: one per motion type. Copy/edit when writing real autons.
+//    Register any you want on the picker in auton_config.cpp. ──
 
-    double dx = basket_x - current_x;
-    double dy = basket_y - current_y;
-    double target = std::atan2(dy, dx) * (180.0 / M_PI);
-    double error = target - current_angle;
-    double output = error * turret_p;
-    (void)output;  // apply output to turret motor here
-
-    pros::delay(10);
-  }
+// pid_drive_set: straight forward, then back. Negative inches = reverse.
+void ex_drive() {
+  chassis.pid_drive_set(24_in, DRIVE_SPEED);
+  chassis.pid_wait();
+  chassis.pid_drive_set(-24_in, DRIVE_SPEED);
+  chassis.pid_wait();
 }
-// ── RAMSETE demo + characterization autons ─────────────────────────────────
-// Register these in auton_config.cpp via light::auton_selector.add() if you
-// want them on the brain selector. They share the drivetrain with EZ-Template
-// via an internal pause/resume guard.
 
+// pid_turn_set: pivot in place to absolute headings.
+void ex_turn() {
+  chassis.pid_turn_set(90_deg, TURN_SPEED);
+  chassis.pid_wait();
+  chassis.pid_turn_set(-90_deg, TURN_SPEED);
+  chassis.pid_wait();
+  chassis.pid_turn_set(0_deg, TURN_SPEED);
+  chassis.pid_wait();
+}
+
+// pid_swing_set: turn using only one side of the drivetrain (sweeping arc).
+void ex_swing() {
+  chassis.pid_swing_set(light::LEFT_SWING, 45_deg, SWING_SPEED);
+  chassis.pid_wait();
+  chassis.pid_swing_set(light::RIGHT_SWING, -45_deg, SWING_SPEED);
+  chassis.pid_wait();
+}
+
+// pid_wait_quick_chain: flow drive→turn→drive without fully stopping.
+// Each motion exits early once within its chain threshold (set in default_constants).
+void ex_chain() {
+  chassis.pid_drive_set(24_in, DRIVE_SPEED);
+  chassis.pid_wait_quick_chain();
+  chassis.pid_turn_set(90_deg, TURN_SPEED);
+  chassis.pid_wait_quick_chain();
+  chassis.pid_drive_set(24_in, DRIVE_SPEED);
+  chassis.pid_wait();
+}
+
+// pid_odom_set: drive to a single field coordinate (x, y in inches, heading in deg).
+void ex_odom_ptp() {
+  chassis.pid_odom_set({{24_in, 24_in, 90_deg}, light::fwd, DRIVE_SPEED});
+  chassis.pid_wait();
+}
+
+// pid_odom_set with a vector of waypoints — chains odom moves into a path.
+void ex_odom_path() {
+  chassis.pid_odom_set({
+      {{24_in, 0_in,  0_deg},  fwd, DRIVE_SPEED},
+      {{24_in, 24_in, 90_deg}, light::fwd, DRIVE_SPEED},
+      {{0_in,  24_in, 180_deg}, light::fwd, DRIVE_SPEED},
+  });
+  chassis.pid_wait();
+}
+
+// light::moveToPoint: simple odom drive-to-point with a hard timeout.
+void ex_move_to_point() {
+  light::moveToPoint(/*x=*/36, /*y=*/12, /*timeout_ms=*/2500,
+                     /*speed=*/100, /*reversed=*/false);
+}
+
+// followTrajectory: smooth RAMSETE path through 3+ waypoints (x, y, heading_rad).
 void ramsete_demo_s_curve() {
   // Smooth S-curve: start at origin facing +Y, kiss (24, 24) heading east,
   // end at (48, 0) facing +Y again. Good first real-geometry test.
@@ -211,21 +178,3 @@ void run_jerryio_path_1() {
   light::runPath("test_path");
 }
 
-void shake() {
-  chassis.pid_turn_set(10_deg, 127);
-  pros::delay(100);
-  chassis.pid_turn_set(-10_deg, 127);
-  pros::delay(100);
-  chassis.pid_turn_set(10_deg, 127);
-  pros::delay(100);
-  chassis.pid_turn_set(-10_deg, 127);
-  pros::delay(100);
-  chassis.pid_turn_set(10_deg, 127);
-  pros::delay(100);
-  chassis.pid_turn_set(-10_deg, 127);
-  pros::delay(100);
-  chassis.pid_turn_set(10_deg, 127);
-  pros::delay(100);
-  chassis.pid_turn_set(-10_deg, 127);
-  pros::delay(100);
-}

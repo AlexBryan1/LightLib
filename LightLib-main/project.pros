@@ -403,7 +403,7 @@
             "description": "Shotgun Mech uploading...",
             "icon": "X",
             "remote_name": "LightLib",
-            "slot": 1
+            "slot": 2
         },
         "use_early_access": false
     }

@@ -36,6 +36,24 @@ void run_jerryio_path_1();
 /** @} */
 
 /**
+ * \name Example autons
+ * One short routine per motion type. Copy and edit when writing real autons.
+ * @{
+ */
+void ex_drive();          ///< pid_drive_set: straight forward + reverse.
+void ex_turn();           ///< pid_turn_set: in-place pivots to absolute headings.
+void ex_swing();          ///< pid_swing_set: single-side sweeping arcs.
+void ex_chain();          ///< pid_wait_quick_chain: flow drive→turn→drive.
+void ex_odom_ptp();       ///< pid_odom_set: drive to one field coordinate.
+void ex_odom_path();      ///< pid_odom_set: chain a path of odom waypoints.
+void ex_move_to_point();  ///< light::moveToPoint: simple odom move w/ timeout.
+void ramsete_demo_s_curve();    ///< followTrajectory: smooth RAMSETE S-curve.
+void ramsete_char_kVkAkS();     ///< Characterize feedforward kV/kA/kS.
+void ramsete_char_trackwidth(); ///< Characterize track width.
+void ramsete_char_alat();       ///< Characterize max lateral accel.
+/** @} */
+
+/**
  * \name Test / tuning routines
  * Useful during practice for dialing in PID. Register these in
  * auton_config.cpp during tuning sessions; remove them before competition.
