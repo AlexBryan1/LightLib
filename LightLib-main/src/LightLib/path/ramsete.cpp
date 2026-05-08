@@ -1444,7 +1444,7 @@ void autotune_mcl_noise(int sampleMs, int durationMs, int warmupMs) {
 
   printf("[AUTOTUNE][mcl] sensorSigmaIn=%.3f in  outlierGapIn=%.3f in  (avg of %d sensors)\n",
          sigma, gap, contributing);
-  printf("[AUTOTUNE][mcl] applied live. Transcribe into MCL_SENSOR_SIGMA / MCL_OUTLIER_GAP in main.cpp to persist.\n");
+  printf("[AUTOTUNE][mcl] applied live. Transcribe into mcl.sensorSigmaIn / mcl.outlierGapIn in default_constants() (autons.cpp) to persist.\n");
 }
 
 }  // namespace light

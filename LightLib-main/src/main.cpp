@@ -5,21 +5,44 @@
 // └─────────────────────────────────────────────────────────────────────────┘
 
 #include "subsystems.hpp"
-#define LEFT_PORTS {-4, -5, -6}  // left drive motors
-#define RIGHT_PORTS {1, 2, 3}     // right drive motors
+#define LEFT_PORTS {-1, -2, -3}  // left drive motors
+#define RIGHT_PORTS {4, 5, 6}     // right drive motors
 
-#define IMU_PORT 9   // primary inertial sensor
+#define IMU_PORT 0   // primary inertial sensor
 #define IMU2_PORT 0  // second IMU — set to 0 if you only have one
 
 #define WHEEL_DIAMETER 3.25  // inches  (4" wheels are actually ~4.125")
 #define WHEEL_RPM 450       // motor cartridge RPM × (motor sprocket / wheel sprocket)
 #define TRACK_HALF_W 8.0f   // half of robot track width in inches (used for odometry)
 
-#define JOYSTICK_CURVE 0.2f   // expo curve strength (0 = linear, higher = more curve)
+// ── Tracking wheels — 0, 1, or 2 vertical and 0, 1, or 2 horizontal ──────────
+//  PORT:    VEX rotation-sensor port (0 = not installed → falls back to drive
+//           motors for vertical, no strafe tracking for horizontal)
+//  OFFSET:  signed perpendicular distance from robot center, inches
+
+#define VERT_WHEEL_DIA   2.75
+#define VERT_1_PORT      0
+#define VERT_1_OFFSET    0.0
+#define VERT_2_PORT      0
+#define VERT_2_OFFSET    0.0
+
+#define HORIZ_WHEEL_DIA  2.75
+#define HORIZ_1_PORT     0
+#define HORIZ_1_OFFSET   0.0
+#define HORIZ_2_PORT     0
+#define HORIZ_2_OFFSET   0.0
+
+// ── GPS sensor (set port to 0 if not installed) ──────────────────────────────
+//  OFFSET_X / OFFSET_Y: GPS mount position relative to robot center, inches
+#define GPS_PORT      0
+#define GPS_OFFSET_X  0.0
+#define GPS_OFFSET_Y  0.0
+
+#define JOYSTICK_CURVE 0.0f   // expo curve strength (0 = linear, higher = more curve)
 #define JOYSTICK_DEADZONE 10  // joystick values ±this are treated as 0 (0–127)
 
 // ── Thermal buzz ──────────────────────────────────────────────────────────────
-#define HEAT_BUZZ_ENABLED true  // set to false to disable the temperature warning
+#define HEAT_BUZZ_ENABLED false // set to false to disable the temperature warning
 #define HEAT_BUZZ_TEMP 55       // °C threshold that triggers the controller buzz
 
 // ── Drive style ───────────────────────────────────────────────────────────────
@@ -51,18 +74,7 @@
 #define MCL_RIGHT_ALONG 0.0f
 #define MCL_RIGHT_DEPTH 6.0f
 
-// ── MCL tuning ────────────────────────────────────────────────────────────────
-#define MCL_PARTICLES 200      // particle count (reduce if CPU load is high)
-#define MCL_SENSOR_SIGMA 2.5f  // distance sensor noise std dev (inches)
-#define MCL_OUTLIER_GAP 6.0f   // readings shorter than expected by this → ignored
-#define MCL_MAX_RANGE 144.0f   // max ray-cast distance (12 ft for VRC)
-
-#define EKF_Q_POS 0.02f      // position process noise  (in²/sec)
-#define EKF_Q_THETA 0.0005f  // heading process noise   (rad²/sec)
-#define EKF_Q_VEL 1.0f       // velocity process noise
-
-#define MCL_SNAP_DIVERGE 9.0f   // EKF uncertainty (in²) before MCL can snap
-#define MCL_SNAP_CONVERGE 3.0f  // MCL std dev (in) required before snapping
+// MCL/EKF tuning lives in default_constants() in autons.cpp.
 
 #include "LightLib/robot_impl.inl"
 

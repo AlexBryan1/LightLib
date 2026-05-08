@@ -20,17 +20,17 @@ static constexpr double _ROBOT_WHEEL_DIA = WHEEL_DIAMETER;
 #ifndef VERT_WHEEL_DIA
 #define VERT_WHEEL_DIA      2.75
 #endif
-#ifndef VERT_LEFT_PORT
-#define VERT_LEFT_PORT      0
+#ifndef VERT_1_PORT
+#define VERT_1_PORT         0
 #endif
-#ifndef VERT_LEFT_OFFSET
-#define VERT_LEFT_OFFSET    0.0
+#ifndef VERT_1_OFFSET
+#define VERT_1_OFFSET       0.0
 #endif
-#ifndef VERT_RIGHT_PORT
-#define VERT_RIGHT_PORT     0
+#ifndef VERT_2_PORT
+#define VERT_2_PORT         0
 #endif
-#ifndef VERT_RIGHT_OFFSET
-#define VERT_RIGHT_OFFSET   0.0
+#ifndef VERT_2_OFFSET
+#define VERT_2_OFFSET       0.0
 #endif
 #ifndef HORIZ_WHEEL_DIA
 #define HORIZ_WHEEL_DIA     2.75
@@ -100,34 +100,8 @@ static constexpr double _ROBOT_WHEEL_DIA = WHEEL_DIAMETER;
 #define MCL_RIGHT_DEPTH  6.0f
 #endif
 
-// ── MCL tuning parameters ─────────────────────────────────────────────────────
-#ifndef MCL_PARTICLES
-#define MCL_PARTICLES    200
-#endif
-#ifndef MCL_SENSOR_SIGMA
-#define MCL_SENSOR_SIGMA 2.5f
-#endif
-#ifndef MCL_OUTLIER_GAP
-#define MCL_OUTLIER_GAP  6.0f
-#endif
-#ifndef MCL_MAX_RANGE
-#define MCL_MAX_RANGE    light::field::FIELD_SIZE_IN
-#endif
-#ifndef EKF_Q_POS
-#define EKF_Q_POS        0.02f
-#endif
-#ifndef EKF_Q_THETA
-#define EKF_Q_THETA      0.0005f
-#endif
-#ifndef EKF_Q_VEL
-#define EKF_Q_VEL        1.0f
-#endif
-#ifndef MCL_SNAP_DIVERGE
-#define MCL_SNAP_DIVERGE 9.0f
-#endif
-#ifndef MCL_SNAP_CONVERGE
-#define MCL_SNAP_CONVERGE 3.0f
-#endif
+// MCL/EKF tuning lives in default_constants() in autons.cpp; the runtime
+// defaults in MCLConfig (mcl_config.hpp) cover any field you don't override.
 
 #include "LightLib/main.h"
 #include <functional>
@@ -137,6 +111,7 @@ static constexpr double _ROBOT_WHEEL_DIA = WHEEL_DIAMETER;
 #include "pros/motors.h"
 #include "LightLib/drive/odometry.hpp"
 #include "LightLib/drive/lightcast.hpp"
+#include "LightLib/drive/sensor_aux.hpp"
 #include "LightLib/ui/custom_selector.hpp"
 #include "LightLib/drive/custom_move.hpp"
 #include "LightLib/util/extras.hpp"
@@ -161,19 +136,19 @@ TrackingWheel rightTracker(&rightMotors, _ROBOT_WHEEL_DIA,  TRACK_HALF_W);
 
 // ── Optional unpowered rotation-sensor trackers ──────────────────────────────
 // Port 0 = not installed → nullptr → OdomSensors falls back to powered encoders.
-#if VERT_LEFT_PORT != 0
-static pros::Rotation _vertLeftRot(VERT_LEFT_PORT);
-static TrackingWheel  _vertLeftTracker(&_vertLeftRot, VERT_WHEEL_DIA, VERT_LEFT_OFFSET);
-static TrackingWheel* vertLeftPtr = &_vertLeftTracker;
+#if VERT_1_PORT != 0
+static pros::Rotation _vert1Rot(VERT_1_PORT);
+static TrackingWheel  _vert1Tracker(&_vert1Rot, VERT_WHEEL_DIA, VERT_1_OFFSET);
+static TrackingWheel* vert1Ptr = &_vert1Tracker;
 #else
-static TrackingWheel* vertLeftPtr = nullptr;
+static TrackingWheel* vert1Ptr = nullptr;
 #endif
-#if VERT_RIGHT_PORT != 0
-static pros::Rotation _vertRightRot(VERT_RIGHT_PORT);
-static TrackingWheel  _vertRightTracker(&_vertRightRot, VERT_WHEEL_DIA, VERT_RIGHT_OFFSET);
-static TrackingWheel* vertRightPtr = &_vertRightTracker;
+#if VERT_2_PORT != 0
+static pros::Rotation _vert2Rot(VERT_2_PORT);
+static TrackingWheel  _vert2Tracker(&_vert2Rot, VERT_WHEEL_DIA, VERT_2_OFFSET);
+static TrackingWheel* vert2Ptr = &_vert2Tracker;
 #else
-static TrackingWheel* vertRightPtr = nullptr;
+static TrackingWheel* vert2Ptr = nullptr;
 #endif
 #if HORIZ_1_PORT != 0
 static pros::Rotation _horiz1Rot(HORIZ_1_PORT);
@@ -233,24 +208,10 @@ static std::vector<DistanceSensorSpec> _build_distance_specs() {
     return v;
 }
 
-static MCLConfig _build_mcl_config() {
-    MCLConfig cfg;
-    cfg.numParticles  = MCL_PARTICLES;
-    cfg.sensorSigmaIn = MCL_SENSOR_SIGMA;
-    cfg.outlierGapIn  = MCL_OUTLIER_GAP;
-    cfg.maxRangeIn    = MCL_MAX_RANGE;
-    cfg.ekfQPos       = EKF_Q_POS;
-    cfg.ekfQTheta     = EKF_Q_THETA;
-    cfg.ekfQVel       = EKF_Q_VEL;
-    cfg.snapDiverge   = MCL_SNAP_DIVERGE;
-    cfg.snapConverge  = MCL_SNAP_CONVERGE;
-    return cfg;
-}
-
 // Auto-select displacement wheels: prefer unpowered rotation trackers when the
 // user provided them, fall back to powered motor encoders when not.
-static TrackingWheel* _v1_selected = vertLeftPtr  ? vertLeftPtr  : &leftTracker;
-static TrackingWheel* _v2_selected = vertRightPtr ? vertRightPtr : &rightTracker;
+static TrackingWheel* _v1_selected = vert1Ptr ? vert1Ptr : &leftTracker;
+static TrackingWheel* _v2_selected = vert2Ptr ? vert2Ptr : &rightTracker;
 
 OdomSensors sensors(_v1_selected, _v2_selected, horiz1Ptr, horiz2Ptr,
                     &imu, imu2_ptr,
@@ -431,7 +392,12 @@ void initialize() {
 
     // Use the global `sensors` built at TU scope — it carries the full config
     // (optional rotation trackers, GPS, LightCast distance specs).
-    light::init(sensors, _build_mcl_config());
+    light::init(sensors);
+
+    // Wire the override-on-confidence detectors (IMU bias / single-wheel /
+    // slip / wall-snap). Must run after light::init() so the odom task
+    // exists and can call sensor_aux::tick() each frame.
+    light::sensor_aux::init(sensors);
 
     default_constants();           // PID / exit-condition / slew tuning (autons.cpp)
     default_positions();           // starting piston / mechanism positions (autons.cpp)
@@ -465,6 +431,7 @@ void autonomous() {
     pros::delay(10);
     light::reset();
     light::setPose(Pose(0, 0, 0));
+    light::sensor_aux::resetCounters();
 
     user_autonomous();               // user hook — defined in main.cpp
 

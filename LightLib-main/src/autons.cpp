@@ -7,6 +7,8 @@
 #include "LightLib/drive/drive_utils.hpp"
 #include "LightLib/main.h"
 #include "LightLib/drive/odometry.hpp"
+#include "LightLib/drive/ekf.hpp"
+#include "LightLib/drive/lightcast.hpp"
 #include "LightLib/path/ramsete.hpp"
 #include "LightLib/path/pure_pursuit.hpp"
 #include "LightLib/util/util.hpp"
@@ -111,6 +113,24 @@ void default_constants() {
   //    feedforward come from ramsete_configure() above). Larger lookahead =
   //    smoother but cuts corners; smaller = tighter but oscillates.
   light::pure_pursuit_configure({/*lookaheadIn=*/12.0f});
+
+  // ── MCL / EKF tuning ──
+  // LightCast particle filter + EKF process noise. setConfig pushes these to
+  // the live filters; values are read each tick, so edits take effect without
+  // re-init. Note: numParticles, initPosSigmaIn, initHeadingSigmaRad are read
+  // only at light::init() time — changing them here has no runtime effect.
+  MCLConfig mcl;
+  mcl.numParticles  = 200;       // particle count (reduce if CPU load is high)
+  mcl.sensorSigmaIn = 2.5f;      // distance sensor noise std dev (inches)
+  mcl.outlierGapIn  = 6.0f;      // readings shorter than expected by this → ignored
+  mcl.maxRangeIn    = 144.0f;    // max ray-cast distance (12 ft for VRC)
+  mcl.ekfQPos       = 0.02f;     // position process noise (in²/sec)
+  mcl.ekfQTheta     = 0.0005f;   // heading process noise (rad²/sec)
+  mcl.ekfQVel       = 1.0f;      // velocity process noise
+  mcl.snapDiverge   = 9.0f;      // EKF uncertainty (in²) before MCL can snap
+  mcl.snapConverge  = 3.0f;      // MCL std dev (in) required before snapping
+  light::ekf::setConfig(mcl);
+  light::lightcast::setConfig(mcl);
 }
 
 

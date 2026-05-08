@@ -72,6 +72,7 @@
 #include "LightLib/drive/ekf.hpp"
 #include "LightLib/drive/lightcast.hpp"
 #include "LightLib/drive/odometry.hpp"
+#include "LightLib/drive/sensor_aux.hpp"
 #include "LightLib/util/util.hpp"
 #include "pros/rtos.hpp"
 
@@ -206,6 +207,10 @@ void light::update() {
   float deltaH1 = horizontal1Raw - prevHorizontal1;
   float deltaH2 = horizontal2Raw - prevHorizontal2;
   float deltaImu = imuRaw - prevImu;
+  // Algorithm A — subtract ZUPT-estimated gyro bias. Zero before the
+  // first stationary sample, so this is a no-op for users who never
+  // pause the robot.
+  deltaImu -= light::sensor_aux::imuBiasRadPerSec() * 0.01f;
 
   prevVertical1 = vertical1Raw;
   prevVertical2 = vertical2Raw;
@@ -292,6 +297,26 @@ void light::update() {
   } else {
     localX = 2.0f * sinf(deltaHeading / 2.0f) * (deltaX / deltaHeading + horizOffset);
     localY = 2.0f * sinf(deltaHeading / 2.0f) * (deltaY / deltaHeading + vertOffset);
+  }
+
+  // Algorithm B — single-wheel rotation correction. With only one wheel
+  // on an axis, the chord formula's offset term can't compensate for
+  // the cross-axis rotation. Subtract dθ × (wheel offset) directly,
+  // which is the linear approximation of the rotational arc the wheel
+  // sweeps about the robot center.
+  if (light::sensor_aux::singleVertMode()) {
+    localY -= deltaHeading * light::sensor_aux::singleVertOffset();
+  }
+  if (light::sensor_aux::singleHorizMode()) {
+    localX -= deltaHeading * light::sensor_aux::singleHorizOffset();
+  }
+
+  // Algorithm C — slip detection. When wheel-derived dθ disagrees with
+  // IMU dθ, the wheel-derived translation is unreliable for this tick.
+  // Zero it; the EKF still advances heading via the IMU update path.
+  if (light::sensor_aux::slipping()) {
+    localX = 0.0f;
+    localY = 0.0f;
   }
 
   // ── Step 6/7: EKF predict + measurement updates + LightCast predict ──
@@ -385,6 +410,11 @@ void light::update() {
   odomSpeed = smoothedSpeed;
   odomLocalSpeed = newLocalSpeed;
   pose_mtx_.give();
+
+  // Algorithm D — wall-snap, plus the bias/slip detectors run from here.
+  // Called after the EKF has produced a fresh pose so wall-snap can test
+  // residuals against the current estimate.
+  light::sensor_aux::tick();
 }
 
 // ─── Task management ─────────────────────────────────────────────────────────

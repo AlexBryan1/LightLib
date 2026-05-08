@@ -238,8 +238,8 @@ window. Don't run this while the field is being set up around it. The
 IMU outputs a small bias spike for ~500 ms after starting.
 
 Pushed into the live EKF via `setConfig()` immediately. To persist, copy
-the printed `Q` values into your `MCLConfig` definition (in
-`main.cpp`'s `EKF_*` macros).
+the printed `Q` values into the `mcl.ekfQ*` fields in `default_constants()`
+in `autons.cpp`.
 
 ## 6. MCL sensor noise: autotune_mcl_noise
 
@@ -269,8 +269,8 @@ void run_autotune_mcl() {
 ```
 
 Same stillness requirement as `autotune_ekf_noise`. Result is pushed into
-the live MCL config; transcribe printed values into your `MCL_*` macros
-in main.cpp to persist.
+the live MCL config; transcribe printed values into the `mcl.sensorSigmaIn`
+and `mcl.outlierGapIn` fields in `default_constants()` (autons.cpp) to persist.
 
 ## Putting it all together — characterization day
 
