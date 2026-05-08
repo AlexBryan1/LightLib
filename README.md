@@ -1,6 +1,6 @@
 # LightLib
 
-A PROS library for VEX V5: hybrid EKF/MCL localization, RAMSETE/PurPursuit path following, and a high-level chassis API.
+A PROS library for VEX V5: hybrid EKF/MCL localization, RAMSETE/Pure-Pursuit path following, and a high-level chassis API.
 
 LightLib started as a fork of [EZ-Template](https://github.com/EZ-Robotics/EZ-Template) and grew into a full localization + motion-planning stack on top of it.
 
