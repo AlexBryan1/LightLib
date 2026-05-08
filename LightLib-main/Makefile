@@ -26,7 +26,7 @@ EXCLUDE_COLD_LIBRARIES:=
 # Exclude large image assets and LightLib from the hot binary - they live in
 # the cold package instead, so they only need to re-upload when those sources
 # actually change.
-EXCLUDE_SRCDIRS := $(SRCDIR)/images $(SRCDIR)/LightLib
+EXCLUDE_SRCDIRS := $(SRCDIR)/images $(SRCDIR)/LightLib $(SRCDIR)/maps
 
 # Set this to 1 to add additional rules to compile your project as a PROS library template
 IS_LIBRARY:=0
@@ -108,4 +108,32 @@ endif
 .PHONY: lightlib
 lightlib: $(LIGHTLIB_OBJS)
 	$(call test_output_2,Rebuilding LightLib library $(LIGHTLIB_LIB) ,$(AR) rcs $(LIGHTLIB_LIB) $^,$(DONE_STRING))
+
+################################################################################
+# Maps library — per-distance-sensor MCL maps compiled into the cold package.
+# Same pattern as the asset and LightLib libraries above: sources are excluded
+# from the hot binary (via EXCLUDE_SRCDIRS) and linked into cold.elf as a
+# static archive. Delete firmware/libmaps.a manually if you need a full cold
+# rebuild, or run `make maps` to rebuild explicitly.
+MAPS_SRCS := $(call rwildcard,$(SRCDIR)/maps/,*.cpp,)
+MAPS_OBJS := $(addprefix $(BINDIR)/,$(patsubst $(SRCDIR)/%,%.o,$(MAPS_SRCS)))
+MAPS_LIB  := $(FWDIR)/libmaps.a
+
+# Inject maps library into the cold package link only ($^ → --whole-archive).
+# Hot/monolith use order-only so the library is never duplicated into the hot binary.
+$(COLD_ELF): $(MAPS_LIB)
+$(HOT_ELF): | $(MAPS_LIB)
+$(MONOLITH_ELF): | $(MAPS_LIB)
+
+# Only add the build rule when the library is completely absent (e.g. fresh git clone).
+# firmware/ is NOT cleaned by `make clean`, so once built the library persists.
+# When map sources change, run `make maps` explicitly to rebuild.
+ifeq ($(wildcard $(MAPS_LIB)),)
+$(MAPS_LIB): $(MAPS_OBJS)
+	$(call test_output_2,Creating maps library $@ ,$(AR) rcs $@ $^,$(DONE_STRING))
+endif
+
+.PHONY: maps
+maps: $(MAPS_OBJS)
+	$(call test_output_2,Rebuilding maps library $(MAPS_LIB) ,$(AR) rcs $(MAPS_LIB) $^,$(DONE_STRING))
 

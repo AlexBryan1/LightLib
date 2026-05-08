@@ -36,4 +36,23 @@ constexpr float FIELD_HALF = FIELD_SIZE_IN / 2.0f; ///< Half-side, inches.
  */
 float raycast(float x, float y, float angleRad, float max_range = FIELD_SIZE_IN);
 
+/**
+ * \name Per-distance-sensor map hooks
+ *
+ * Defined by user code in `src/maps/<face>_map.cpp` and linked into the cold
+ * package via `firmware/libmaps.a`. Each face's stub default-delegates to
+ * `raycast()` (the perimeter box) so unfilled stubs match today's behavior.
+ *
+ * `lightcast::fromFace()` binds the matching function onto each
+ * `DistanceSensorSpec.raycastFn` so the particle filter dispatches per
+ * sensor. `sensor_aux` keeps using `raycast()` directly because its
+ * wall-snap math assumes the hit is at the field perimeter.
+ * @{
+ */
+float raycast_front(float x, float y, float angleRad, float max_range = FIELD_SIZE_IN);
+float raycast_back (float x, float y, float angleRad, float max_range = FIELD_SIZE_IN);
+float raycast_left (float x, float y, float angleRad, float max_range = FIELD_SIZE_IN);
+float raycast_right(float x, float y, float angleRad, float max_range = FIELD_SIZE_IN);
+/** @} */
+
 }  // namespace light::field

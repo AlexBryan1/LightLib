@@ -110,6 +110,11 @@ struct DistanceSensorSpec {
   float offsetX;          ///< Mount X in robot frame, inches.
   float offsetY;          ///< Mount Y in robot frame, inches.
   float angleRad;         ///< Ray direction in robot frame, radians.
+  /// Per-sensor raycast. `nullptr` falls back to `light::field::raycast`
+  /// (the perimeter box). `lightcast::fromFace()` binds the matching face
+  /// function from `src/maps/`; raw construction (e.g. diagonal mounts)
+  /// inherits the default and stays backward-compatible.
+  float (*raycastFn)(float, float, float, float) = nullptr;
 };
 
 /** Bundle of all sensors used by the LightLib pose estimator. */

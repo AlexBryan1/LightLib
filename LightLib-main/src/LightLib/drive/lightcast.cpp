@@ -74,21 +74,25 @@ DistanceSensorSpec fromFace(pros::Distance* s, Face face, float along, float dep
       spec.offsetX = along;
       spec.offsetY = depth;
       spec.angleRad = 0.0f;
+      spec.raycastFn = &light::field::raycast_front;
       break;
     case Face::BACK:
       spec.offsetX = -along;
       spec.offsetY = -depth;
       spec.angleRad = M_PI;
+      spec.raycastFn = &light::field::raycast_back;
       break;
     case Face::LEFT:
       spec.offsetX = -depth;
       spec.offsetY = along;
       spec.angleRad = M_PI / 2.0f;
+      spec.raycastFn = &light::field::raycast_left;
       break;
     case Face::RIGHT:
       spec.offsetX = depth;
       spec.offsetY = -along;
       spec.angleRad = -M_PI / 2.0f;
+      spec.raycastFn = &light::field::raycast_right;
       break;
   }
   return spec;
@@ -167,7 +171,11 @@ void update() {
       float sy = p.y + sensors_[k].offsetY * c + sensors_[k].offsetX * s;
       float sAng = p.theta + sensors_[k].angleRad;
 
-      float expected = field::raycast(sx, sy, sAng, cfg_.maxRangeIn);
+      // Per-sensor map dispatch: fromFace() binds raycastFn to the matching
+      // light::field::raycast_<face>; raw spec construction (e.g. diagonal
+      // mounts) leaves raycastFn null and falls back to the perimeter map.
+      auto fn = sensors_[k].raycastFn ? sensors_[k].raycastFn : &field::raycast;
+      float expected = fn(sx, sy, sAng, cfg_.maxRangeIn);
 
       float residual = measured[k] - expected;
       // Game-element outlier: a ball between sensor and wall reads short.
