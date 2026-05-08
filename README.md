@@ -1,6 +1,6 @@
 # LightLib
 
-A PROS library for VEX V5: hybrid EKF/MCL localization, RAMSETE path following, and a high-level chassis API.
+A PROS library for VEX V5: hybrid EKF/MCL localization, RAMSETE/Pure-Pursuit path following, and a high-level chassis API.
 
 LightLib started as a fork of [EZ-Template](https://github.com/EZ-Robotics/EZ-Template) and grew into a full localization + motion-planning stack on top of it.
 
@@ -86,6 +86,10 @@ src/autons.cpp      autonomous routines
 src/auton_config.cpp  selector wiring
 firmware/           prebuilt static libs (libpros, okapilib, liblvgl, liblightlib)
 ```
+
+
+Claude was used to make the Doxygen Commenting and Read Me, because it can reformat fine, and it wasn't a functional aspect of the code.
+
 
 ## License
 
