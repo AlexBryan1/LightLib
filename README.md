@@ -88,7 +88,7 @@ firmware/           prebuilt static libs (libpros, okapilib, liblvgl, liblightli
 ```
 
 
-Claude was used to make the Doxygen Commenting and Read Me, because I didn't want to reformat it all...
+Claude was used to make the Doxygen Commenting and Read Me, because it can reformat fine, and it wasn't a functional aspect of the code.
 
 
 ## License
