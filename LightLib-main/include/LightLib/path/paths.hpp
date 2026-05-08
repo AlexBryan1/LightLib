@@ -50,13 +50,15 @@ namespace light {
 bool runPath(const char* name,
              bool reversed = false,
              int timeoutMs = -1,
-             float poseErrBailIn = 8.0f);
+             float poseErrBailIn = 8.0f,
+             Follower follower = Follower::PURE_PURSUIT);
 
 /** Variant accepting mid-path event triggers. See PathEvent. */
 bool runPath(const char* name,
              std::vector<PathEvent> events,
              bool reversed = false,
              int timeoutMs = -1,
-             float poseErrBailIn = 8.0f);
+             float poseErrBailIn = 8.0f,
+             Follower follower = Follower::PURE_PURSUIT);
 
 }  // namespace light

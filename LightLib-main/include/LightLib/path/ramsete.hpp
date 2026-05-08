@@ -31,6 +31,23 @@
 namespace light {
 
 /**
+ * Selects which path-following controller runs the trajectory.
+ *
+ * Both followers consume the same Waypoint / Spline / Trajectory pipeline —
+ * they only differ in the inner control law. RAMSETE is time-parameterized
+ * with pose-error correction; PURE_PURSUIT is a lookahead-carrot follower
+ * that reuses the same velocity profile.
+ *
+ * Defaults to PURE_PURSUIT on every public path entry point, so calls like
+ * `followTrajectory(path)` route through Pure Pursuit. Pass
+ * `Follower::RAMSETE` as the trailing argument to opt back in.
+ */
+enum class Follower {
+  RAMSETE,
+  PURE_PURSUIT,
+};
+
+/**
  * Mid-path action triggered at a specific input waypoint.
  *
  * `atWaypoint` is zero-based. Semantics depend on the entry point:
@@ -93,7 +110,8 @@ void ramsete_configure(RamseteConfig rc, DriveFF ff, TrajConstraints defaultCons
  */
 bool followTrajectory(const Trajectory& traj,
                       int timeoutMs = -1,
-                      float poseErrBailIn = 8.0f);
+                      float poseErrBailIn = 8.0f,
+                      Follower follower = Follower::PURE_PURSUIT);
 
 /**
  * Generate and follow a trajectory from waypoints.
@@ -108,12 +126,15 @@ bool followTrajectory(const Trajectory& traj,
  *        wall-time bail in ms (-1 = no timeout)
  * \param poseErrBailIn
  *        bail if the pose error grows above this many inches
+ * \param follower
+ *        which controller to use (defaults to PURE_PURSUIT)
  */
 bool followTrajectory(const std::vector<Waypoint>& wps,
                       const TrajConstraints& cons,
                       bool reversed = false,
                       int timeoutMs = -1,
-                      float poseErrBailIn = 8.0f);
+                      float poseErrBailIn = 8.0f,
+                      Follower follower = Follower::PURE_PURSUIT);
 
 /**
  * Generate-and-follow variant with mid-path event triggers. Events whose
@@ -125,7 +146,29 @@ bool followTrajectory(const std::vector<Waypoint>& wps,
                       std::vector<PathEvent> events,
                       bool reversed = false,
                       int timeoutMs = -1,
-                      float poseErrBailIn = 8.0f);
+                      float poseErrBailIn = 8.0f,
+                      Follower follower = Follower::PURE_PURSUIT);
+
+/**
+ * Generate and follow a trajectory from waypoints, using the default
+ * `TrajConstraints` registered via `ramsete_configure()`.
+ */
+bool followTrajectory(const std::vector<Waypoint>& wps,
+                      bool reversed = false,
+                      int timeoutMs = -1,
+                      float poseErrBailIn = 8.0f,
+                      Follower follower = Follower::PURE_PURSUIT);
+
+/**
+ * Same as above, with mid-path events. Uses the default `TrajConstraints`
+ * from `ramsete_configure()`.
+ */
+bool followTrajectory(const std::vector<Waypoint>& wps,
+                      std::vector<PathEvent> events,
+                      bool reversed = false,
+                      int timeoutMs = -1,
+                      float poseErrBailIn = 8.0f,
+                      Follower follower = Follower::PURE_PURSUIT);
 
 /**
  * Run a waypoint path exported from path.jerryio.com (or any CSV-like text).
@@ -139,27 +182,31 @@ bool followTrajectory(const std::vector<Waypoint>& wps,
 bool runJerryioPath(const char* csv,
                     bool reversed = false,
                     int timeoutMs = -1,
-                    float poseErrBailIn = 8.0f);
+                    float poseErrBailIn = 8.0f,
+                    Follower follower = Follower::PURE_PURSUIT);
 
 /** Variant with mid-path event triggers. See PathEvent for index semantics. */
 bool runJerryioPath(const char* csv,
                     std::vector<PathEvent> events,
                     bool reversed = false,
                     int timeoutMs = -1,
-                    float poseErrBailIn = 8.0f);
+                    float poseErrBailIn = 8.0f,
+                    Follower follower = Follower::PURE_PURSUIT);
 
 /** Read the CSV from the V5 SD card (e.g. `"/usd/paths/red_left.csv"`). */
 bool runJerryioPathFromSD(const char* filePath,
                           bool reversed = false,
                           int timeoutMs = -1,
-                          float poseErrBailIn = 8.0f);
+                          float poseErrBailIn = 8.0f,
+                          Follower follower = Follower::PURE_PURSUIT);
 
 /** SD-card variant with mid-path event triggers. */
 bool runJerryioPathFromSD(const char* filePath,
                           std::vector<PathEvent> events,
                           bool reversed = false,
                           int timeoutMs = -1,
-                          float poseErrBailIn = 8.0f);
+                          float poseErrBailIn = 8.0f,
+                          Follower follower = Follower::PURE_PURSUIT);
 
 /**
  * \name Characterization routines

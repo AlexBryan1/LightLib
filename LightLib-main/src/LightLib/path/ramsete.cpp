@@ -24,6 +24,7 @@
 #include "LightLib/drive/ekf.hpp"
 #include "LightLib/lib.hpp"
 #include "LightLib/util/extras.hpp"
+#include "path_runtime_internal.hpp"
 #include "LightLib/drive/lightcast.hpp"
 #include "LightLib/drive/odometry.hpp"
 #include "LightLib/util/util.hpp"
@@ -33,23 +34,23 @@
 
 namespace light {
 
-// ── Module configuration ────────────────────────────────────────────────────
-static RamseteConfig g_rc;
-static DriveFF g_ff;
-static TrajConstraints g_defaultCons;
-static bool g_configured = false;
-static float g_charVoltage_mV = 12000.0f;  // assume fresh cell until characterized
+// ── Shared follower configuration (declared in path_runtime_internal.hpp) ───
+RamseteConfig g_rc;
+DriveFF g_ff;
+TrajConstraints g_defaultCons;
+bool g_configured = false;
+float g_charVoltage_mV = 12000.0f;  // assume fresh cell until characterized
 
 // Precomputed motor-rpm → wheel-in/s scalar. Refreshed in ramsete_configure()
 // because all three inputs (gear ratio, wheel diameter, 60 s/min) are constant
 // after configuration. Avoids re-multiplying these in the 100 Hz inner loop.
-static float s_rpmToInPerSec = 0.0f;
+float s_rpmToInPerSec = 0.0f;
 
 // Guard against generating a new trajectory while one is being followed —
 // on-brain trajectory generation takes 1–2 ms, long enough to stall a 100 Hz
-// control loop. We force the user to cache trajectories outside of the
-// follower by rejecting nested use.
-static std::atomic<bool> g_genLocked{false};
+// control loop. Also prevents either follower from re-entering itself or
+// the other follower while one is already running.
+std::atomic<bool> g_genLocked{false};
 
 // ── Small math helpers ──────────────────────────────────────────────────────
 using ::light::util::wrap_rad;
@@ -66,7 +67,7 @@ static inline float sincGuarded(float x) {
 // Convert wheel angular velocity (rpm at the motor) to linear speed in/s.
 // vLinear = motorRPM * gearRatio * π * wheelDiam / 60
 // The product is cached in s_rpmToInPerSec by ramsete_configure().
-static inline float motorRpmToInPerSec(float rpm) {
+float motorRpmToInPerSec(float rpm) {
   return rpm * s_rpmToInPerSec;
 }
 
@@ -76,24 +77,19 @@ static inline float motorRpmToInPerSec(float rpm) {
 // nothing and park it in DISABLE. On destruction: zero voltage, leave EZ
 // DISABLED — the next EZ motion call re-arms cleanly. We never try to
 // "restore" the previous mode because mid-motion state is stale.
-struct EzPauseGuard {
-  light::Drive* chassis;
-  pros::MotorGroup* left;
-  pros::MotorGroup* right;
+EzPauseGuard::EzPauseGuard(light::Drive* c, pros::MotorGroup* l, pros::MotorGroup* r)
+    : chassis(c), left(l), right(r) {
+  if (chassis) {
+    chassis->pid_drive_toggle(false);
+    chassis->drive_mode_set(light::DISABLE, /*stop_drive=*/true);
+  }
+}
 
-  EzPauseGuard(light::Drive* c, pros::MotorGroup* l, pros::MotorGroup* r)
-      : chassis(c), left(l), right(r) {
-    if (chassis) {
-      chassis->pid_drive_toggle(false);
-      chassis->drive_mode_set(light::DISABLE, /*stop_drive=*/true);
-    }
-  }
-  ~EzPauseGuard() {
-    if (left) left->move_voltage(0);
-    if (right) right->move_voltage(0);
-    pros::delay(20);  // let zero-command actually land before releasing
-  }
-};
+EzPauseGuard::~EzPauseGuard() {
+  if (left) left->move_voltage(0);
+  if (right) right->move_voltage(0);
+  pros::delay(20);  // let zero-command actually land before releasing
+}
 
 void ramsete_configure(RamseteConfig rc, DriveFF ff, TrajConstraints defaultCons) {
   g_rc = rc;
@@ -105,20 +101,14 @@ void ramsete_configure(RamseteConfig rc, DriveFF ff, TrajConstraints defaultCons
   s_rpmToInPerSec = g_rc.gearRatio * (float)M_PI * g_rc.wheelDiamIn / 60.0f;
 }
 
-// ── Per-wheel controller state ──────────────────────────────────────────────
-struct WheelState {
-  float vFiltered = 0.0f;  // EMA-filtered actual velocity (in/s)
-  bool seeded = false;
-};
-
 // α = 0.4 gives ~25 ms effective window at 10 ms control period — enough to
 // smooth the 1 RPM quantization of get_actual_velocity() without adding
 // meaningful phase lag to the velocity P term.
 static constexpr float WHEEL_EMA_ALPHA = 0.4f;
 
-static float wheelVoltageCmd(float vTarget, float aTarget,
-                             float vActual, WheelState& ws,
-                             float batteryScale) {
+float wheelVoltageCmd(float vTarget, float aTarget,
+                      float vActual, WheelState& ws,
+                      float batteryScale) {
   if (!ws.seeded) {
     ws.vFiltered = vActual;
     ws.seeded = true;
@@ -138,7 +128,7 @@ static float wheelVoltageCmd(float vTarget, float aTarget,
 
 // Scale both sides together when one would saturate — preserves the commanded
 // steering ratio, same trick as light::moveToPoint. Returns true if clipped.
-static bool balanceSaturation(float& vL, float& vR, float limit = 12.0f) {
+bool balanceSaturation(float& vL, float& vR, float limit) {
   float m = std::max(std::fabs(vL), std::fabs(vR));
   if (m > limit) {
     vL = vL / m * limit;
@@ -152,16 +142,12 @@ static bool balanceSaturation(float& vL, float& vR, float limit = 12.0f) {
 // Mid-path events are supplied by the caller as (waypointIndex, action) and
 // resolved to (time, action) once before the control loop starts. The loop
 // then only does O(1) time comparisons per tick.
-struct ResolvedEvent {
-  float t;
-  std::function<void()> action;
-};
 
 // Find the sample time of the traj.pts entry closest in (x,y) to wps[idx].
 // Linear scan — O(N) per event; N ≈ 1500 samples for a 100-point path. Runs
 // at trajectory-gen time, not inside the control loop.
-static float waypointTime(const std::vector<Waypoint>& wps,
-                          int idx, const Trajectory& traj) {
+float waypointTime(const std::vector<Waypoint>& wps,
+                   int idx, const Trajectory& traj) {
   float bestD2 = 1e18f;
   float bestT = 0.0f;
   const float wx = wps[idx].x;
@@ -178,10 +164,10 @@ static float waypointTime(const std::vector<Waypoint>& wps,
   return bestT;
 }
 
-static bool followTrajectoryCore(const Trajectory& traj,
-                                 std::vector<ResolvedEvent> events,
-                                 int timeoutMs,
-                                 float poseErrBailIn) {
+bool followTrajectoryCore(const Trajectory& traj,
+                          std::vector<ResolvedEvent> events,
+                          int timeoutMs,
+                          float poseErrBailIn) {
   // Pre-flight checks — fail loudly, don't silently run on bad inputs.
   if (!g_configured) {
     printf("[RAMSETE] ramsete_configure() has not been called\n");
@@ -395,23 +381,38 @@ static bool followTrajectoryCore(const Trajectory& traj,
   return success;
 }
 
+// Single dispatch point — both follower entry points funnel here so the
+// branch on `Follower` lives in exactly one place.
+static bool dispatchFollower(const Trajectory& traj,
+                             std::vector<ResolvedEvent> events,
+                             int timeoutMs,
+                             float poseErrBailIn,
+                             Follower follower) {
+  if (follower == Follower::PURE_PURSUIT) {
+    return followPurePursuitCore(traj, std::move(events), timeoutMs, poseErrBailIn);
+  }
+  return followTrajectoryCore(traj, std::move(events), timeoutMs, poseErrBailIn);
+}
+
 bool followTrajectory(const Trajectory& traj,
                       int timeoutMs,
-                      float poseErrBailIn) {
-  return followTrajectoryCore(traj, {}, timeoutMs, poseErrBailIn);
+                      float poseErrBailIn,
+                      Follower follower) {
+  return dispatchFollower(traj, {}, timeoutMs, poseErrBailIn, follower);
 }
 
 // Shared body for the wps-overloads: generate the trajectory, resolve events
-// to sample times, then hand off to the core loop.
+// to sample times, then hand off to whichever follower the caller picked.
 static bool followTrajectoryWithEvents(const std::vector<Waypoint>& wps,
                                        const TrajConstraints& cons,
                                        std::vector<PathEvent> events,
                                        bool reversed,
                                        int timeoutMs,
-                                       float poseErrBailIn) {
+                                       float poseErrBailIn,
+                                       Follower follower) {
   bool expected = false;
   if (!g_genLocked.compare_exchange_strong(expected, true)) {
-    printf("[RAMSETE] trajectory generation already in progress\n");
+    printf("[PATH] trajectory generation already in progress\n");
     return false;
   }
   Trajectory traj = generateTrajectory(wps, cons, reversed);
@@ -423,7 +424,7 @@ static bool followTrajectoryWithEvents(const std::vector<Waypoint>& wps,
   resolved.reserve(events.size());
   for (auto& e : events) {
     if (e.atWaypoint < 0 || e.atWaypoint >= (int)wps.size()) {
-      printf("[RAMSETE] event waypoint idx %d out of range [0, %u)\n",
+      printf("[PATH] event waypoint idx %d out of range [0, %u)\n",
              e.atWaypoint, (unsigned)wps.size());
       continue;
     }
@@ -431,15 +432,17 @@ static bool followTrajectoryWithEvents(const std::vector<Waypoint>& wps,
     resolved.push_back({waypointTime(wps, e.atWaypoint, traj),
                         std::move(e.action)});
   }
-  return followTrajectoryCore(traj, std::move(resolved), timeoutMs, poseErrBailIn);
+  return dispatchFollower(traj, std::move(resolved), timeoutMs, poseErrBailIn, follower);
 }
 
 bool followTrajectory(const std::vector<Waypoint>& wps,
                       const TrajConstraints& cons,
                       bool reversed,
                       int timeoutMs,
-                      float poseErrBailIn) {
-  return followTrajectoryWithEvents(wps, cons, {}, reversed, timeoutMs, poseErrBailIn);
+                      float poseErrBailIn,
+                      Follower follower) {
+  return followTrajectoryWithEvents(wps, cons, {}, reversed,
+                                    timeoutMs, poseErrBailIn, follower);
 }
 
 bool followTrajectory(const std::vector<Waypoint>& wps,
@@ -447,9 +450,40 @@ bool followTrajectory(const std::vector<Waypoint>& wps,
                       std::vector<PathEvent> events,
                       bool reversed,
                       int timeoutMs,
-                      float poseErrBailIn) {
+                      float poseErrBailIn,
+                      Follower follower) {
   return followTrajectoryWithEvents(wps, cons, std::move(events),
-                                    reversed, timeoutMs, poseErrBailIn);
+                                    reversed, timeoutMs, poseErrBailIn, follower);
+}
+
+// No-cons overloads — fall back to the TrajConstraints registered via
+// ramsete_configure(). Mirrors the runJerryioPath behavior so users can call
+// followTrajectory(path) without re-declaring constraints at every call site.
+bool followTrajectory(const std::vector<Waypoint>& wps,
+                      bool reversed,
+                      int timeoutMs,
+                      float poseErrBailIn,
+                      Follower follower) {
+  if (!g_configured) {
+    printf("[PATH] ramsete_configure() has not been called\n");
+    return false;
+  }
+  return followTrajectory(wps, g_defaultCons, reversed,
+                          timeoutMs, poseErrBailIn, follower);
+}
+
+bool followTrajectory(const std::vector<Waypoint>& wps,
+                      std::vector<PathEvent> events,
+                      bool reversed,
+                      int timeoutMs,
+                      float poseErrBailIn,
+                      Follower follower) {
+  if (!g_configured) {
+    printf("[PATH] ramsete_configure() has not been called\n");
+    return false;
+  }
+  return followTrajectory(wps, g_defaultCons, std::move(events),
+                          reversed, timeoutMs, poseErrBailIn, follower);
 }
 
 // ── Jerryio CSV loader ──────────────────────────────────────────────────────
@@ -539,7 +573,8 @@ static bool parseJerryio(const char* csv,
     bool hasHeading = (n > headingCol);
     if (hasHeading && !densified) {
       // Sparse CSV: column 3 is heading in radians (LightLib convention).
-      w.headingRad = vals[headingCol];
+      // Waypoint.headingDeg stores degrees, so convert at the boundary.
+      w.headingDeg = vals[headingCol] * 180.0f / (float)M_PI;
     }
     // For densified paths the column-4 heading is in degrees in Jerryio's
     // own frame — we don't pin headings on densified paths (the spline
@@ -596,26 +631,29 @@ static std::vector<PathEvent> remapAnchorEvents(std::vector<PathEvent> events,
 bool runJerryioPath(const char* csv,
                     bool reversed,
                     int timeoutMs,
-                    float poseErrBailIn) {
+                    float poseErrBailIn,
+                    Follower follower) {
   std::vector<Waypoint> wps;
   std::vector<int> anchorIdx;
   bool densified = false;
   if (!parseJerryio(csv, wps, anchorIdx, densified)) return false;
-  return followTrajectory(wps, g_defaultCons, reversed, timeoutMs, poseErrBailIn);
+  return followTrajectory(wps, g_defaultCons, reversed,
+                          timeoutMs, poseErrBailIn, follower);
 }
 
 bool runJerryioPath(const char* csv,
                     std::vector<PathEvent> events,
                     bool reversed,
                     int timeoutMs,
-                    float poseErrBailIn) {
+                    float poseErrBailIn,
+                    Follower follower) {
   std::vector<Waypoint> wps;
   std::vector<int> anchorIdx;
   bool densified = false;
   if (!parseJerryio(csv, wps, anchorIdx, densified)) return false;
   auto mapped = remapAnchorEvents(std::move(events), anchorIdx);
   return followTrajectory(wps, g_defaultCons, std::move(mapped),
-                          reversed, timeoutMs, poseErrBailIn);
+                          reversed, timeoutMs, poseErrBailIn, follower);
 }
 
 // Reads the SD file into `buf` (size BUF_SIZE). Returns false on any failure
@@ -648,22 +686,25 @@ static bool readSDFile(const char* filePath, char* buf, std::size_t bufSize) {
 bool runJerryioPathFromSD(const char* filePath,
                           bool reversed,
                           int timeoutMs,
-                          float poseErrBailIn) {
+                          float poseErrBailIn,
+                          Follower follower) {
   constexpr std::size_t BUF_SIZE = 4096;
   char buf[BUF_SIZE];
   if (!readSDFile(filePath, buf, BUF_SIZE)) return false;
-  return runJerryioPath(buf, reversed, timeoutMs, poseErrBailIn);
+  return runJerryioPath(buf, reversed, timeoutMs, poseErrBailIn, follower);
 }
 
 bool runJerryioPathFromSD(const char* filePath,
                           std::vector<PathEvent> events,
                           bool reversed,
                           int timeoutMs,
-                          float poseErrBailIn) {
+                          float poseErrBailIn,
+                          Follower follower) {
   constexpr std::size_t BUF_SIZE = 4096;
   char buf[BUF_SIZE];
   if (!readSDFile(filePath, buf, BUF_SIZE)) return false;
-  return runJerryioPath(buf, std::move(events), reversed, timeoutMs, poseErrBailIn);
+  return runJerryioPath(buf, std::move(events),
+                        reversed, timeoutMs, poseErrBailIn, follower);
 }
 
 // ── Characterization routines — thin wrappers kept here so they share the

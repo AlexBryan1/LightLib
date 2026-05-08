@@ -25,7 +25,7 @@ namespace light {
 struct Waypoint {
   float x = 0.0f;                  ///< X position, inches.
   float y = 0.0f;                  ///< Y position, inches.
-  std::optional<float> headingRad; ///< If absent, tangent taken from adjacent chord.
+  std::optional<float> headingDeg; ///< Heading in degrees. If absent, tangent taken from adjacent chord.
   std::optional<float> speed;      ///< Optional per-waypoint speed cap (not used yet).
 };
 

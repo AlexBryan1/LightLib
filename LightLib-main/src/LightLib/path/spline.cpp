@@ -88,7 +88,7 @@ Spline::Spline(const std::vector<Waypoint>& wps) {
   // pinned heading, use a Catmull-Rom-like centered difference.
   std::vector<float> vx(N, 0.0f), vy(N, 0.0f);
   for (std::size_t i = 0; i < N; ++i) {
-    bool hasHeading = wps[i].headingRad.has_value();
+    bool hasHeading = wps[i].headingDeg.has_value();
     float chordLen;
     if (i == 0)
       chordLen = std::hypot(wps[1].x - wps[0].x, wps[1].y - wps[0].y);
@@ -107,7 +107,8 @@ Spline::Spline(const std::vector<Waypoint>& wps) {
     }
 
     if (hasHeading) {
-      headingToTangent(*wps[i].headingRad, chordLen, vx[i], vy[i]);
+      headingToTangent(*wps[i].headingDeg * (float)M_PI / 180.0f,
+                       chordLen, vx[i], vy[i]);
     } else if (i == 0) {
       vx[i] = wps[1].x - wps[0].x;
       vy[i] = wps[1].y - wps[0].y;

@@ -33,27 +33,29 @@ void reportUnknown(const char* name) {
 bool runPath(const char* name,
              bool reversed,
              int timeoutMs,
-             float poseErrBailIn) {
+             float poseErrBailIn,
+             Follower follower) {
   const paths::PathEntry* e = findPath(name);
   if (!e) {
     reportUnknown(name);
     return false;
   }
-  return runJerryioPath(e->csv, reversed, timeoutMs, poseErrBailIn);
+  return runJerryioPath(e->csv, reversed, timeoutMs, poseErrBailIn, follower);
 }
 
 bool runPath(const char* name,
              std::vector<PathEvent> events,
              bool reversed,
              int timeoutMs,
-             float poseErrBailIn) {
+             float poseErrBailIn,
+             Follower follower) {
   const paths::PathEntry* e = findPath(name);
   if (!e) {
     reportUnknown(name);
     return false;
   }
   return runJerryioPath(e->csv, std::move(events),
-                        reversed, timeoutMs, poseErrBailIn);
+                        reversed, timeoutMs, poseErrBailIn, follower);
 }
 
 }  // namespace light

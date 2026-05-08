@@ -8,6 +8,7 @@
 #include "LightLib/main.h"
 #include "LightLib/drive/odometry.hpp"
 #include "LightLib/path/ramsete.hpp"
+#include "LightLib/path/pure_pursuit.hpp"
 #include "LightLib/util/util.hpp"
 #include "LightLib/path/paths.hpp"
 #include "pros/motors.h"
@@ -22,7 +23,14 @@
 //   chassis.pid_swing_set(SIDE, deg [, speed])    one-side swing; SIDE = light::LEFT_SWING / RIGHT_SWING
 //   chassis.pid_odom_set({x,y,heading}, speed)    drive to a field point
 //   light::moveToPoint(x, y, timeout, speed, reversed)   simple odom move
-//   light::followTrajectory(waypoints, cons)      RAMSETE smooth path
+//   light::followTrajectory(waypoints [, cons])  smooth path; defaults to
+//                                                Pure Pursuit. Pass
+//                                                light::Follower::RAMSETE
+//                                                as the trailing arg to use
+//                                                the time-parameterized
+//                                                RAMSETE follower instead.
+//                                                Same toggle works on
+//                                                runJerryioPath / runPath.
 //
 // When the speed arg is omitted, the chassis uses light::DRIVE_SPEED /
 // TURN_SPEED / SWING_SPEED (defined just below — edit those to change defaults).
@@ -38,6 +46,10 @@ int DRIVE_SPEED = 127;
 int TURN_SPEED  = 127;
 int SWING_SPEED = 127;
 }
+
+void ramsete_char_kVkAkS() { light::characterize_kV_kA_kS(); }
+void ramsete_char_trackwidth() { light::characterize_track_width(); }
+void ramsete_char_alat() { light::characterize_a_lat_max(); }
 
 // Set every piston to its safe starting state. Called once before each match.
 // .set(true) = extended, .set(false) = retracted.
@@ -94,6 +106,11 @@ void default_constants() {
       {/*kS=*/0.60f, /*kV=*/0.18f, /*kA=*/0.03f, /*kP=*/0.02f},
       // default trajectory constraints
       {/*vMax=*/48.0f, /*aMax=*/60.0f, /*aDecMax=*/60.0f, /*aLatMax=*/40.0f});
+
+  // ── Pure Pursuit: carrot lookahead (only PP-specific knob; chassis +
+  //    feedforward come from ramsete_configure() above). Larger lookahead =
+  //    smoother but cuts corners; smaller = tighter but oscillates.
+  light::pure_pursuit_configure({/*lookaheadIn=*/12.0f});
 }
 
 
@@ -161,22 +178,20 @@ void ex_move_to_point() {
                      /*speed=*/100, /*reversed=*/false);
 }
 
-// followTrajectory: smooth RAMSETE path through 3+ waypoints (x, y, heading_rad).
+// followTrajectory: smooth RAMSETE path through 3+ waypoints (x, y, heading_deg).
+// Headings are in degrees; omit (use {} or trailing comma) to let the spline
+// pick a smooth tangent. Uses the default TrajConstraints from ramsete_configure()
+// in default_constants(); pass an explicit `light::TrajConstraints{...}` as a 2nd
+// arg to override per-call.
 void ramsete_demo_s_curve() {
-  // Smooth S-curve: start at origin facing +Y, kiss (24, 24) heading east,
+  // Smooth S-curve: start at origin facing +Y, kiss (24, 24) heading east (90°),
   // end at (48, 0) facing +Y again. Good first real-geometry test.
   std::vector<light::Waypoint> path = {
-      {0.0f, 0.0f, 0.0f},
-      {24.0f, 24.0f, (float)M_PI_2},
-      {48.0f, 0.0f, 0.0f}};
-  light::TrajConstraints cons{/*vMax=*/40.0f, /*aMax=*/50.0f,
-                              /*aDecMax=*/50.0f, /*aLatMax=*/40.0f};
-  light::followTrajectory(path, cons);
+      {0,  0,  0},
+      {24, 24, 90},
+      {48, 0,  0}};
+  light::followTrajectory(path);
 }
-
-void ramsete_char_kVkAkS() { light::characterize_kV_kA_kS(); }
-void ramsete_char_trackwidth() { light::characterize_track_width(); }
-void ramsete_char_alat() { light::characterize_a_lat_max(); }
 
 // Run a Jerryio-authored path by name. Path bodies live in
 // include/LightLib/paths/<name>.hpp and are registered in src/LightLib/paths.cpp.
