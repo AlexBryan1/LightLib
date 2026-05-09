@@ -106,10 +106,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     p.add_argument(
-        "--max-segments", type=int, default=1000,
+        "--max-segments", type=int, default=5000,
         help=(
             "Hard cap on emitted segments. Fail if exceeded so we don't blow "
-            "up libmaps.a. Default: 1000."
+            "up libmaps.a. Default: 5000."
         ),
     )
     p.add_argument(
