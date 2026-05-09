@@ -1,70 +1,4 @@
-// +-----------------------------------------------------------------------------+
-// |  odometry.cpp -- 2-D position tracking for the robot                        |
-// |                                                                             |
-// |  This file implements a classic arc-based odometry system.  It reads        |
-// |  tracking wheels (and optionally an IMU) to figure out where the robot      |
-// |  is on the field at all times.                                              |
-// |                                                                             |
-// |  COORDINATE SYSTEM:                                                         |
-// |                                                                             |
-// |          +Y (forward)                                                       |
-// |           ^                                                                 |
-// |           |                                                                 |
-// |   -X <----+----> +X (right)                                                 |
-// |           |                                                                 |
-// |           v                                                                 |
-// |          -Y                                                                 |
-// |                                                                             |
-// |    Theta = 0 facing +Y, increases clockwise (radians internally).           |
-// |                                                                             |
-// |  SENSOR LAYOUT (top-down view):                                             |
-// |                                                                             |
-// |      V1 |   | V2        V1, V2 = vertical tracking wheels                   |
-// |      +--+---+--+        H1, H2 = horizontal tracking wheels                 |
-// |   H1-+  | C |  +-H2    C      = center of rotation                          |
-// |      +--+---+--+                                                            |
-// |         |   |            Offset = signed dist from wheel to C               |
-// |                          (positive = right / forward of center)             |
-// |                                                                             |
-// |  HOW IT WORKS (each tick, every 10 ms):                                     |
-// |    1. Read raw encoder positions from all tracking wheels + IMU.            |
-// |    2. Compute deltas (change since last tick).                              |
-// |    3. Determine heading change (deltaHeading) using best source:            |
-// |       - Two horizontal wheels  -> arc formula (most accurate)               |
-// |       - Two unpowered verticals -> arc formula                              |
-// |       - IMU -> gyro integration                                             |
-// |       - Two powered verticals  -> arc formula (fallback)                    |
-// |    4. Convert encoder deltas to local displacement (localX, localY)         |
-// |       using the arc approximation:                                          |
-// |         localX = 2 sin(dH/2) * (dX/dH + horizOffset)                        |
-// |         localY = 2 sin(dH/2) * (dY/dH + vertOffset)                         |
-// |       If the robot drove straight (dH ~ 0), simplifies to raw deltas.       |
-// |    5. Rotate local displacement into global frame using avgHeading:         |
-// |         globalX +=  localY sin(h_avg) - localX cos(h_avg)                   |
-// |         globalY +=  localY cos(h_avg) + localX sin(h_avg)                   |
-// |    6. Update speed estimates with exponential moving average (EMA)          |
-// |       so they are smooth enough for motion prediction.                      |
-// |                                                                             |
-// |  SETUP:                                                                     |
-// |    1. Create TrackingWheel objects for each sensor (see odometry.hpp).          |
-// |    2. Bundle them into an OdomSensors struct.                               |
-// |    3. Call light::init(sensors) once in initialize().                       |
-// |    4. Use light::getPose() anywhere to read the robot position.             |
-// |    5. Use light::setPose() to set a known starting position.                |
-// |                                                                             |
-// |  EXAMPLE:                                                                   |
-// |    // In initialize():                                                      |
-// |    TrackingWheel leftWheel(&leftRot,  2.75, -2.5);  // 2.75in wheel,        |
-// |    TrackingWheel rightWheel(&rightRot, 2.75,  2.5); // offsets from ctr     |
-// |    TrackingWheel backWheel(&backRot,  2.75, -3.0);                          |
-// |    OdomSensors sensors(&leftWheel, &rightWheel,                             |
-// |                        &backWheel, nullptr, &imu);                          |
-// |    light::init(sensors);                                                    |
-// |    light::setPose(Pose(0, 0, 0));                                           |
-// |                                                                             |
-// |    // Anywhere:                                                             |
-// |    Pose pos = light::getPose();  // x, y in inches, theta in degrees        |
-// +-----------------------------------------------------------------------------+
+// Convention: +Y forward, +X right, θ = 0 facing +Y, CW-positive (radians).
 
 #include <cmath>
 
@@ -76,18 +10,11 @@
 #include "LightLib/util/util.hpp"
 #include "pros/rtos.hpp"
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
 static float degToRad(float deg) { return deg * M_PI / 180.0f; }
 static float radToDeg(float rad) { return rad * 180.0f / M_PI; }
 
 using ::light::util::wrap_rad;
 
-// ─── State ───────────────────────────────────────────────────────────────────
-// All odometry state is file-static — there's one global robot position.
-// odomPose:       current (x, y, θ) in inches and radians
-// odomSpeed:      global-frame velocity (smoothed via EMA), in inches/sec
-// odomLocalSpeed: robot-frame velocity (forward/strafe/turn), in inches/sec
 static OdomSensors odomSensors(nullptr, nullptr, nullptr, nullptr, nullptr);
 static MCLConfig odomCfg;
 
@@ -97,10 +24,7 @@ static Pose odomLocalSpeed;
 
 static pros::Mutex pose_mtx_;
 
-// "prev" values store the last-read raw encoder/IMU positions so we can
-// compute deltas each tick.  Two sets exist:
-//   prevVertical1/2, prevHorizontal1/2  — per-sensor, used for heading calc
-//   prevVertical, prevHorizontal        — per-chosen-wheel, used for displacement
+// Per-sensor (1/2) used for heading calc; per-chosen-wheel for displacement.
 static float prevVertical = 0;
 static float prevVertical1 = 0;
 static float prevVertical2 = 0;
@@ -111,10 +35,6 @@ static float prevImu = 0;
 
 static pros::Task* trackingTask = nullptr;
 
-// ─── Public API ───────────────────────────────────────────────────────────────
-
-// getPose() — returns the robot's current position.
-// By default returns degrees for theta; pass true for radians.
 Pose light::getPose(bool radians) {
   pose_mtx_.take(TIMEOUT_MAX);
   Pose p = odomPose;
@@ -123,21 +43,16 @@ Pose light::getPose(bool radians) {
   return Pose(p.x, p.y, radToDeg(p.theta));
 }
 
-// setPose() — teleport the robot's tracked position (e.g., at the start of auton).
-// Pass degrees by default, or radians if you set the flag.
 void light::setPose(Pose pose, bool radians) {
   Pose newPose = radians ? pose : Pose(pose.x, pose.y, degToRad(pose.theta));
   pose_mtx_.take(TIMEOUT_MAX);
   odomPose = newPose;
   pose_mtx_.give();
-  // Propagate to the fused estimators so the next update() doesn't pull the
-  // pose back to the stale EKF mean.
+  // Propagate so the next update() doesn't pull pose back to the stale EKF mean.
   light::ekf::reset(newPose);
   light::lightcast::init(newPose, odomSensors.distanceSensors, light::lightcast::config());
 }
 
-// getSpeed() — global-frame velocity (how fast x, y, θ are changing).
-// Useful for feed-forward or motion profiling.
 Pose light::getSpeed(bool radians) {
   pose_mtx_.take(TIMEOUT_MAX);
   Pose s = odomSpeed;
@@ -146,8 +61,6 @@ Pose light::getSpeed(bool radians) {
   return Pose(s.x, s.y, radToDeg(s.theta));
 }
 
-// getLocalSpeed() — robot-frame velocity (forward, strafe, turn rate).
-// "Local" means relative to the robot's own heading, not the field.
 Pose light::getLocalSpeed(bool radians) {
   pose_mtx_.take(TIMEOUT_MAX);
   Pose s = odomLocalSpeed;
@@ -156,9 +69,6 @@ Pose light::getLocalSpeed(bool radians) {
   return Pose(s.x, s.y, radToDeg(s.theta));
 }
 
-// estimatePose() — predict where the robot will be `time` seconds from now,
-// assuming it keeps its current local velocity.  Useful for leading a target
-// (e.g., shooting a game piece at a moving goal) or for latency compensation.
 Pose light::estimatePose(float time, bool radians) {
   Pose curPose = getPose(true);
   Pose localSpeed = getLocalSpeed(true);
@@ -174,26 +84,14 @@ Pose light::estimatePose(float time, bool radians) {
   return future;
 }
 
-// ─── Update ──────────────────────────────────────────────────────────────────
-// This is the core odometry loop body — called every 10 ms by the tracking task.
-//
-// Step 1: Read all raw sensor positions
-// Step 2: Compute deltas (change since last tick)
-// Step 3: Determine heading change from the best available source
-// Step 4: Pick which single vertical / horizontal wheel to use for displacement
-// Step 5: Arc approximation → local displacement (localX, localY)
-// Step 6: Rotate into global frame → update odomPose
-// Step 7: Update smoothed speed estimates (EMA)
 void light::update() {
-  // ── Step 1: Read raw sensor positions ──
   float vertical1Raw = odomSensors.vertical1 ? odomSensors.vertical1->getDistanceTraveled() : 0;
   float vertical2Raw = odomSensors.vertical2 ? odomSensors.vertical2->getDistanceTraveled() : 0;
   float horizontal1Raw = odomSensors.horizontal1 ? odomSensors.horizontal1->getDistanceTraveled() : 0;
   float horizontal2Raw = odomSensors.horizontal2 ? odomSensors.horizontal2->getDistanceTraveled() : 0;
   float imuRaw = 0;
   if (odomSensors.imu != nullptr && odomSensors.imu2 != nullptr) {
-    // Average both IMUs — uncorrelated drift partially cancels out,
-    // giving a more stable heading than a single IMU.
+    // Average both IMUs so uncorrelated drift partially cancels.
     imuRaw = degToRad((odomSensors.imu->get_rotation() +
                        odomSensors.imu2->get_rotation()) /
                       2.0f);
@@ -201,15 +99,12 @@ void light::update() {
     imuRaw = degToRad(odomSensors.imu->get_rotation());
   }
 
-  // ── Step 2: Compute deltas ──
   float deltaV1 = vertical1Raw - prevVertical1;
   float deltaV2 = vertical2Raw - prevVertical2;
   float deltaH1 = horizontal1Raw - prevHorizontal1;
   float deltaH2 = horizontal2Raw - prevHorizontal2;
   float deltaImu = imuRaw - prevImu;
-  // Algorithm A — subtract ZUPT-estimated gyro bias. Zero before the
-  // first stationary sample, so this is a no-op for users who never
-  // pause the robot.
+  // ZUPT-estimated gyro bias. Zero before first stationary sample.
   deltaImu -= light::sensor_aux::imuBiasRadPerSec() * 0.01f;
 
   prevVertical1 = vertical1Raw;
@@ -218,16 +113,8 @@ void light::update() {
   prevHorizontal2 = horizontal2Raw;
   prevImu = imuRaw;
 
-  // ── Step 3: Determine heading change ──
-  // Priority order (most accurate → least):
-  //   1. Two horizontal tracking wheels (best — dedicated unpowered sensors)
-  //   2. Two unpowered vertical wheels  (good — no motor backlash)
-  //   3. IMU gyro                       (decent — drifts over time)
-  //   4. Two powered vertical wheels    (fallback — motor encoders have slop)
-  //
-  // The formula  Δθ = (Δleft − Δright) / (offsetLeft − offsetRight)
-  // is the arc-length relationship: two wheels at different offsets from the
-  // center trace different arc lengths when the robot turns.
+  // Heading-source priority: two-horiz > two-unpowered-vert > IMU > two-powered-vert.
+  // Arc relation: Δθ = (Δleft − Δright) / (offsetLeft − offsetRight).
   float heading = odomPose.theta;
 
   bool h1ok = (odomSensors.horizontal1 != nullptr);
@@ -249,15 +136,10 @@ void light::update() {
   }
 
   float deltaHeading = wrap_rad(heading - odomPose.theta);
-  // Average heading during this tick — used to rotate local → global.
-  // Using the midpoint (not the final heading) reduces integration error
-  // when the robot is turning, because the displacement happened across
-  // the full arc, not just at the endpoint.
+  // Midpoint heading for arc integration — endpoint would understate the rotation.
   float avgHeading = odomPose.theta + deltaHeading / 2.0f;
 
-  // ── Step 4: Pick which wheel to use for displacement ──
-  // Prefer unpowered (rotation sensor) wheels — they don't have motor
-  // backlash or gear slop, so they give cleaner distance readings.
+  // Prefer unpowered (rotation sensor) wheels — no motor backlash.
   TrackingWheel* vertWheel = nullptr;
   TrackingWheel* horizWheel = nullptr;
 
@@ -283,13 +165,8 @@ void light::update() {
   prevHorizontal = rawHorizontal;
   prevVertical = rawVertical;
 
-  // ── Step 5: Arc approximation → local displacement ──
-  // When the robot turns, the tracking wheel traces an arc, not a straight
-  // line.  The chord length of that arc is:
-  //     chord = 2 sin(Δθ/2) × radius
-  // where radius = (Δencoder / Δθ) + offset.
-  // If Δθ ≈ 0 (driving straight), the formula would divide by zero,
-  // so we just use the raw deltas — at tiny angles the chord ≈ arc length.
+  // Arc-chord approximation: chord = 2 sin(Δθ/2) × (Δenc/Δθ + offset).
+  // Falls back to raw deltas for Δθ ≈ 0 to avoid divide-by-zero.
   float localX, localY;
   if (deltaHeading == 0.0f) {
     localX = deltaX;
@@ -299,11 +176,9 @@ void light::update() {
     localY = 2.0f * sinf(deltaHeading / 2.0f) * (deltaY / deltaHeading + vertOffset);
   }
 
-  // Algorithm B — single-wheel rotation correction. With only one wheel
-  // on an axis, the chord formula's offset term can't compensate for
-  // the cross-axis rotation. Subtract dθ × (wheel offset) directly,
-  // which is the linear approximation of the rotational arc the wheel
-  // sweeps about the robot center.
+  // Single-wheel rotation correction: with only one wheel on an axis the
+  // chord formula's offset term can't compensate for cross-axis rotation;
+  // subtract dθ × offset as linear approximation.
   if (light::sensor_aux::singleVertMode()) {
     localY -= deltaHeading * light::sensor_aux::singleVertOffset();
   }
@@ -311,24 +186,16 @@ void light::update() {
     localX -= deltaHeading * light::sensor_aux::singleHorizOffset();
   }
 
-  // Algorithm C — slip detection. When wheel-derived dθ disagrees with
-  // IMU dθ, the wheel-derived translation is unreliable for this tick.
-  // Zero it; the EKF still advances heading via the IMU update path.
+  // Slip detected: wheel translation untrustworthy this tick. EKF still
+  // advances heading via the IMU update path.
   if (light::sensor_aux::slipping()) {
     localX = 0.0f;
     localY = 0.0f;
   }
 
-  // ── Step 6/7: EKF predict + measurement updates + LightCast predict ──
-  // Arc math becomes the motion model; EKF handles mean + covariance
-  // propagation and Kalman-weighted measurement fusion. LightCast runs its
-  // (cheap) predict here synced to the same deltas; its (expensive) update
-  // runs at 5 Hz in lightcast.cpp.
   const float dt = 0.01f;
 
-  // Pose measurement derived from this tick's arc — used as the "wheel
-  // pose" update when GPS + unpowered rotation sensors are both absent.
-  // Compute it against the prior fused mean so we don't race with the EKF.
+  // Wheel-derived pose against the prior fused mean (avoids racing the EKF).
   Pose prior = light::ekf::mean();
   Pose wheelDerived;
   wheelDerived.x = prior.x + localY * sinf(avgHeading) - localX * cosf(avgHeading);
@@ -337,14 +204,12 @@ void light::update() {
 
   light::ekf::predict(localX, localY, deltaHeading, dt);
 
-  // IMU: small variance so it dominates heading when other sources don't beat it.
   if (odomSensors.imu != nullptr) {
     const float R_imu = 0.000076f;  // ~(0.5°)² in rad²
     light::ekf::updateHeadingIMU(imuRaw, R_imu);
   }
 
-  // GPS: only fuse when sensor reports low error. get_error() ≈ meters;
-  // variance scales roughly with error². Convert GPS meters → inches.
+  // GPS variance scales with reported error²; meters → inches.
   if (odomSensors.gps != nullptr) {
     double err_m = odomSensors.gps->get_error();
     if (err_m > 0.0 && err_m < 0.5) {
@@ -356,24 +221,20 @@ void light::update() {
     }
   }
 
-  // Powered-wheel-only fallback: only weight this in when there's nothing
-  // better (i.e. no unpowered vert + no horizontal trackers). High R so
-  // good sensors dominate when present.
+  // Powered-wheel-only fallback when no unpowered sensors are present.
   bool haveUnpowered = v1unpowered || v2unpowered || h1ok || h2ok;
   if (!haveUnpowered) {
-    const float R_wheel = 4.0f;  // (2 in)² position, ignored for heading in this path
+    const float R_wheel = 4.0f;  // (2 in)² position
     light::ekf::updateWheelPose(wheelDerived, R_wheel);
   }
 
   light::lightcast::predict(localX, localY, deltaHeading);
 
-  // Divergence snap: if EKF covariance blows up AND LightCast has a tight
-  // cluster AND enough sensors participate, pull the EKF to the LightCast
-  // best estimate. Rate-limited to prevent oscillation.
+  // Snap EKF to LightCast best when EKF diverges and LightCast has a tight
+  // multi-sensor cluster; rate-limited against oscillation.
   static int snapCooldown = 0;
   if (snapCooldown > 0) --snapCooldown;
-  // Read snap thresholds from ekf::config() so on-brain tuner edits take
-  // effect without re-init.
+  // Read live config so on-brain tuner edits take effect without re-init.
   MCLConfig liveCfg = light::ekf::config();
   if (snapCooldown == 0 &&
       light::lightcast::sensorCount() >= 2 &&
@@ -411,23 +272,15 @@ void light::update() {
   odomLocalSpeed = newLocalSpeed;
   pose_mtx_.give();
 
-  // Algorithm D — wall-snap, plus the bias/slip detectors run from here.
-  // Called after the EKF has produced a fresh pose so wall-snap can test
-  // residuals against the current estimate.
+  // Wall-snap + bias/slip detectors run after the fresh pose is published.
   light::sensor_aux::tick();
 }
 
-// ─── Task management ─────────────────────────────────────────────────────────
-
-// init() — call once in initialize() to start the odometry background task.
-// Pass in your OdomSensors struct with all tracking wheels and IMU(s).
-// The task runs update() every 10 ms (100 Hz) in the background.
 void light::init(OdomSensors sensors, MCLConfig cfg) {
   odomSensors = sensors;
   odomCfg = cfg;
 
-  // Bring the fused pose estimators online before the tick task starts so
-  // the first update() has valid state to update.
+  // Estimators must be live before the first tick.
   light::ekf::init(odomPose, cfg);
   light::lightcast::init(odomPose, odomSensors.distanceSensors, cfg);
   if (!odomSensors.distanceSensors.empty()) {
@@ -443,10 +296,8 @@ void light::init(OdomSensors sensors, MCLConfig cfg) {
     });
   }
 
-  // Route EZ-Template's odom_*_get / odom_*_set through the fused pose so
-  // pid_odom_* motion closes the loop on the EKF/MCL estimate instead of the
-  // wheel integrator. Both APIs use inches/degrees and CCW-from-+y, so no
-  // unit/frame conversion is needed.
+  // Route EZ-Template's odom_*_get/set through the fused pose so pid_odom_*
+  // closes on the EKF/MCL estimate, not the wheel integrator. Same units/frame.
   light::register_pose_source(
       []() -> light::pose {
         Pose p = light::getPose();
@@ -456,9 +307,9 @@ void light::init(OdomSensors sensors, MCLConfig cfg) {
         light::setPose({(float)p.x, (float)p.y, (float)p.theta});
       });
 }
-// reset() — zero out the "previous" encoder snapshots so the next update()
-// doesn't see a massive delta and teleport the robot.  Call this after
-// setPose() if you've physically moved the robot or reset encoders.
+
+// Re-snapshot previous encoder/IMU values so the next update() doesn't
+// integrate a teleport-sized delta. Call after setPose() or sensor reset.
 void light::reset() {
   prevVertical1 = odomSensors.vertical1 ? odomSensors.vertical1->getDistanceTraveled() : 0;
   prevVertical2 = odomSensors.vertical2 ? odomSensors.vertical2->getDistanceTraveled() : 0;
@@ -469,8 +320,6 @@ void light::reset() {
   prevHorizontal = 0;
 }
 
-// stop() — kill the background tracking task.  Call if you need to
-// shut down odom (e.g., switching to a different control mode).
 void light::stop() {
   if (trackingTask != nullptr) {
     trackingTask->remove();

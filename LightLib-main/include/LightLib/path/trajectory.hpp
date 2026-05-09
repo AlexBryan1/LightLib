@@ -6,15 +6,9 @@
 
 /**
  * \file trajectory.hpp
- *
- * Time-parameterized trajectory over a Spline.
- *
- * A Trajectory is a dense table of states sampled every 10 ms (the RAMSETE
- * control period). It is produced once by generateTrajectory() from a list
- * of Waypoints and consumed by light::followTrajectory().
- *
- * Each TrajState carries pose, linear velocity v, angular velocity ω = v·κ,
- * and the linear acceleration `a` needed by the per-wheel feedforward.
+ * Time-parameterized trajectory over a Spline. Generated once from Waypoints
+ * via generateTrajectory(); consumed by light::followTrajectory(). 10 ms
+ * sample spacing matches the RAMSETE control period.
  */
 
 namespace light {

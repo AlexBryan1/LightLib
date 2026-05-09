@@ -11,12 +11,8 @@
 
 /**
  * \file odometry.hpp
- *
  * Pose, sensor specs, and the global odometry / pose-estimation API.
- *
- * The fused estimator combines wheel-tracking deltas, one or two IMUs,
- * an optional GPS, and an optional set of distance sensors (LightCast).
- * The free functions in `namespace light` are the public entry points.
+ * Fuses wheel-tracking deltas + IMU(s) + optional GPS + optional LightCast.
  */
 
 /** Field-frame 2D pose. Theta is in degrees by default; use the `radians`
@@ -96,24 +92,17 @@ class TrackingWheel {
 };
 
 /**
- * Per-sensor mount configuration for LightCast's ray-cast sensor model.
- *
- * `offsetX` / `offsetY` is the sensor body's position in robot frame
- * (inches; center at origin). `angleRad` is the ray direction in robot
- * frame: 0 = forward (+Y), CCW positive.
- *
- * Defined in `light` (not `light::lightcast`) to keep odometry.hpp
- * independent of lightcast.hpp.
+ * Distance sensor mount for LightCast. offsetX/Y in inches, robot frame;
+ * angleRad = ray direction (0 = +Y, CCW+). In `light` (not `light::lightcast`)
+ * to keep odometry.hpp independent of lightcast.hpp.
  */
 struct DistanceSensorSpec {
   pros::Distance* sensor; ///< Backing PROS distance sensor (not owned).
   float offsetX;          ///< Mount X in robot frame, inches.
   float offsetY;          ///< Mount Y in robot frame, inches.
   float angleRad;         ///< Ray direction in robot frame, radians.
-  /// Per-sensor raycast. `nullptr` falls back to `light::field::raycast`
-  /// (the perimeter box). `lightcast::fromFace()` binds the matching face
-  /// function from `src/maps/`; raw construction (e.g. diagonal mounts)
-  /// inherits the default and stays backward-compatible.
+  /// nullptr falls back to perimeter raycast; lightcast::fromFace binds the
+  /// matching face function from src/maps/.
   float (*raycastFn)(float, float, float, float) = nullptr;
 };
 
@@ -126,20 +115,12 @@ struct OdomSensors {
   pros::Imu* imu;             ///< Primary IMU.
   pros::Imu* imu2;            ///< Optional second IMU; nullptr if not used.
 
-  /**
-   * Optional absolute-position GPS. If `gps == nullptr`, the EKF skips the
-   * GPS update step entirely and runs on wheel + IMU alone — no regression
-   * vs prior behavior.
-   */
+  /// nullptr → EKF skips the GPS update step.
   pros::Gps* gps;
-  float gpsOffsetX;  ///< GPS mount X in robot frame, meters.
-  float gpsOffsetY;  ///< GPS mount Y in robot frame, meters.
+  float gpsOffsetX;  ///< meters, robot frame
+  float gpsOffsetY;  ///< meters, robot frame
 
-  /**
-   * Optional distance sensors for LightCast. Empty vector = LightCast
-   * inactive; the system runs in EKF-only mode (still works — just no
-   * hybrid snap on divergence).
-   */
+  /// Empty → LightCast inactive; EKF-only mode.
   std::vector<DistanceSensorSpec> distanceSensors;
 
   /** Wheel + IMU only constructor. */
@@ -157,12 +138,7 @@ struct OdomSensors {
       : vertical1(v1), vertical2(v2), horizontal1(h1), horizontal2(h2), imu(imu), imu2(imu2), gps(gps), gpsOffsetX(gpsOffsetX), gpsOffsetY(gpsOffsetY), distanceSensors(std::move(distanceSensors)) {}
 };
 
-/**
- * Public LightLib odometry / pose-estimation API.
- *
- * Initialize once with init(), then poll getPose() / setPose() from any
- * task. The backing task ticks every 10 ms.
- */
+/** Initialize once via init(); poll getPose/setPose from any task. 10 ms tick. */
 namespace light {
 
 /** Reset all internal pose state to (0, 0, 0). */
@@ -181,20 +157,7 @@ void init(OdomSensors sensors, MCLConfig cfg = {});
 /** Stop the background odometry task. */
 void stop();
 
-/**
- * Drive the chassis to a field-relative point (legacy entry point).
- *
- * \param targetX
- *        target X, inches
- * \param targetY
- *        target Y, inches
- * \param timeout
- *        bail after this many ms
- * \param maxSpeed
- *        speed cap, 0..127
- * \param reversed
- *        drive backwards
- */
+/** Drive to a field-relative point (legacy). Inches; speed cap 0..127. */
 void moveToPoint(float targetX, float targetY, int timeout, float maxSpeed, bool reversed);
 
 /** \return Current fused pose. \param radians true for radians, false for degrees. */
@@ -209,22 +172,12 @@ Pose getSpeed(bool radians = false);
 /** \return Robot-frame velocities (forward / strafe / yaw). */
 Pose getLocalSpeed(bool radians = false);
 
-/**
- * Linearly extrapolate the pose `time` seconds into the future, assuming
- * current velocity holds.
- */
+/** Linear extrapolation of pose `time` seconds ahead at current velocity. */
 Pose estimatePose(float time, bool radians = false);
 
-/** Force one update step (normally called by the background task). */
+/** Force one update (normally called by the background task). */
 void update();
 
-/**
- * Radian-only pose accessor.
- *
- * RAMSETE and trajectory code MUST use this, never `getPose(false)`.
- * Double-conversion between degrees and radians is the top bug source in
- * ports of this algorithm — centralizing the one radian entry point
- * avoids it.
- */
+/** Radian-only accessor; trajectory code MUST use this to avoid deg/rad bugs. */
 inline Pose getPoseRad() { return getPose(true); }
 }  // namespace light

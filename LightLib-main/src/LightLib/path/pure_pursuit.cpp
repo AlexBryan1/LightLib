@@ -1,23 +1,9 @@
-// ─── pure_pursuit.cpp — lookahead-carrot path follower ──────────────────────
+// Lookahead-carrot follower. Shares Trajectory/RamseteConfig/DriveFF and the
+// EzPauseGuard motor-ownership pattern with ramsete.cpp; differs only in the
+// inner control law (carrot curvature vs RAMSETE pose-error correction).
 //
-// PP shares almost everything with the RAMSETE follower:
-//   * Same Waypoint / Spline / Trajectory pipeline produces the path.
-//   * Same RamseteConfig (chassis geometry) + DriveFF (per-wheel FF) gains
-//     registered via ramsete_configure().
-//   * Same EzPauseGuard motor-ownership pattern and per-wheel velocity
-//     feedforward formula.
-//   * Same telemetry shape (peak/RMS pose error, saturation %, final err).
-//
-// What differs: the inner control law. RAMSETE uses time-parameterized
-// pose-error correction; PP uses a lookahead carrot and the curvature it
-// implies.
-//
-// INVARIANTS (do not violate):
-//   * θ is radians inside this file. Convert at the boundary via
-//     light::getPoseRad().
-//   * EzPauseGuard owns the motors for the duration of the call — every
-//     exit path passes through its destructor.
-//   * Do not call any chassis.pid_* motion while PP is running.
+// Invariants: θ is radians (use getPoseRad at boundaries); EzPauseGuard owns
+// motors for the call; do not call chassis.pid_* while PP is running.
 
 #include "LightLib/path/pure_pursuit.hpp"
 
@@ -39,8 +25,7 @@
 
 namespace light {
 
-// PP-only configuration. Lives separate from g_rc / g_ff (which describe the
-// chassis and apply to both followers).
+// Separate from g_rc/g_ff (chassis-shared with RAMSETE).
 static PurePursuitConfig g_pp;
 static bool g_pp_configured = false;
 
@@ -49,10 +34,8 @@ void pure_pursuit_configure(PurePursuitConfig cfg) {
   g_pp_configured = true;
 }
 
-// Walk the trajectory forward from `startIdx`, summing chord lengths, until
-// cumulative distance >= lookaheadIn. Returns the carrot index. Sets
-// `reachedEnd` when we ran off the end before accumulating enough distance,
-// in which case the carrot is the final trajectory point.
+// Walk forward summing chord lengths until cum ≥ lookaheadIn. reachedEnd is
+// set when the carrot lands on the final trajectory point.
 static std::size_t carrotIndex(const Trajectory& traj,
                                std::size_t startIdx,
                                float lookaheadIn,
@@ -73,14 +56,12 @@ static std::size_t carrotIndex(const Trajectory& traj,
   return traj.pts.size() - 1;
 }
 
-// Locate the trajectory sample whose x,y is closest to `pose`. Search is
-// monotonic forward from `lastIdx` over a bounded window so the inner loop
-// stays O(1) amortized.
+// Monotonic forward search in a bounded window keeps the inner loop O(1).
 static std::size_t closestIndex(const Trajectory& traj,
                                 float px, float py,
                                 std::size_t lastIdx,
                                 float& outDist) {
-  constexpr std::size_t kWindow = 80;  // ~0.8 s of trajectory at 10 ms cadence
+  constexpr std::size_t kWindow = 80;  // ~0.8 s at 10 ms cadence
   std::size_t best = lastIdx;
   float bestD2 = 1e18f;
   std::size_t end = std::min(traj.pts.size(), lastIdx + kWindow);
@@ -97,8 +78,7 @@ static std::size_t closestIndex(const Trajectory& traj,
   return best;
 }
 
-// Convert each ResolvedEvent's time `t` into the trajectory-sample index
-// nearest that time. Lets the inner loop fire events by index comparison.
+// Resolve event times to sample indices so the inner loop can fire by index.
 struct PPEvent {
   std::size_t idx;
   std::function<void()> action;
@@ -110,7 +90,7 @@ static std::vector<PPEvent> bindEventsToIndex(const Trajectory& traj,
   out.reserve(events.size());
   for (auto& e : events) {
     if (!e.action) continue;
-    // Trajectory samples are 10 ms apart starting at t=0. Round to nearest.
+    // Samples are 10 ms apart from t=0.
     int idx = (int)std::lround(e.t * 100.0f);
     if (idx < 0) idx = 0;
     if ((std::size_t)idx >= traj.pts.size()) idx = (int)traj.pts.size() - 1;
@@ -125,8 +105,6 @@ bool followPurePursuitCore(const Trajectory& traj,
                            std::vector<ResolvedEvent> events,
                            int timeoutMs,
                            float poseErrBailIn) {
-  // Pre-flight checks — same shape as ramsete's, so error messages stay
-  // consistent across followers.
   if (!g_configured) {
     printf("[PP] ramsete_configure() has not been called\n");
     return false;
@@ -168,7 +146,6 @@ bool followPurePursuitCore(const Trajectory& traj,
 
   EzPauseGuard guard(chassis, left, right);
 
-  // Telemetry accumulators (same fields as RAMSETE for easy A/B comparison).
   float peakErr = 0.0f;
   float rmsNum = 0.0f;
   int rmsCnt = 0;
@@ -209,7 +186,6 @@ bool followPurePursuitCore(const Trajectory& traj,
     float closestDist = 0.0f;
     closestIdx = closestIndex(traj, pose.x, pose.y, closestIdx, closestDist);
 
-    // Fire any events whose sample index has been reached.
     while (nextEvent < ppEvents.size() && closestIdx >= ppEvents[nextEvent].idx) {
       if (ppEvents[nextEvent].action) ppEvents[nextEvent].action();
       ++nextEvent;
@@ -219,7 +195,6 @@ bool followPurePursuitCore(const Trajectory& traj,
     rmsNum += closestDist * closestDist;
     rmsCnt++;
 
-    // Sustained pose-error bail — same threshold/duration as RAMSETE.
     if (closestDist > poseErrBailIn) {
       if (!bailArmed) {
         bailArmed = true;
@@ -233,8 +208,8 @@ bool followPurePursuitCore(const Trajectory& traj,
       bailArmed = false;
     }
 
-    // Carrot lookup. Once we run off the end, we stay "atEnd" and the carrot
-    // is permanently the last point — used for the termination check.
+    // After the carrot runs off the end it stays pinned to the last point
+    // for the termination check.
     bool reachedEnd = false;
     std::size_t carrotI =
         carrotIndex(traj, closestIdx, lookahead, reachedEnd);
@@ -243,8 +218,7 @@ bool followPurePursuitCore(const Trajectory& traj,
     const TrajState& closest = traj.pts[closestIdx];
     const TrajState& carrot = traj.pts[carrotI];
 
-    // Carrot in robot frame. Same axes the RAMSETE controller uses
-    // (forward = +Y at θ=0, +e_y means target is on the CW-rotation side).
+    // Robot frame: forward = +Y at θ=0; +e_lat = right (CW-rotation side).
     float dx = carrot.x - pose.x;
     float dy = carrot.y - pose.y;
     float cosT = std::cos(pose.theta);
@@ -252,26 +226,25 @@ bool followPurePursuitCore(const Trajectory& traj,
     float e_fwd = sinT * dx + cosT * dy;
     float e_lat = cosT * dx - sinT * dy;
 
-    // Pure-pursuit curvature: κ = 2·e_lat / L². Sign matches LightLib's
-    // CW-positive heading convention because e_lat > 0 means carrot is to
-    // the right (CW direction), and ω = v·κ then drives heading CW = right.
+    // Pure-pursuit curvature: κ = 2·e_lat / L². LightLib θ is CW-positive,
+    // so when the carrot is to the right (e_lat > 0) we want κ > 0 → ω > 0,
+    // which the wheel split below turns into vL > vR → robot rotates CW (right).
     float L2 = e_fwd * e_fwd + e_lat * e_lat;
     float kappa = (L2 > 1e-6f) ? (2.0f * e_lat / L2) : 0.0f;
 
-    // Velocity from the trajectory's profile. Negative when the trajectory
-    // was generated with reversed=true; ω = v·κ flips correctly so the
-    // robot turns the right way going backward.
+    // v < 0 when reversed=true; ω = v·κ flips with it, so reversed paths
+    // turn the correct way, thank you ethanmik.
     float vTarget = closest.v;
     float aTarget = closest.a;
     float omegaTarget = vTarget * kappa;
 
-    float vL_target = vTarget - omegaTarget * W * 0.5f;
-    float vR_target = vTarget + omegaTarget * W * 0.5f;
+    float vL_target = vTarget + omegaTarget * W * 0.5f;
+    float vR_target = vTarget - omegaTarget * W * 0.5f;
 
     float vL_actual = motorRpmToInPerSec((float)left->get_actual_velocity());
     float vR_actual = motorRpmToInPerSec((float)right->get_actual_velocity());
 
-    // Wheel/odom divergence watchdog (lifted from RAMSETE).
+    // Wheel-EMA vs odom-local-speed divergence watchdog.
     {
       Pose vl = light::getLocalSpeed(true);
       float vAvgWheel = 0.5f * (wsL.vFiltered + wsR.vFiltered);
@@ -305,8 +278,6 @@ bool followPurePursuitCore(const Trajectory& traj,
     left->move_voltage((int)(vL_volts * 1000.0f));
     right->move_voltage((int)(vR_volts * 1000.0f));
 
-    // Termination — carrot has fully run off the end and we're inside the
-    // RAMSETE-equivalent close-enough envelope.
     if (atEnd) {
       float ex = traj.pts.back().x - pose.x;
       float ey = traj.pts.back().y - pose.y;

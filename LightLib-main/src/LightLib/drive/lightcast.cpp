@@ -10,10 +10,8 @@
 #include "LightLib/util/util.hpp"
 #include "pros/rtos.hpp"
 
-// LightCast particle-filter implementation. The particle array is protected by
-// a mutex so the 100 Hz predict() (called from the odom task) and the 10 Hz
-// update() (called from the lightcast task in startTask() below) can
-// interleave safely.
+// Mutex protects the particle array so 100 Hz predict() (odom task) and
+// 10 Hz update() (lightcast task) can interleave safely.
 
 namespace light::lightcast {
 namespace {
@@ -38,8 +36,8 @@ float gaussian(float sigma) {
   return sigma * d(rng_);
 }
 
-// Low-variance resampling — prefers this over random because it preserves
-// particle diversity better when a few heavy particles dominate the weight.
+// Low-variance resampling preserves diversity better than random when a few
+// heavy particles dominate the weight.
 void resample() {
   int n = (int)particles_.size();
   std::vector<Particle> out(n);
@@ -113,8 +111,7 @@ void init(const Pose& initial, const std::vector<DistanceSensorSpec>& sensors, M
 
 void predict(float dLocalX, float dLocalY, float dTheta) {
   std::lock_guard<pros::Mutex> lock(mtx_);
-  // Noise scales with motion magnitude (more motion = more uncertainty).
-  // Coefficients model: 0.05 in/in odometry slip + 0.02 in static jitter,
+  // Noise grows with motion: 0.05 in/in slip + 0.02 in static jitter,
   // 0.1 rad/rad heading drift + 0.002 rad static IMU noise.
   float motionMag = std::sqrt(dLocalX * dLocalX + dLocalY * dLocalY);
   float posNoise = 0.02f + 0.05f * motionMag;
@@ -138,23 +135,20 @@ void update() {
 
   std::lock_guard<pros::Mutex> lock(mtx_);
 
-  // Read each distance sensor once per tick (values are mm). Skip disconnected
-  // sensors (get() returns a large error code on fault).
   static std::vector<float> measured;
   measured.assign(sensors_.size(), -1.0f);
   for (size_t k = 0; k < sensors_.size(); ++k) {
     if (!sensors_[k].sensor) continue;
     int mm = sensors_[k].sensor->get();
     if (mm <= 0 || mm > 9000) continue;
-    measured[k] = mm / 25.4f;  // mm → inches
+    measured[k] = mm / 25.4f;
   }
 
   const float twoSigSq = 2.0f * cfg_.sensorSigmaIn * cfg_.sensorSigmaIn;
   int n = (int)particles_.size();
 
-  // Two-pass to enable log-sum-exp normalization. First pass accumulates
-  // log-likelihood; second pass exponentiates relative to the max so even
-  // very negative log-weights survive instead of underflowing to 0.
+  // Log-sum-exp normalization: sums log-likelihoods, then exponentiates
+  // relative to max so very negative weights don't underflow to zero.
   std::vector<float> logWeights(n, 0.0f);
   std::vector<int> contribCounts(n, 0);
   float maxLogW = -std::numeric_limits<float>::infinity();
@@ -164,23 +158,20 @@ void update() {
     int contributed = 0;
     for (size_t k = 0; k < sensors_.size(); ++k) {
       if (measured[k] < 0.0f) continue;
-      // Transform sensor mount into world frame via particle pose.
+      // Sensor mount → world frame via particle pose.
       float s = std::sin(p.theta);
       float c = std::cos(p.theta);
       float sx = p.x + sensors_[k].offsetY * s - sensors_[k].offsetX * c;
       float sy = p.y + sensors_[k].offsetY * c + sensors_[k].offsetX * s;
       float sAng = p.theta + sensors_[k].angleRad;
 
-      // Per-sensor map dispatch: fromFace() binds raycastFn to the matching
-      // light::field::raycast_<face>; raw spec construction (e.g. diagonal
-      // mounts) leaves raycastFn null and falls back to the perimeter map.
+      // raycastFn null → perimeter map fallback (raw-spec, diagonal mounts).
       auto fn = sensors_[k].raycastFn ? sensors_[k].raycastFn : &field::raycast;
       float expected = fn(sx, sy, sAng, cfg_.maxRangeIn);
 
       float residual = measured[k] - expected;
-      // Game-element outlier: a ball between sensor and wall reads short.
-      // Treat as neutral instead of penalizing — don't localize against
-      // moving objects.
+      // Negative residual past outlierGap = ball/object between sensor and
+      // wall. Treat as neutral so we don't localize against moving objects.
       if (residual < -cfg_.outlierGapIn) continue;
       logW += -(residual * residual) / twoSigSq;
       ++contributed;
@@ -190,16 +181,13 @@ void update() {
     if (contributed > 0 && logW > maxLogW) maxLogW = logW;
   }
 
-  // If no particle contributed anything, the entire tick is uninformative —
-  // reset to uniform and bail before resampling.
+  // No contributing particle = uninformative tick. Uniform-reset and bail.
   if (maxLogW == -std::numeric_limits<float>::infinity()) {
     for (int i = 0; i < n; ++i) particles_[i].w = 1.0f / n;
     return;
   }
 
-  // Second pass: exp(logW - maxLogW) so the heaviest particle gets w=1 and
-  // others get well-scaled relative weights. Mathematically identical to
-  // normalize-after-exp, but underflow-free.
+  // exp(logW − maxLogW) keeps heaviest at w=1; underflow-free relative scale.
   for (int i = 0; i < n; ++i) {
     if (contribCounts[i] == 0)
       particles_[i].w = 1.0f / n;
@@ -207,7 +195,7 @@ void update() {
       particles_[i].w = std::exp(logWeights[i] - maxLogW);
   }
 
-  // Normalize + effective sample size check for resample decision.
+  // Normalize, then resample if effective sample size drops below n/2.
   float sumW = 0.0f;
   for (int i = 0; i < n; ++i) sumW += particles_[i].w;
   if (sumW < kWeightEpsilon) {
@@ -226,7 +214,7 @@ void update() {
 
 Pose best() {
   std::lock_guard<pros::Mutex> lock(mtx_);
-  // Weighted mean; theta uses circular mean to avoid wrap discontinuity.
+  // Weighted mean; circular mean on theta dodges the wrap discontinuity.
   float sx = 0.0f, sy = 0.0f, ss = 0.0f, sc = 0.0f, wSum = 0.0f;
   for (int i = 0; i < (int)particles_.size(); ++i) {
     const Particle& p = particles_[i];
@@ -242,7 +230,7 @@ Pose best() {
 
 float convergence() {
   std::lock_guard<pros::Mutex> lock(mtx_);
-  // Position standard deviation — how tight the particle cloud is.
+  // Position stddev — how tight the cloud is.
   int n = (int)particles_.size();
   if (n == 0) return 0.0f;
   float mx = 0.0f, my = 0.0f;
@@ -286,13 +274,10 @@ uint32_t degenerateTickCount() {
   return degenerateCount_;
 }
 
-// 10 Hz LightCast update task. Spawned by light::init() after lightcast::init().
-// predict() runs inline on the 100 Hz odom task; only update() (the expensive
-// ray-cast work, ~20 ms/tick) runs on this task so it stays off odom.
+// Update is the expensive raycast work (~20 ms/tick); kept off the odom
+// task. predict() runs inline on the 100 Hz odom task.
 void startTask() {
-  // Function-static pros::Task: constructed exactly once on first call,
-  // standard C++ thread-safe init handles concurrent starts. No heap
-  // allocation, no leak path on re-entry.
+  // Function-static: thread-safe single init, no heap, no re-entry leak.
   static pros::Task lightcastTask([] {
     while (true) {
       update();

@@ -7,9 +7,7 @@
 #include "LightLib/util/util.hpp"
 #include "pros/rtos.hpp"
 
-// Tunable defaults — overridable by the user defining them before
-// #including robot_impl.inl. Match the silent-defaults style of the
-// MCL_* tuning block.
+// Define before #including robot_impl.inl to override.
 #ifndef AUX_ZUPT_DWELL_MS
 #define AUX_ZUPT_DWELL_MS         300
 #endif
@@ -48,7 +46,7 @@ using ::light::util::wrap_rad;
 
 OdomSensors odomSensors_(nullptr, nullptr, nullptr, nullptr, nullptr);
 
-// Algorithm A — IMU bias (ZUPT)
+// IMU bias (ZUPT)
 float imuBias_ = 0.0f;
 uint32_t stationarySinceMs_ = 0;
 bool inSampleWindow_ = false;
@@ -58,20 +56,20 @@ int sampleCount_ = 0;
 float prevImuRad_ = 0.0f;
 uint32_t prevTickMs_ = 0;
 
-// Algorithm B — single-wheel mode
+// Single-wheel mode
 bool singleVert_ = false;
 float singleVertOff_ = 0.0f;
 bool singleHoriz_ = false;
 float singleHorizOff_ = 0.0f;
 
-// Algorithm C — slip detection
+// Slip detection
 bool slipFlag_ = false;
 float slipAccumDeg_ = 0.0f;
 float prevImuForSlip_ = 0.0f;
 float prevV1_ = 0.0f;
 float prevV2_ = 0.0f;
 
-// Algorithm D — wall-snap diagnostic
+// Wall-snap diagnostic
 int wallSnapCount_ = 0;
 
 pros::Mutex mtx_;
@@ -79,8 +77,7 @@ pros::Mutex mtx_;
 float radToDeg(float r) { return r * 180.0f / M_PI; }
 float degToRad(float d) { return d * M_PI / 180.0f; }
 
-// Read the (averaged) IMU heading in radians, matching the convention
-// in odometry.cpp:193-201.
+// Matches the dual-IMU averaging in odometry.cpp.
 float readImuRad() {
   if (odomSensors_.imu && odomSensors_.imu2) {
     return degToRad((odomSensors_.imu->get_rotation() +
@@ -93,18 +90,15 @@ float readImuRad() {
   return 0.0f;
 }
 
-// Snap one axis of the pose without touching the others.
 void snapAxis(char axis, float value) {
-  Pose cur = light::getPose(true);  // radians, so we can write back without conversion
+  Pose cur = light::getPose(true);
   if (axis == 'x') cur.x = value;
   else if (axis == 'y') cur.y = value;
   light::setPose(cur, true);
   ++wallSnapCount_;
 }
 
-// Try the wall-snap on a single distance sensor. Returns true if it fired.
-// Angle convention follows odometry.cpp: theta=0 faces +Y, CCW positive,
-// so the unit ray vector is (sin(worldAng), cos(worldAng)).
+// θ=0 faces +Y, so unit ray vector is (sin(worldAng), cos(worldAng)).
 bool tryWallSnap(const DistanceSensorSpec& spec, const Pose& curPose) {
   if (!spec.sensor) return false;
   int mm = spec.sensor->get();
@@ -114,14 +108,11 @@ bool tryWallSnap(const DistanceSensorSpec& spec, const Pose& curPose) {
   if (measuredIn > AUX_WALLSNAP_DIST_MAX_IN) return false;
 
   float worldAng = wrap_rad(curPose.theta + spec.angleRad);
-  float rayX = std::sin(worldAng);   // X component of unit ray vector
-  float rayY = std::cos(worldAng);   // Y component
+  float rayX = std::sin(worldAng);
+  float rayY = std::cos(worldAng);
   float minCos = std::cos(AUX_WALLSNAP_HEADING_TOL);
 
-  // Sensor world position. Mirror the chord-formula rotation used in
-  // lightcast.cpp:166-167:
-  //   sx = px + offY * sin(theta) - offX * cos(theta)
-  //   sy = py + offY * cos(theta) + offX * sin(theta)
+  // Mirrors the chord-formula rotation in lightcast.cpp.
   float ct = std::cos(curPose.theta);
   float st = std::sin(curPose.theta);
   float sensorWorldX = curPose.x + spec.offsetY * st - spec.offsetX * ct;
@@ -132,12 +123,8 @@ bool tryWallSnap(const DistanceSensorSpec& spec, const Pose& curPose) {
   if (expected <= 0.0f) return false;
   if (std::fabs(measuredIn - expected) > AUX_WALLSNAP_RESID_TOL_IN) return false;
 
-  // Determine which wall the ray hits and snap the matching axis.
-  // For a ray pointing +Y (rayY ≈ +1), the hit point's Y =
-  //   sensorWorldY + measuredIn * rayY = sensorWorldY + measuredIn.
-  // That equals wallY = +FIELD_HALF, so:
-  //   curPose.y = wallY - measuredIn - (sensorWorldY - curPose.y)
-  //             = wallY - measuredIn - (offY*ct + offX*st).
+  // Snap the axis matching the wall the ray hits. For ray ≈ +Y:
+  // newY = wallY − measuredIn − (offY·ct + offX·st).
   if (rayY > minCos) {
     float wallY = light::field::FIELD_HALF;
     float newY = wallY - measuredIn - (spec.offsetY * ct + spec.offsetX * st);
@@ -171,9 +158,8 @@ void init(const OdomSensors& sensors) {
   std::lock_guard<pros::Mutex> lock(mtx_);
   odomSensors_ = sensors;
 
-  // Algorithm B — detect single-wheel modes. For vertical, only count
-  // unpowered (rotation-sensor) wheels — drivetrain fallbacks aren't
-  // mounted at offset.
+  // Vertical: only unpowered (rotation) wheels — drivetrain fallbacks
+  // aren't mounted at offset.
   bool v1up = sensors.vertical1 && !sensors.vertical1->isPowered();
   bool v2up = sensors.vertical2 && !sensors.vertical2->isPowered();
   if (v1up && !v2up) {
@@ -200,7 +186,6 @@ void init(const OdomSensors& sensors) {
     singleHorizOff_ = 0.0f;
   }
 
-  // Reset state
   imuBias_ = 0.0f;
   stationarySinceMs_ = 0;
   inSampleWindow_ = false;
@@ -221,7 +206,7 @@ void tick() {
 
   uint32_t nowMs = pros::millis();
   uint32_t dtMs = nowMs - prevTickMs_;
-  if (dtMs == 0) dtMs = 10;  // first call after init
+  if (dtMs == 0) dtMs = 10;
   prevTickMs_ = nowMs;
   float dt = dtMs / 1000.0f;
 
@@ -229,7 +214,7 @@ void tick() {
   float imuDelta = wrap_rad(imuRad - prevImuRad_);
   prevImuRad_ = imuRad;
 
-  // ── Algorithm A: ZUPT IMU bias estimation ────────────────────────────
+  // ZUPT IMU bias estimation.
   if (odomSensors_.imu) {
     Pose ls = light::getLocalSpeed(true);  // forward / strafe / omega in rad/s
     float linSpeed = std::fabs(ls.x) + std::fabs(ls.y);
@@ -249,17 +234,15 @@ void tick() {
         sampleCount_ = 0;
       }
       if (inSampleWindow_) {
-        // Accumulate raw gyro rate (uncorrected — we want to measure
-        // the bias, not the corrected reading). dt-based rate matches
-        // what odometry.cpp will subtract per tick.
+        // Raw (uncorrected) gyro rate, dt-based to match what odometry
+        // subtracts per tick.
         if (dt > 1e-6f) {
           sampleSum_ += imuDelta / dt;
           ++sampleCount_;
         }
         if (nowMs - sampleStartMs_ >= AUX_ZUPT_SAMPLE_MS && sampleCount_ > 0) {
-          // Folded into the running bias as a 50/50 blend so a single
-          // bad sample (e.g. someone bumped the robot mid-sample) can't
-          // permanently corrupt the estimate.
+          // 50/50 blend: a single bad sample (bumped robot) can't permanently
+          // corrupt the bias.
           float fresh = sampleSum_ / sampleCount_;
           imuBias_ = 0.5f * imuBias_ + 0.5f * fresh;
           inSampleWindow_ = false;
@@ -268,10 +251,8 @@ void tick() {
     }
   }
 
-  // ── Algorithm C: wheel-IMU slip detection ────────────────────────────
-  // Eligible only when both vertical slots are present (need both for
-  // arc-derived dtheta) AND at least one is powered (drivetrain). A
-  // pure unpowered-tracking-wheel config doesn't slip in the same way.
+  // Wheel-IMU slip detection: needs both verticals (for arc dtheta) and at
+  // least one powered. Pure unpowered-tracker configs don't slip this way.
   bool eligibleSlip = odomSensors_.imu && odomSensors_.vertical1 && odomSensors_.vertical2 &&
                       (odomSensors_.vertical1->isPowered() ||
                        odomSensors_.vertical2->isPowered());
@@ -287,13 +268,13 @@ void tick() {
     float off2 = odomSensors_.vertical2->getOffset();
     float denom = off1 - off2;
     if (std::fabs(denom) > 1e-3f) {
-      // Sign convention matches odometry.cpp:241-243: heading -= (dV1-dV2)/(off1-off2).
+      // Sign matches odometry.cpp: heading -= (dV1-dV2)/(off1-off2).
       float wheelDtheta = -(dV1 - dV2) / denom;
       float imuDthetaForSlip = wrap_rad(imuRad - prevImuForSlip_);
       prevImuForSlip_ = imuRad;
 
       float disagreementDeg = std::fabs(radToDeg(wheelDtheta - imuDthetaForSlip));
-      // Decay the rolling sum at ~10%/tick (≈100 ms half-life at 100 Hz).
+      // 0.9× decay = ~100 ms half-life at 100 Hz.
       slipAccumDeg_ = 0.9f * slipAccumDeg_ + disagreementDeg;
       if (!slipFlag_ && slipAccumDeg_ > AUX_SLIP_DEG_PER_100MS) slipFlag_ = true;
       else if (slipFlag_ && slipAccumDeg_ < AUX_SLIP_CLEAR_DEG) slipFlag_ = false;
@@ -306,13 +287,12 @@ void tick() {
     prevImuForSlip_ = imuRad;
   }
 
-  // ── Algorithm D: single-axis wall-snap ───────────────────────────────
+  // Single-axis wall-snap.
   if (!odomSensors_.distanceSensors.empty()) {
     Pose cur = light::getPose(true);
     for (const auto& spec : odomSensors_.distanceSensors) {
       if (tryWallSnap(spec, cur)) {
-        // Refresh `cur` after a snap — subsequent sensors should test
-        // against the new pose to avoid double-correcting.
+        // Re-read after snap so subsequent sensors don't double-correct.
         cur = light::getPose(true);
       }
     }

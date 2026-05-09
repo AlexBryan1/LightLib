@@ -1,8 +1,4 @@
-// ─── paths.cpp — named-path dispatcher ───────────────────────────────────────
-//
-// The registry itself (kAll[]) lives in include/paths/all.hpp so users only
-// touch one file when adding a new path. This file just looks the name up
-// and hands the CSV off to the RAMSETE follower via runJerryioPath.
+// Named-path dispatcher. Registry kAll[] lives in include/paths/all.hpp.
 
 #include "LightLib/path/paths.hpp"
 

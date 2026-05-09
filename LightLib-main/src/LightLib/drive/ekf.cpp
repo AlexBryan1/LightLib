@@ -7,12 +7,10 @@
 #include "LightLib/util/util.hpp"
 #include "pros/rtos.hpp"
 
-// Pragmatic 6-state EKF for V5. Mean is advanced by the arc integration the
-// odom task already does (same math the non-fused pose used). Covariance uses
-// a diagonal additive process-noise model — not textbook Jacobian propagation,
-// but cheap, stable, and good enough to drive the divergence detector + to
-// weight measurements via Kalman gain. Three specialized update paths avoid
-// dragging in a general-purpose 6x6 linear algebra routine.
+// 6-state EKF. Mean uses the same arc integration as the non-fused odom;
+// covariance uses a diagonal additive process-noise model (not textbook
+// Jacobian) — cheap, stable, drives the divergence detector. Specialized
+// update paths avoid pulling in a general 6×6 linalg routine.
 
 namespace light::ekf {
 namespace {
@@ -39,8 +37,8 @@ void init(const Pose& p, MCLConfig cfg) {
   x_[2] = p.theta;
   x_[3] = x_[4] = x_[5] = 0.0f;
   zeroP();
-  P_[0][0] = P_[1][1] = 0.25f;  // ±0.5 in initial position uncertainty
-  P_[2][2] = 0.001f;            // ~1.8° initial heading uncertainty
+  P_[0][0] = P_[1][1] = 0.25f;  // ±0.5 in
+  P_[2][2] = 0.001f;            // ~1.8°
   P_[3][3] = P_[4][4] = 0.25f;
   P_[5][5] = 0.001f;
 }
@@ -50,8 +48,8 @@ void reset(const Pose& p) {
   x_[0] = p.x;
   x_[1] = p.y;
   x_[2] = p.theta;
-  // Don't touch velocities — smoothness across the snap.
-  // Wipe position/heading cross-covariance to reflect the fresh belief.
+  // Velocities preserved for smoothness across the snap; position/heading
+  // cross-covariance wiped to reflect the fresh belief.
   for (int k = 0; k < 3; ++k) {
     for (int j = 0; j < 6; ++j) {
       P_[k][j] = 0.0f;
@@ -108,32 +106,23 @@ static void scalarUpdate(int idx, float innovation, float variance) {
 
   for (int i = 0; i < 6; ++i) x_[i] += K[i] * innovation;
 
-  // Joseph form:   P_new[i][m] = T[i][m] - K[m]*T[i][idx] + variance*K[i]*K[m]
-  // where T[i][k] = P[i][k] - K[i]*P[idx][k] = ((I - K H) P)[i][k].
-  //
-  // Joseph stays well-conditioned even if K is non-optimal (gain truncation,
-  // scheduling, stale K) — keep it so future K changes don't break the
-  // covariance update silently.
-  //
-  // Done in-place to avoid a 36-float temporary on the stack: we only need
-  // the original idx column of T, so compute T column-idx into a 6-vector,
-  // then walk the matrix updating each (i, m) cell using P[i][m]'s current
+  // Joseph form: P_new[i][m] = T[i][m] − K[m]·T[i][idx] + var·K[i]·K[m],
+  // T[i][k] = P[i][k] − K[i]·P[idx][k]. Stays conditioned under non-optimal K.
+  // In-place: we only need the original idx column of T, so compute that 6-vec
+  // first, then walk the matrix using P[i][m]'s current value.
   // value (= T[i][m]) plus the Joseph correction terms.
 
-  // First overwrite P with T = (I - K H) P. Save row idx since the
-  // multiplier P[idx][k] is read across all i.
+  // P ← T = (I − K H) P. Save row idx since P[idx][k] is read across all i.
   float P_idx_row[6];
   for (int k = 0; k < 6; ++k) P_idx_row[k] = P_[idx][k];
   for (int i = 0; i < 6; ++i)
     for (int k = 0; k < 6; ++k)
       P_[i][k] -= K[i] * P_idx_row[k];
 
-  // P now holds T. Capture T[:, idx] before the next loop modifies it.
+  // Capture T[:, idx] before the next loop modifies it.
   float T_col_idx[6];
   for (int i = 0; i < 6; ++i) T_col_idx[i] = P_[i][idx];
 
-  // Apply the remaining Joseph terms: P[i][m] -= K[m]*T[i][idx];
-  //                                    P[i][m] += variance*K[i]*K[m].
   for (int i = 0; i < 6; ++i)
     for (int m = 0; m < 6; ++m)
       P_[i][m] += variance * K[i] * K[m] - K[m] * T_col_idx[i];
@@ -148,7 +137,7 @@ static void updateHeadingIMU_locked(float thetaRad, float variance) {
 }
 
 static void updateGPS_locked(float gx, float gy, float variance) {
-  // H selects state[0], state[1]. S is 2x2 = [[P00+R, P01],[P10, P11+R]].
+  // H selects state[0], state[1]; S is 2×2.
   float innov[2] = {gx - x_[0], gy - x_[1]};
   float S00 = P_[0][0] + variance;
   float S01 = P_[0][1];
@@ -161,7 +150,7 @@ static void updateGPS_locked(float gx, float gy, float variance) {
   float invS10 = -S10 / det;
   float invS11 = S00 / det;
 
-  // K = P * H^T * S^-1; H^T picks columns 0,1 of P.
+  // K = P · Hᵀ · S⁻¹; Hᵀ picks columns 0,1 of P.
   float K[6][2];
   for (int i = 0; i < 6; ++i) {
     float c0 = P_[i][0];

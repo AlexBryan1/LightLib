@@ -1,16 +1,9 @@
-// ─── ramsete.cpp — RAMSETE path-following control loop ──────────────────────
-//
-// This subsystem commands `move_voltage` (battery-compensated) on the drive
-// motor groups, taking exclusive ownership for the duration of a trajectory.
-//
-// INVARIANTS (do not violate):
-//   * θ is radians everywhere inside this file. Convert once at the boundary
-//     via light::getPoseRad(). `fmod` and `fmodf` are banned — use wrap_rad().
-//   * EZ-Template drive ownership is handed to us by EzPauseGuard on entry,
-//     and released unconditionally by the guard's destructor — every exit
-//     path (success, timeout, bailout, exception) must pass through it.
-//   * RAMSETE owns the motors exclusively. Do not call any chassis.pid_*
-//     motion while a trajectory is running.
+// Invariants:
+//   * θ is radians inside this file; convert at boundaries via getPoseRad().
+//     fmod/fmodf are banned — use wrap_rad().
+//   * EzPauseGuard owns the motors for the duration of the call; every exit
+//     path (success/timeout/bail/exception) must pass through its destructor.
+//   * Do not call chassis.pid_* while a trajectory is running.
 
 #include "LightLib/path/ramsete.hpp"
 
@@ -34,28 +27,22 @@
 
 namespace light {
 
-// ── Shared follower configuration (declared in path_runtime_internal.hpp) ───
 RamseteConfig g_rc;
 DriveFF g_ff;
 TrajConstraints g_defaultCons;
 bool g_configured = false;
 float g_charVoltage_mV = 12000.0f;  // assume fresh cell until characterized
 
-// Precomputed motor-rpm → wheel-in/s scalar. Refreshed in ramsete_configure()
-// because all three inputs (gear ratio, wheel diameter, 60 s/min) are constant
-// after configuration. Avoids re-multiplying these in the 100 Hz inner loop.
+// Cached so the 100 Hz inner loop doesn't re-multiply gearRatio·π·diam/60.
 float s_rpmToInPerSec = 0.0f;
 
-// Guard against generating a new trajectory while one is being followed —
-// on-brain trajectory generation takes 1–2 ms, long enough to stall a 100 Hz
-// control loop. Also prevents either follower from re-entering itself or
-// the other follower while one is already running.
+// Trajectory generation takes 1–2 ms, enough to stall the 100 Hz loop;
+// also blocks the two followers from re-entering each other.
 std::atomic<bool> g_genLocked{false};
 
-// ── Small math helpers ──────────────────────────────────────────────────────
 using ::light::util::wrap_rad;
 
-// Taylor-guarded sinc: sin(x)/x with series when |x| < 1e-4.
+// Taylor series for |x| < 1e-4 to avoid 0/0 in sin(x)/x.
 static inline float sincGuarded(float x) {
   if (std::fabs(x) < 1e-4f) {
     float x2 = x * x;
@@ -64,19 +51,13 @@ static inline float sincGuarded(float x) {
   return std::sin(x) / x;
 }
 
-// Convert wheel angular velocity (rpm at the motor) to linear speed in/s.
-// vLinear = motorRPM * gearRatio * π * wheelDiam / 60
-// The product is cached in s_rpmToInPerSec by ramsete_configure().
 float motorRpmToInPerSec(float rpm) {
   return rpm * s_rpmToInPerSec;
 }
 
-// ── EZ pause/resume RAII guard ──────────────────────────────────────────────
-//
-// On construction: save EZ drive state, then force the drive task to write
-// nothing and park it in DISABLE. On destruction: zero voltage, leave EZ
-// DISABLED — the next EZ motion call re-arms cleanly. We never try to
-// "restore" the previous mode because mid-motion state is stale.
+// Park EZ in DISABLE on entry; zero voltage and leave EZ disabled on exit.
+// We don't restore the prior mode because mid-motion state is stale; the
+// next EZ motion call re-arms cleanly.
 EzPauseGuard::EzPauseGuard(light::Drive* c, pros::MotorGroup* l, pros::MotorGroup* r)
     : chassis(c), left(l), right(r) {
   if (chassis) {
@@ -88,7 +69,7 @@ EzPauseGuard::EzPauseGuard(light::Drive* c, pros::MotorGroup* l, pros::MotorGrou
 EzPauseGuard::~EzPauseGuard() {
   if (left) left->move_voltage(0);
   if (right) right->move_voltage(0);
-  pros::delay(20);  // let zero-command actually land before releasing
+  pros::delay(20);  // let zero-command land before releasing
 }
 
 void ramsete_configure(RamseteConfig rc, DriveFF ff, TrajConstraints defaultCons) {
@@ -101,9 +82,8 @@ void ramsete_configure(RamseteConfig rc, DriveFF ff, TrajConstraints defaultCons
   s_rpmToInPerSec = g_rc.gearRatio * (float)M_PI * g_rc.wheelDiamIn / 60.0f;
 }
 
-// α = 0.4 gives ~25 ms effective window at 10 ms control period — enough to
-// smooth the 1 RPM quantization of get_actual_velocity() without adding
-// meaningful phase lag to the velocity P term.
+// α = 0.4 → ~25 ms effective window at 10 ms cadence; smooths the 1 RPM
+// quantization of get_actual_velocity() without meaningful phase lag.
 static constexpr float WHEEL_EMA_ALPHA = 0.4f;
 
 float wheelVoltageCmd(float vTarget, float aTarget,
@@ -126,8 +106,7 @@ float wheelVoltageCmd(float vTarget, float aTarget,
   return std::clamp(V, -12.0f, 12.0f);
 }
 
-// Scale both sides together when one would saturate — preserves the commanded
-// steering ratio, same trick as light::moveToPoint. Returns true if clipped.
+// Proportional rescale preserves steering ratio when a side saturates.
 bool balanceSaturation(float& vL, float& vR, float limit) {
   float m = std::max(std::fabs(vL), std::fabs(vR));
   if (m > limit) {
@@ -138,14 +117,7 @@ bool balanceSaturation(float& vL, float& vR, float limit) {
   return false;
 }
 
-// ── Event resolution ────────────────────────────────────────────────────────
-// Mid-path events are supplied by the caller as (waypointIndex, action) and
-// resolved to (time, action) once before the control loop starts. The loop
-// then only does O(1) time comparisons per tick.
-
-// Find the sample time of the traj.pts entry closest in (x,y) to wps[idx].
-// Linear scan — O(N) per event; N ≈ 1500 samples for a 100-point path. Runs
-// at trajectory-gen time, not inside the control loop.
+// O(N) scan, runs at trajectory-gen time (N ≈ 1500 samples / 100 wpts).
 float waypointTime(const std::vector<Waypoint>& wps,
                    int idx, const Trajectory& traj) {
   float bestD2 = 1e18f;
@@ -168,7 +140,6 @@ bool followTrajectoryCore(const Trajectory& traj,
                           std::vector<ResolvedEvent> events,
                           int timeoutMs,
                           float poseErrBailIn) {
-  // Pre-flight checks — fail loudly, don't silently run on bad inputs.
   if (!g_configured) {
     printf("[RAMSETE] ramsete_configure() has not been called\n");
     return false;
@@ -193,7 +164,7 @@ bool followTrajectoryCore(const Trajectory& traj,
     return false;
   }
 
-  // Initial pose sanity — huge e_x at t=0 causes a dangerous lurch.
+  // Huge e_x at t=0 causes a dangerous lurch — refuse to start.
   {
     Pose p0 = light::getPoseRad();
     float dx = traj.pts.front().x - p0.x;
@@ -207,18 +178,16 @@ bool followTrajectoryCore(const Trajectory& traj,
 
   EzPauseGuard guard(chassis, left, right);
 
-  // Telemetry accumulators.
   float peakErr = 0.0f;
   float rmsNum = 0.0f;
   int rmsCnt = 0;
   int satTicks = 0;
   int totTicks = 0;
 
-  // Sustained-error watchdog.
   uint32_t bailStart = 0;
   bool bailArmed = false;
 
-  // Divergence watchdog (wheel EMA vs odom local speed).
+  // wheel-EMA vs odom-local-speed divergence watchdog
   uint32_t divergeStart = 0;
   bool divergeArmed = false;
 
@@ -236,8 +205,7 @@ bool followTrajectoryCore(const Trajectory& traj,
   const float b = g_rc.b;
   const float zeta = g_rc.zeta;
 
-  // Sort events by firing time so the per-tick check only needs to peek at
-  // the head. Cursor advances monotonically.
+  // Sorted so the per-tick check only peeks at the head; cursor monotonic.
   std::sort(events.begin(), events.end(),
             [](const ResolvedEvent& a, const ResolvedEvent& b) { return a.t < b.t; });
   std::size_t nextEvent = 0;
@@ -249,8 +217,7 @@ bool followTrajectoryCore(const Trajectory& traj,
 
     if (elapsed > hardTimeoutMs) break;
 
-    // Fire any events whose sampled time has arrived. Callbacks run on
-    // the control thread — a slow callback will delay the next tick.
+    // Callbacks run on the control thread — a slow callback delays the next tick.
     while (nextEvent < events.size() && tRel >= events[nextEvent].t) {
       if (events[nextEvent].action) events[nextEvent].action();
       ++nextEvent;
@@ -260,21 +227,16 @@ bool followTrajectoryCore(const Trajectory& traj,
 
     Pose pose = light::getPoseRad();
 
-    // Pose error in the robot's current frame.
-    // LightLib θ: 0 faces +Y, CW-positive. Rotate world (dx, dy) into robot
-    // frame (e_x forward, e_y left) with standard 2-D rotation, adjusted so
-    // that "forward" is along +Y.
+    // LightLib θ: 0 faces +Y, CW-positive. Forward = (sinθ, cosθ); left = (cosθ, −sinθ).
     float dx = s.x - pose.x;
     float dy = s.y - pose.y;
     float cosT = std::cos(pose.theta);
     float sinT = std::sin(pose.theta);
-    // forward = along (sin θ, cos θ); left  = along (cos θ, -sin θ)
     float e_x = sinT * dx + cosT * dy;
     float e_y = cosT * dx - sinT * dy;
     float e_th = wrap_rad(s.theta - pose.theta);
 
-    // 0.3" deadband on position error — kills sub-inch odom noise that
-    // otherwise thrashes the commanded velocity on long straights.
+    // 0.3" deadband kills sub-inch odom noise that thrashes v_cmd on straights.
     if (std::fabs(e_x) < 0.3f) e_x = 0.0f;
     if (std::fabs(e_y) < 0.3f) e_y = 0.0f;
 
@@ -283,7 +245,7 @@ bool followTrajectoryCore(const Trajectory& traj,
     rmsNum += posErr * posErr;
     rmsCnt++;
 
-    // Sustained-error bailout: >threshold for >150 ms → we've lost the path.
+    // Sustained pose-error bail: above threshold for >150 ms = lost the path.
     if (posErr > poseErrBailIn) {
       if (!bailArmed) {
         bailArmed = true;
@@ -297,7 +259,7 @@ bool followTrajectoryCore(const Trajectory& traj,
       bailArmed = false;
     }
 
-    // RAMSETE control law (see Corke / Bradski RAMSETE derivation).
+    // RAMSETE control law (Corke / Bradski).
     float vr = s.v;
     float wr = s.omega;
     float k = 2.0f * zeta * std::sqrt(wr * wr + b * vr * vr);
@@ -306,19 +268,19 @@ bool followTrajectoryCore(const Trajectory& traj,
     float w_cmd = wr + b * vr * sinc_e * e_y + k * e_th;
 
     // Tank kinematics — split (v, ω) into per-wheel linear speed.
-    float vL_target = v_cmd - w_cmd * W * 0.5f;
-    float vR_target = v_cmd + w_cmd * W * 0.5f;
+    // LightLib θ is CW-positive, so positive ω turns CW (right): left wheel
+    // speeds up, right wheel slows down.
+    float vL_target = v_cmd + w_cmd * W * 0.5f;
+    float vR_target = v_cmd - w_cmd * W * 0.5f;
 
-    // Per-wheel actual velocity from the motors.
     float vL_actual = motorRpmToInPerSec((float)left->get_actual_velocity());
     float vR_actual = motorRpmToInPerSec((float)right->get_actual_velocity());
 
-    // Divergence check — EMA disagreeing with odom longitudinal speed for
-    // >200 ms means we've lost a tracking wheel or a motor cable.
+    // Wheel-EMA vs odom mismatch >200 ms = lost tracking wheel or motor cable.
     {
-      Pose vl = light::getLocalSpeed(true);  // radians variant — theta unused
+      Pose vl = light::getLocalSpeed(true);
       float vAvgWheel = 0.5f * (wsL.vFiltered + wsR.vFiltered);
-      float vAvgOdom = vl.y;  // +Y-forward local speed
+      float vAvgOdom = vl.y;
       float vCmd = std::fabs(s.v);
       float divThresh = std::max(4.0f, 0.25f * vCmd);
       if (std::fabs(vAvgWheel - vAvgOdom) > divThresh) {
@@ -335,14 +297,13 @@ bool followTrajectoryCore(const Trajectory& traj,
       }
     }
 
-    // Battery scaling on kV/kA — clamp so a critically low cell can't
-    // command unsafely large voltages.
+    // Clamp battery scaling so a critically low cell can't command unsafely
+    // large voltages.
     float batt_mV = (float)pros::battery::get_voltage();
     float battScale = g_charVoltage_mV / std::max(batt_mV, 1.0f);
     battScale = std::clamp(battScale, 0.85f, 1.00f);
 
-    // Acceleration is the same for both wheels on a diff-drive at first
-    // order — the ω̇ contribution is 2nd-order small for the cadence here.
+    // ω̇ contribution to per-wheel accel is 2nd-order small at this cadence.
     float aL = s.a, aR = s.a;
 
     float vL_volts = wheelVoltageCmd(vL_target, aL, vL_actual, wsL, battScale);
@@ -354,19 +315,15 @@ bool followTrajectoryCore(const Trajectory& traj,
     left->move_voltage((int)(vL_volts * 1000.0f));
     right->move_voltage((int)(vR_volts * 1000.0f));
 
-    // Success condition: trajectory has played out AND we're close.
     if (tRel >= traj.duration && posErr < std::min(1.5f, poseErrBailIn * 0.5f)) {
       success = true;
       break;
     }
 
-    // Control-rate pacing.
     next += 10;
     uint32_t wait = (next > pros::millis()) ? (next - pros::millis()) : 0;
     pros::delay(wait == 0 ? 1 : wait);
   }
-
-  // EzPauseGuard dtor zeros both motors and delays 20 ms before returning.
 
   float rms = (rmsCnt > 0) ? std::sqrt(rmsNum / rmsCnt) : 0.0f;
   float satPct = (totTicks > 0) ? (100.0f * satTicks / totTicks) : 0.0f;
@@ -381,8 +338,6 @@ bool followTrajectoryCore(const Trajectory& traj,
   return success;
 }
 
-// Single dispatch point — both follower entry points funnel here so the
-// branch on `Follower` lives in exactly one place.
 static bool dispatchFollower(const Trajectory& traj,
                              std::vector<ResolvedEvent> events,
                              int timeoutMs,
@@ -401,8 +356,6 @@ bool followTrajectory(const Trajectory& traj,
   return dispatchFollower(traj, {}, timeoutMs, poseErrBailIn, follower);
 }
 
-// Shared body for the wps-overloads: generate the trajectory, resolve events
-// to sample times, then hand off to whichever follower the caller picked.
 static bool followTrajectoryWithEvents(const std::vector<Waypoint>& wps,
                                        const TrajConstraints& cons,
                                        std::vector<PathEvent> events,
@@ -486,27 +439,11 @@ bool followTrajectory(const std::vector<Waypoint>& wps,
                           reversed, timeoutMs, poseErrBailIn, follower);
 }
 
-// ── Jerryio CSV loader ──────────────────────────────────────────────────────
-//
-// Parses a waypoint CSV and runs it through followTrajectory using the
-// defaults from ramsete_configure(). Two formats are auto-detected:
-//
-//   1. Simple waypoint list: "x, y" or "x, y, heading_rad" per line.
-//      Path is treated as already relative to the robot's start pose.
-//
-//   2. Jerryio densified export (begins with "#PATH-POINTS-START"):
-//      "x, y, speed[, heading_deg]" per line. Speed/heading columns are
-//      ignored — the dense x,y points fully define the curve, and the
-//      trajectory generator computes its own velocity profile. The path is
-//      translated so its first point lands at the robot's current pose
-//      (VGPS-style absolute coords wouldn't match LightLib's relative frame).
-//
-// Blank lines and '#'-comments are skipped. A UTF-8 BOM at the start is
-// tolerated.
-// Parses the CSV into waypoints + anchor indices (indices into wps that
-// represent "key" points — heading-bearing lines for a Jerryio densified
-// export, or all lines for a sparse hand-written CSV). Returns false on
-// any parse-level failure (null input, <2 waypoints).
+// Auto-detects two formats: sparse "x,y[,heading_rad]" or Jerryio densified
+// (header "#PATH-POINTS-START", "x,y,speed[,heading_deg]"). Speed/heading
+// cols are ignored on densified paths — dense x,y defines the curve and the
+// trajectory generator computes its own profile. Densified paths are
+// translated to start at (0,0) in the robot frame. UTF-8 BOM tolerated.
 static bool parseJerryio(const char* csv,
                          std::vector<Waypoint>& wps,
                          std::vector<int>& anchorIdx,
@@ -518,20 +455,15 @@ static bool parseJerryio(const char* csv,
 
   const char* p = csv;
 
-  // UTF-8 BOM sometimes prepended by browser-side exporters.
   if ((unsigned char)p[0] == 0xEF &&
       (unsigned char)p[1] == 0xBB &&
       (unsigned char)p[2] == 0xBF) {
     p += 3;
   }
 
-  // Jerryio's dense-sampled export begins with this marker. When present,
-  // column 3 is speed (not heading in radians), so we parse x, y, speed,
-  // heading_deg but only use x, y for the waypoint. Heading column presence
-  // flags the point as an anchor (a Jerryio end-point / user click).
   densified = (std::strstr(p, "#PATH-POINTS-START") != nullptr);
   const int maxCols = densified ? 4 : 3;
-  const int headingCol = densified ? 3 : 2;  // 0-based
+  const int headingCol = densified ? 3 : 2;
 
   wps.clear();
   anchorIdx.clear();
@@ -572,13 +504,9 @@ static bool parseJerryio(const char* csv,
     w.y = vals[1];
     bool hasHeading = (n > headingCol);
     if (hasHeading && !densified) {
-      // Sparse CSV: column 3 is heading in radians (LightLib convention).
-      // Waypoint.headingDeg stores degrees, so convert at the boundary.
+      // Sparse CSV column-3 is heading in radians; Waypoint stores degrees.
       w.headingDeg = vals[headingCol] * 180.0f / (float)M_PI;
     }
-    // For densified paths the column-4 heading is in degrees in Jerryio's
-    // own frame — we don't pin headings on densified paths (the spline
-    // chord tangent is what the trajectory generator uses anyway).
     int idx = (int)wps.size();
     wps.push_back(w);
     if (hasHeading) anchorIdx.push_back(idx);
@@ -589,16 +517,13 @@ static bool parseJerryio(const char* csv,
     return false;
   }
 
-  // Fallback for CSVs that never set a heading: every line is an anchor.
   if (anchorIdx.empty()) {
     anchorIdx.reserve(wps.size());
     for (int i = 0; i < (int)wps.size(); ++i) anchorIdx.push_back(i);
   }
 
   if (densified) {
-    // Subtract first point from every waypoint so path starts at (0, 0)
-    // in the robot's frame. Call resetPose yourself beforehand if your
-    // odometry is already aligned to Jerryio's field origin.
+    // Translate path to robot-frame origin; reset pose first if already aligned to Jerryio field.
     float x0 = wps[0].x, y0 = wps[0].y;
     for (auto& w : wps) {
       w.x -= x0;
@@ -609,9 +534,6 @@ static bool parseJerryio(const char* csv,
   return true;
 }
 
-// Remap PathEvent.atWaypoint from "anchor index" (user-facing) to the raw
-// index into the waypoint list that followTrajectory expects. Out-of-range
-// entries are dropped with a warning.
 static std::vector<PathEvent> remapAnchorEvents(std::vector<PathEvent> events,
                                                 const std::vector<int>& anchorIdx) {
   std::vector<PathEvent> out;
@@ -656,8 +578,6 @@ bool runJerryioPath(const char* csv,
                           reversed, timeoutMs, poseErrBailIn, follower);
 }
 
-// Reads the SD file into `buf` (size BUF_SIZE). Returns false on any failure
-// (null path, open fail, overflow).
 static bool readSDFile(const char* filePath, char* buf, std::size_t bufSize) {
   if (!filePath) {
     printf("[JERRYIO] null file path\n");
@@ -707,10 +627,8 @@ bool runJerryioPathFromSD(const char* filePath,
                         reversed, timeoutMs, poseErrBailIn, follower);
 }
 
-// ── Characterization routines — thin wrappers kept here so they share the
-//    battery, motor-group, and EzPauseGuard infrastructure. Each one is
-//    intended to be the body of its own selectable auton. Values are
-//    printf'd — user transcribes into ramsete_configure() in default_constants.
+// Characterization routines: each one is the body of its own selectable auton.
+// Values are printf'd; user transcribes into ramsete_configure().
 
 static void driveAllVolts(pros::MotorGroup* L, pros::MotorGroup* R, float volts) {
   L->move_voltage((int)(volts * 1000.0f));
@@ -729,7 +647,7 @@ void characterize_kV_kA_kS(float maxVoltage, float rampVps) {
 
   EzPauseGuard guard(chassis, L, R);
 
-  // Phase 1 — kS: slow 0.05 V / 200 ms ramp until either side moves.
+  // kS: slow 0.05 V / 200 ms ramp until a side moves.
   float v = 0.0f;
   float kS = 0.0f;
   while (v < 4.0f) {
@@ -747,7 +665,7 @@ void characterize_kV_kA_kS(float maxVoltage, float rampVps) {
   driveAllVolts(L, R, 0);
   pros::delay(500);
 
-  // Phase 2 — kV: quasi-static ramp, regress v_actual vs (V - kS).
+  // kV: quasi-static ramp, regress v_actual vs (V - kS).
   float sumVV = 0, sumVv = 0, sumv2 = 0;
   int samples = 0;
   float vApplied = kS;
@@ -772,7 +690,7 @@ void characterize_kV_kA_kS(float maxVoltage, float rampVps) {
   driveAllVolts(L, R, 0);
   pros::delay(500);
 
-  // Phase 3 — kA: step 0 → 8 V, capture accel in first 300 ms.
+  // kA: step 0 → 8 V, capture accel in first 300 ms.
   driveAllVolts(L, R, 8.0f);
   uint32_t tStep = pros::millis();
   float vPrev = 0.0f;
@@ -787,8 +705,7 @@ void characterize_kV_kA_kS(float maxVoltage, float rampVps) {
     vPrev = vel;
   }
   driveAllVolts(L, R, 0);
-  // Estimate kA using final measurements. We don't know vel at t=0 exactly,
-  // but during the initial step vel << steady-state, so kA ≈ (8 - kS)/aMax.
+  // During the initial step vel ≪ steady-state, so kA ≈ (8 - kS)/aMax.
   float kA = aMax > 1.0f ? (8.0f - kS) / aMax : 0.0f;
   printf("[CHAR] kA ≈ %.4f V/(in/s^2) (peak a = %.1f in/s^2)\n", kA, aMax);
 
@@ -822,8 +739,6 @@ float characterize_track_width(int rotations) {
   Pose start = light::getPoseRad();
   (void)start;
 
-  // Spin in place at low voltage for long enough to integrate the encoder
-  // readings. The user watches the robot and the terminal.
   driveAllVolts(L, R, 0);
   L->move_voltage(3000);
   R->move_voltage(-3000);
@@ -857,9 +772,9 @@ float characterize_track_width(int rotations) {
   return W;
 }
 
+// Constant-radius circle; ramp v until odom radius deviates >15%.
+// Conservative aLatMax = 0.7 · v²/R.
 float characterize_a_lat_max() {
-  // Commanded constant-radius circle; ramp v until odom radius deviates
-  // more than 15%. Conservative aLatMax = 0.7 · v²/R.
   light::Drive* chassis = light::getChassis();
   pros::MotorGroup* L = nullptr;
   pros::MotorGroup* R = nullptr;
@@ -875,18 +790,16 @@ float characterize_a_lat_max() {
   float v = 12.0f;
   float aLatSafe = 0.0f;
   while (v < 60.0f) {
-    // vL/vR for circle of radius R_target: ratio = (R - W/2)/(R + W/2)
+    // Wheel-speed ratio for radius R_target.
     float W = g_rc.trackWidthIn;
     float vL = v * (R_target - W * 0.5f) / R_target;
     float vR = v * (R_target + W * 0.5f) / R_target;
 
-    // crude volts-from-speed — use kV feedforward only
     float Vl = g_ff.kS + g_ff.kV * vL;
     float Vr = g_ff.kS + g_ff.kV * vR;
     L->move_voltage((int)(std::clamp(Vl, -12.0f, 12.0f) * 1000));
     R->move_voltage((int)(std::clamp(Vr, -12.0f, 12.0f) * 1000));
 
-    // Let it settle, then measure odom radius over 500 ms.
     pros::delay(500);
     Pose p0 = light::getPoseRad();
     pros::delay(500);
@@ -912,16 +825,10 @@ float characterize_a_lat_max() {
   return aLatSafe;
 }
 
-// ── Friction-feedforward characterization ──────────────────────────────────
-//
-// Open-loop voltage sweep, fits the per-side steady-state model
-//     V = kS·sgn(v) + kV·v + kQ·v·|v|
-// with V and v both in motor-cmd units (-127..127). Coefficients are fed
-// to chassis.friction_constants_set() and (when an SD card is present)
-// raw samples are dumped to /usd/friction_id.csv.
-//
-// This is the FF for the non-trajectory PID controllers (drive/turn/swing/xy).
-// RAMSETE has its own per-wheel FF and is not affected.
+// Open-loop voltage sweep fits V = kS·sgn(v) + kV·v + kQ·v·|v| in motor-cmd
+// units (−127..127). Feeds chassis.friction_constants_set() (the FF for the
+// non-trajectory PIDs; RAMSETE has its own per-wheel FF). Raw samples dumped
+// to /usd/friction_id.csv when SD present.
 void characterize_friction(float maxVoltage, float stepV) {
   light::Drive* chassis = light::getChassis();
   pros::MotorGroup* L = nullptr;
@@ -946,17 +853,15 @@ void characterize_friction(float maxVoltage, float stepV) {
     if (f) fputs("v_cmd_applied,v_cmd_velocity\n", f);
   }
 
-  std::vector<double> v_arr;       // measured velocity in motor-cmd units
-  std::vector<double> Vapp_arr;    // applied motor-cmd-unit voltage
+  std::vector<double> v_arr;       // measured velocity, motor-cmd units
+  std::vector<double> Vapp_arr;    // applied voltage, motor-cmd units
   v_arr.reserve(64);
   Vapp_arr.reserve(64);
 
-  // Quasi-static ramp. Hold each step long enough for steady state, then
-  // average velocity over a short window. Skip samples below a noise floor
-  // (encoder quantization dominates the reading there).
+  // Quasi-static ramp; skip samples below noise floor (encoder quantization).
   for (float vApplied = 0.0f; vApplied <= maxVoltage + 1e-3f; vApplied += stepV) {
     driveAllVolts(L, R, vApplied);
-    pros::delay(800);  // settle
+    pros::delay(800);
 
     double sumRpm = 0.0;
     int n = 0;
@@ -974,7 +879,7 @@ void characterize_friction(float maxVoltage, float stepV) {
 
     if (f) fprintf(f, "%.3f,%.3f\n", Vapp_cmd, v_cmd_velocity);
 
-    if (v_cmd_velocity > 2.0) {  // noise floor — encoder quantization
+    if (v_cmd_velocity > 2.0) {  // encoder-quantization noise floor
       v_arr.push_back(v_cmd_velocity);
       Vapp_arr.push_back(Vapp_cmd);
     }
@@ -991,15 +896,14 @@ void characterize_friction(float maxVoltage, float stepV) {
     return;
   }
 
-  // Solve normal equations for [kS, kV, kQ] given basis [sgn(v), v, v·|v|].
-  // All v > 0 here, so sgn(v) = 1 — the system is conditioned on the kV/kQ
-  // separation being driven by the curvature of the data.
+  // Normal equations for [kS, kV, kQ]. All v > 0, so sgn(v) = 1; kV/kQ
+  // separation comes from curvature of the data.
   double M[3][3] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
   double bvec[3] = {0, 0, 0};
   for (size_t i = 0; i < N; ++i) {
     double v = v_arr[i];
-    double s = 1.0;       // forward sweep, sgn(v) = 1
-    double vv = v * v;    // v·|v| with v > 0
+    double s = 1.0;
+    double vv = v * v;
     double Va = Vapp_arr[i];
     double basis[3] = {s, v, vv};
     for (int r = 0; r < 3; ++r) {
@@ -1044,14 +948,9 @@ void characterize_friction(float maxVoltage, float stepV) {
   }
 }
 
-// ── Relay-feedback PID auto-tune ────────────────────────────────────────────
-//
-// Generic bang-bang oscillator. `readError` returns a signed error in whatever
-// unit the PID sees (degrees, inches, etc.). `applyRelay(sign)` drives the
-// actuator at ±h · sign. Runs at 10 ms ticks until `cycles` zero-crossings
-// are collected or `timeoutMs` elapses. Ku and Pu come from Åström's formula:
-//   Ku = 4h / (π·a),  Pu = mean period between matched zero-crossings.
-
+// Bang-bang oscillator. readError returns a signed error in PID units;
+// applyRelay drives ±h·sign. Ku, Pu via Åström: Ku = 4h/(π·a), Pu = mean
+// period between matched zero-crossings.
 struct RelayResult {
   float Ku = 0.0f;
   float Pu = 0.0f;
@@ -1066,9 +965,9 @@ static RelayResult runRelay(std::function<float()> readError,
   RelayResult out;
   if (!readError || !applyRelay || h <= 0.0f || cycles <= 0) return out;
 
-  // Hysteresis band ~2% of h to ignore sensor jitter around zero.
+  // ~2% hysteresis band ignores sensor jitter around zero.
   const float band = 0.02f * h + 1e-3f;
-  int sign = (readError() >= 0.0f) ? -1 : 1;  // push toward zero first
+  int sign = (readError() >= 0.0f) ? -1 : 1;
   applyRelay(sign);
 
   uint32_t t0 = pros::millis();
@@ -1078,12 +977,10 @@ static RelayResult runRelay(std::function<float()> readError,
   bool haveHalfCycle = false;
 
   std::vector<float> amps;  // per-half-cycle extrema spread
-  std::vector<float> pers;  // period between like-signed zero-crossings
+  std::vector<float> pers;  // half-period between zero-crossings
 
-  // Motor-cooldown chunking: every `halfPerChunk` half-cycles, kill the
-  // relay for `coolMs` to keep motors from cooking on long tunes. Active
-  // time (not cooldown time) counts against timeoutMs, so we bump t0 by
-  // coolMs after each pause.
+  // Motor-cooldown chunking: t0 bumped by coolMs so cooldown doesn't count
+  // against timeoutMs.
   const int halfPerChunk = (chunkCycles > 0 && coolMs > 0) ? (2 * chunkCycles) : 0;
   int halfInChunk = 0;
 
@@ -1092,22 +989,16 @@ static RelayResult runRelay(std::function<float()> readError,
     if (e > curMax) curMax = e;
     if (e < curMin) curMin = e;
 
-    // Zero-crossing with hysteresis: sign flips only after error crosses
-    // through the opposite band.
+    // Hysteresis zero-crossing: flip only after crossing through opposite band.
     bool flip = false;
-    if (sign > 0 && e > band) {
-      flip = true;
-    }  // moved positive → push down
-    if (sign < 0 && e < -band) {
-      flip = true;
-    }  // moved negative → push up
+    if (sign > 0 && e > band) flip = true;
+    if (sign < 0 && e < -band) flip = true;
     if (flip) {
       uint32_t now = pros::millis();
       if (haveHalfCycle) {
-        // full half-cycle captured: min→max spread / 2 = amplitude
         float amp = 0.5f * (curMax - curMin);
         amps.push_back(amp);
-        pers.push_back((now - tLastZX) / 1000.0f);  // half-period in s
+        pers.push_back((now - tLastZX) / 1000.0f);
       }
       curMax = -1e9f;
       curMin = 1e9f;
@@ -1117,11 +1008,10 @@ static RelayResult runRelay(std::function<float()> readError,
       haveHalfCycle = true;
       halfInChunk++;
 
-      if ((int)amps.size() >= 2 * cycles) break;  // cycles full periods
+      if ((int)amps.size() >= 2 * cycles) break;
 
       if (halfPerChunk > 0 && halfInChunk >= halfPerChunk) {
-        // Chunk full — cool off before next chunk. Throw away the
-        // first half-cycle after resume (transient from re-priming).
+        // Throw away first half-cycle after resume (re-priming transient).
         applyRelay(0);
         printf("[AUTOTUNE] chunk done (%d/%d cycles), cooling %dms\n",
                (int)amps.size() / 2, cycles, coolMs);
@@ -1143,7 +1033,7 @@ static RelayResult runRelay(std::function<float()> readError,
   applyRelay(0);
   if (amps.size() < 3 || pers.size() < 3) return out;
 
-  // Drop the first half-cycle — it's a transient from the initial push.
+  // Drop the first half-cycle (initial-push transient).
   float aSum = 0, pSum = 0;
   int n = 0;
   for (std::size_t i = 1; i < amps.size(); ++i) {
@@ -1152,7 +1042,7 @@ static RelayResult runRelay(std::function<float()> readError,
     ++n;
   }
   float aMean = aSum / n;
-  float pHalf = pSum / n;  // seconds per half-period
+  float pHalf = pSum / n;
   float Pu = 2.0f * pHalf;
 
   if (aMean < 1e-4f || Pu < 0.02f) return out;
@@ -1194,7 +1084,7 @@ void autotune_turn_pid(float reliefV, int cycles, int timeoutMs,
   pros::delay(50);
 
   auto readErr = [&]() -> float {
-    return -(float)chassis->drive_imu_get();  // setpoint = 0°
+    return -(float)chassis->drive_imu_get();
   };
   auto apply = [&](int sign) {
     int mV = (int)(sign * reliefV * 1000.0f);
@@ -1223,7 +1113,7 @@ void autotune_drive_pid(float reliefV, int cycles, int timeoutMs,
   chassis->drive_sensor_reset();
   pros::delay(50);
 
-  const float target = 12.0f;  // inches ahead of start
+  const float target = 12.0f;  // in
   auto readErr = [&]() -> float {
     double avg = 0.5 * (chassis->drive_sensor_left() + chassis->drive_sensor_right());
     return target - (float)avg;
@@ -1255,7 +1145,7 @@ void autotune_swing_pid(float reliefV, int cycles, int timeoutMs,
   chassis->drive_imu_reset(0.0);
   pros::delay(50);
 
-  // Left-swing variant: only the left motors drive; right side is held at 0 V.
+  // Left-swing variant: only left motors drive; right held at 0 V.
   auto readErr = [&]() -> float {
     return -(float)chassis->drive_imu_get();
   };
@@ -1286,9 +1176,9 @@ void autotune_heading_pid(float forwardV, float reliefV, int cycles, int timeout
   chassis->drive_imu_reset(0.0);
   pros::delay(50);
 
-  // Robot creeps forward at forwardV; relay modulates L/R differential to
-  // bring heading back to 0. Effectively tunes the heading-correction PID
-  // which runs in parallel with drive PID during a drive_pid move.
+  // Robot creeps at forwardV; relay modulates L/R differential to keep
+  // heading at 0 — tunes the heading-correction PID that runs in parallel
+  // with drive PID.
   auto readErr = [&]() -> float {
     return -(float)chassis->drive_imu_get();
   };
@@ -1305,10 +1195,8 @@ void autotune_heading_pid(float forwardV, float reliefV, int cycles, int timeout
   });
 }
 
-// ── EKF stationary noise calibration ────────────────────────────────────────
-// Robot must be parked. Sample wheel-encoder-derived pose and IMU heading at
-// `sampleMs` cadence for `durationMs`. Variance of per-tick deltas, divided by
-// dt, is the process-noise floor for each state. Push to live EKF.
+// Robot parked. var(per-tick deltas)/dt is the process-noise floor; pushes
+// to the live EKF.
 void autotune_ekf_noise(int sampleMs, int durationMs, int warmupMs) {
   light::Drive* chassis = light::getChassis();
   if (!chassis) {
@@ -1366,11 +1254,8 @@ void autotune_ekf_noise(int sampleMs, int durationMs, int warmupMs) {
   printf("[AUTOTUNE][ekf] applied live. Transcribe into EKF_Q_* macros in main.cpp to persist.\n");
 }
 
-// ── MCL stationary distance-sensor noise calibration ────────────────────────
-// Robot must be parked with every configured distance sensor pointed at a wall
-// within range. We sample raw mm readings per sensor, convert to inches,
-// compute per-sensor std-dev, average across sensors → sensorSigmaIn.
-// outlierGapIn is set to 3·sigma (clamped ≥ 1.0 in).
+// Robot parked with each distance sensor pointed at a wall in range.
+// sensorSigmaIn = mean per-sensor stddev (in); outlierGapIn = max(3·σ, 1.0).
 void autotune_mcl_noise(int sampleMs, int durationMs, int warmupMs) {
   light::Drive* chassis = light::getChassis();
   if (!chassis) {
@@ -1399,8 +1284,8 @@ void autotune_mcl_noise(int sampleMs, int durationMs, int warmupMs) {
     for (size_t k = 0; k < specs.size(); ++k) {
       if (!specs[k].sensor) continue;
       int mm = specs[k].sensor->get();
-      if (mm <= 0 || mm >= 9999) continue;          // bad reading
-      samples[k].push_back(mm * units::IN_PER_MM);  // → inches
+      if (mm <= 0 || mm >= 9999) continue;
+      samples[k].push_back(mm * units::IN_PER_MM);
     }
   }
 
@@ -1434,7 +1319,7 @@ void autotune_mcl_noise(int sampleMs, int durationMs, int warmupMs) {
   }
 
   float sigma = sigmaSum / contributing;
-  if (sigma < 0.25f) sigma = 0.25f;  // floor — don't lie about precision
+  if (sigma < 0.25f) sigma = 0.25f;  // honest precision floor
   float gap = std::max(3.0f * sigma, 1.0f);
 
   MCLConfig cfg = light::lightcast::config();

@@ -1,15 +1,7 @@
-// ─── spline.cpp — Quintic Hermite spline for RAMSETE trajectories ────────────
-//
-// Fits a C² continuous curve through a list of Waypoints. Each segment is a
-// pair of 5th-order Hermite polynomials in x(u) and y(u) for u ∈ [0, 1], built
-// from endpoint position / velocity / acceleration. Interior-waypoint velocity
-// is chosen with a finite-difference (Catmull-Rom-style) rule when the user
-// does not pin the heading; acceleration defaults to zero (matches typical
-// robot path generators — non-zero α estimates cause more wiggling than they
-// fix for short segments).
-//
-// Arclength: each segment builds a 65-sample s(u) trapezoid table once at
-// construction; s→u lookup is a binary search + linear interp.
+// C²-continuous quintic Hermite spline. Interior tangents use Catmull-Rom
+// when the user doesn't pin a heading; segment-end accelerations are zero
+// (non-zero α estimates wiggle more than they help on short segments).
+// Per-segment 65-sample s(u) trapezoid table; s→u lookup is binary search.
 
 #include "LightLib/path/spline.hpp"
 
@@ -20,14 +12,6 @@
 
 namespace light {
 
-// Hermite basis functions for quintic (order 5):
-//   H0(u) = 1 - 10u³ + 15u⁴ - 6u⁵
-//   H1(u) = u - 6u³ + 8u⁴ - 3u⁵
-//   H2(u) = u²/2 - 3u³/2 + 3u⁴/2 - u⁵/2
-//   H3(u) = u⁵ - u⁴/2 + u³/2 ... mirrored at u=1
-// We evaluate directly from the 6 endpoint coefficients via Horner on the
-// monomial coefficients (faster than recomputing basis each call).
-
 struct QuinticCoeffs {
   float c0, c1, c2, c3, c4, c5;
   float eval(float u) const { return ((((c5 * u + c4) * u + c3) * u + c2) * u + c1) * u + c0; }
@@ -35,11 +19,8 @@ struct QuinticCoeffs {
   float evalDD(float u) const { return ((20 * c5 * u + 12 * c4) * u + 6 * c3) * u + 2 * c2; }
 };
 
-// Build monomial coeffs from Hermite boundary conditions (p0, v0, a0, p1, v1, a1).
-// Derived by solving the 6x6 system for q(u) such that:
-//   q(0) = p0, q'(0) = v0, q''(0) = a0
-//   q(1) = p1, q'(1) = v1, q''(1) = a1
-// Closed-form solution:
+// Closed-form solution to the 6×6 system: q(0)=p0, q'(0)=v0, q''(0)=a0,
+// q(1)=p1, q'(1)=v1, q''(1)=a1.
 static QuinticCoeffs makeQuintic(float p0, float v0, float a0,
                                  float p1, float v1, float a1) {
   QuinticCoeffs q;
@@ -53,9 +34,8 @@ static QuinticCoeffs makeQuintic(float p0, float v0, float a0,
 }
 
 SplineSample HermiteSegment::eval(float u) const {
-  // Rebuild coeffs per-call (cheap — 12 ops) rather than caching per-segment.
-  // Segments are evaluated O(64) times at construction and O(1) per control
-  // tick thereafter, so the cost is noise compared to the arclength table.
+  // Rebuild coeffs per call (12 ops) — cheap vs caching, since this runs
+  // O(64×) at construction and O(1) per control tick.
   QuinticCoeffs qx = makeQuintic(p0x, v0x, a0x, p1x, v1x, a1x);
   QuinticCoeffs qy = makeQuintic(p0y, v0y, a0y, p1y, v1y, a1y);
   SplineSample s;
@@ -68,10 +48,9 @@ SplineSample HermiteSegment::eval(float u) const {
   return s;
 }
 
-// Heading → tangent vector (LightLib convention: +Y forward, θ=0 faces +Y, CW+).
-// Tangent magnitude is chosen as the chord length of the segment so that the
-// Hermite curve matches chord velocity when the user pins headings at both
-// ends (avoids tiny derivatives that manifest as kinks).
+// LightLib heading: +Y forward, θ=0 faces +Y, CW+. Tangent is scaled by
+// chord length so pinned-heading endpoints don't produce tiny derivatives
+// that show up as kinks.
 static void headingToTangent(float headingRad, float scale, float& vx, float& vy) {
   vx = std::sin(headingRad) * scale;
   vy = std::cos(headingRad) * scale;
@@ -82,10 +61,8 @@ Spline::Spline(const std::vector<Waypoint>& wps) {
 
   const std::size_t N = wps.size();
 
-  // Choose per-waypoint tangent (velocity) vectors.
-  // For endpoints with pinned headings, convert heading to unit tangent
-  // and scale by adjacent chord length. For interior waypoints without a
-  // pinned heading, use a Catmull-Rom-like centered difference.
+  // Pinned heading → tangent scaled by adjacent chord length.
+  // Otherwise: Catmull-Rom centered difference (forward/backward at endpoints).
   std::vector<float> vx(N, 0.0f), vy(N, 0.0f);
   for (std::size_t i = 0; i < N; ++i) {
     bool hasHeading = wps[i].headingDeg.has_value();
@@ -98,9 +75,8 @@ Spline::Spline(const std::vector<Waypoint>& wps) {
       chordLen = 0.5f * (std::hypot(wps[i + 1].x - wps[i - 1].x,
                                     wps[i + 1].y - wps[i - 1].y));
     if (chordLen < 1e-4f) {
-      // Coincident neighbours — almost always a path-builder bug.
-      // Print so it's visible, then fall back to a unit chord so the
-      // Hermite tangent stays finite (won't NaN downstream).
+      // Coincident neighbour = path-builder bug. Fall back to unit chord so
+      // the tangent stays finite.
       printf("[spline] coincident waypoint at index %u — check path data\n",
              (unsigned)i);
       chordLen = 1.0f;
@@ -121,7 +97,6 @@ Spline::Spline(const std::vector<Waypoint>& wps) {
     }
   }
 
-  // Build one HermiteSegment per adjacent waypoint pair.
   segs_.reserve(N - 1);
   for (std::size_t i = 0; i + 1 < N; ++i) {
     HermiteSegment seg;
@@ -140,14 +115,13 @@ Spline::Spline(const std::vector<Waypoint>& wps) {
     segs_.push_back(seg);
   }
 
-  // Per-segment arclength table via trapezoidal integration of speed.
-  // 65 samples gives ~1% accuracy for realistic VEX segment lengths.
+  // 65-sample trapezoidal s(u) gives ~1% accuracy on realistic VEX segments.
   segArcTables_.resize(segs_.size());
   segLens_.resize(segs_.size());
   totalLen_ = 0.0f;
   for (std::size_t i = 0; i < segs_.size(); ++i) {
     auto& table = segArcTables_[i];
-    const int K = 64;  // 65 samples → 64 intervals
+    const int K = 64;
     float prevSpeed = 0.0f;
     {
       SplineSample s = segs_[i].eval(0.0f);
@@ -158,7 +132,6 @@ Spline::Spline(const std::vector<Waypoint>& wps) {
       float u = (float)k / (float)K;
       SplineSample s = segs_[i].eval(u);
       float speed = std::hypot(s.dx, s.dy);
-      // trapezoid: ∫|r'(u)| du ≈ sum of averaged speeds × du
       table[k] = table[k - 1] + 0.5f * (speed + prevSpeed) * (1.0f / (float)K);
       prevSpeed = speed;
     }
@@ -184,7 +157,6 @@ void Spline::sToSegU(float s, int& segIdx, float& u) const {
     return;
   }
 
-  // Walk through segment lengths to find which segment contains s.
   float acc = 0.0f;
   segIdx = 0;
   for (std::size_t i = 0; i < segLens_.size(); ++i) {
@@ -196,7 +168,6 @@ void Spline::sToSegU(float s, int& segIdx, float& u) const {
   }
   float segS = s - acc;
 
-  // Binary-search the per-segment LUT for u such that table[u] ≈ segS.
   const auto& table = segArcTables_[segIdx];
   const int K = 64;
   int lo = 0, hi = K;
@@ -222,8 +193,7 @@ SplineSample Spline::sampleAt(float s) const {
 
 float Spline::headingAt(float s) const {
   SplineSample p = sampleAt(s);
-  // LightLib: θ = 0 faces +Y; +Y forward, +X right; CW-positive.
-  // tangent (sin θ, cos θ) ⇒ θ = atan2(dx, dy).
+  // LightLib θ: 0 faces +Y, CW-positive. tangent (sinθ, cosθ) ⇒ atan2(dx, dy).
   return std::atan2(p.dx, p.dy);
 }
 
@@ -234,8 +204,7 @@ float Spline::curvatureAt(float s) const {
   float denom = std::pow(std::max(speedSq, 1e-8f), 1.5f);
   constexpr float CURV_DEADBAND = 1e-6f;
   if (std::fabs(num) < CURV_DEADBAND * denom) return 0.0f;
-  // LightLib sign convention: κ > 0 means path turning CW (heading increases).
-  // atan2(dx, dy) increases when (dx·ddy − dy·ddx) > 0 — matches above.
+  // κ > 0 ⇒ path turning CW (heading increases under LightLib convention).
   return num / denom;
 }
 
