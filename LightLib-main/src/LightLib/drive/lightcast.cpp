@@ -65,37 +65,6 @@ void resample() {
 
 }  // namespace
 
-DistanceSensorSpec fromFace(pros::Distance* s, Face face, float along, float depth) {
-  DistanceSensorSpec spec{s, 0.0f, 0.0f, 0.0f};
-  switch (face) {
-    case Face::FRONT:
-      spec.offsetX = along;
-      spec.offsetY = depth;
-      spec.angleRad = 0.0f;
-      spec.raycastFn = &light::field::raycast_front;
-      break;
-    case Face::BACK:
-      spec.offsetX = -along;
-      spec.offsetY = -depth;
-      spec.angleRad = M_PI;
-      spec.raycastFn = &light::field::raycast_back;
-      break;
-    case Face::LEFT:
-      spec.offsetX = -depth;
-      spec.offsetY = along;
-      spec.angleRad = M_PI / 2.0f;
-      spec.raycastFn = &light::field::raycast_left;
-      break;
-    case Face::RIGHT:
-      spec.offsetX = depth;
-      spec.offsetY = -along;
-      spec.angleRad = -M_PI / 2.0f;
-      spec.raycastFn = &light::field::raycast_right;
-      break;
-  }
-  return spec;
-}
-
 void init(const Pose& initial, const std::vector<DistanceSensorSpec>& sensors, MCLConfig cfg) {
   std::lock_guard<pros::Mutex> lock(mtx_);
   cfg_ = cfg;

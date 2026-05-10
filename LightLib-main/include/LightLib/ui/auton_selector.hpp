@@ -84,6 +84,10 @@ class AutonSelector {
   lv_obj_t* toggle_lbl_ = nullptr;
   int right_panel_mode_ = 0;  // 0=preview, 1=pid, 2=odom
   std::vector<lv_obj_t*> btn_objs_;
+  // Targets of LV_ANIM_REPEAT_INFINITE animations — must be lv_anim_del'd
+  // before their parents are freed, otherwise the anim timer keeps firing
+  // exec_cb on dangling memory and faults inside lv_obj_set_x/y.
+  std::vector<lv_obj_t*> infinite_anim_targets_;
 
   // compact PID panel state
   lv_obj_t* pid_tab_btns_[4] = {};

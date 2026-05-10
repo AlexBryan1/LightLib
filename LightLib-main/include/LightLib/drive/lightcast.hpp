@@ -23,31 +23,6 @@
 
 namespace light::lightcast {
 
-/** Robot-frame face that a distance sensor is mounted on. */
-enum class Face { FRONT,
-                  BACK,
-                  LEFT,
-                  RIGHT };
-
-/**
- * Convenience builder — derives angle from `face`, offsets from
- * `(along, depth)`.
- *
- * \param s
- *        the PROS distance sensor (pointer, not owned)
- * \param face
- *        which face the sensor is mounted on
- * \param along
- *        position along the face, robot-frame signed (LEFT/RIGHT +/-)
- * \param depth
- *        distance from robot center perpendicular to the face (always
- *        positive)
- *
- * Raw `DistanceSensorSpec` (in odometry.hpp) stays exposed for diagonal
- * mounts.
- */
-DistanceSensorSpec fromFace(pros::Distance* s, Face face, float along, float depth);
-
 /**
  * Initialize the particle filter.
  *

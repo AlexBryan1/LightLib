@@ -101,8 +101,8 @@ struct DistanceSensorSpec {
   float offsetX;          ///< Mount X in robot frame, inches.
   float offsetY;          ///< Mount Y in robot frame, inches.
   float angleRad;         ///< Ray direction in robot frame, radians.
-  /// nullptr falls back to perimeter raycast; lightcast::fromFace binds the
-  /// matching face function from src/maps/.
+  /// leave null for the generic perimiter raycast (works for any angle).
+  /// assign a face function from src/maps/ if you want the axis-aligned fast path
   float (*raycastFn)(float, float, float, float) = nullptr;
 };
 

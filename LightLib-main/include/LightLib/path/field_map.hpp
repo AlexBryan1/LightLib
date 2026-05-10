@@ -43,10 +43,11 @@ float raycast(float x, float y, float angleRad, float max_range = FIELD_SIZE_IN)
  * package via `firmware/libmaps.a`. Each face's stub default-delegates to
  * `raycast()` (the perimeter box) so unfilled stubs match today's behavior.
  *
- * `lightcast::fromFace()` binds the matching function onto each
- * `DistanceSensorSpec.raycastFn` so the particle filter dispatches per
- * sensor. `sensor_aux` keeps using `raycast()` directly because its
- * wall-snap math assumes the hit is at the field perimeter.
+ * stick one of these into `DistanceSensorSpec.raycastFn` (over in odometry.hpp)
+ * if a sensor needs a face-specifc map. otherwise leave it null and the
+ * particle filter just falls back to the generic perimiter `raycast()`.
+ * sensor_aux always uses plain `raycast()` since its wall-snap assumes the
+ * hit lands on the field perimeter.
  * @{
  */
 float raycast_front(float x, float y, float angleRad, float max_range = FIELD_SIZE_IN);

@@ -59,51 +59,63 @@ static constexpr double _ROBOT_WHEEL_DIA = WHEEL_DIAMETER;
 #define GPS_OFFSET_Y        0.0
 #endif
 
-// ── MCL distance sensors — one per face ──────────────────────────────────────
-// Port: VEX port number (0 = not installed).
-// Along: signed position along the face in robot frame (inches). 0 = centered.
-// Depth: perpendicular distance from robot center to the sensor (inches).
+// MCL distance sensor fallbacks. user sets these in main.cpp, we just
+// provide defaults so the build doesn't break if a macro is missing.
+// X/Y are inches in robot frame, ANGLE is degrees (0 = forward).
 #ifndef MCL_FRONT_PORT
 #define MCL_FRONT_PORT   0
 #endif
-#ifndef MCL_FRONT_ALONG
-#define MCL_FRONT_ALONG  0.0f
+#ifndef MCL_FRONT_X
+#define MCL_FRONT_X     0.0f
 #endif
-#ifndef MCL_FRONT_DEPTH
-#define MCL_FRONT_DEPTH  6.0f
+#ifndef MCL_FRONT_Y
+#define MCL_FRONT_Y     6.0f
+#endif
+#ifndef MCL_FRONT_ANGLE
+#define MCL_FRONT_ANGLE 0.0f
 #endif
 #ifndef MCL_BACK_PORT
-#define MCL_BACK_PORT    0
+#define MCL_BACK_PORT 0
 #endif
-#ifndef MCL_BACK_ALONG
-#define MCL_BACK_ALONG   0.0f
+#ifndef MCL_BACK_X
+#define MCL_BACK_X     0.0f
 #endif
-#ifndef MCL_BACK_DEPTH
-#define MCL_BACK_DEPTH   6.0f
+#ifndef MCL_BACK_Y
+#define MCL_BACK_Y    -6.0f
+#endif
+#ifndef MCL_BACK_ANGLE
+#define MCL_BACK_ANGLE 180.0f
 #endif
 #ifndef MCL_LEFT_PORT
 #define MCL_LEFT_PORT    0
 #endif
-#ifndef MCL_LEFT_ALONG
-#define MCL_LEFT_ALONG   0.0f
+#ifndef MCL_LEFT_X
+#define MCL_LEFT_X   -6.0f
 #endif
-#ifndef MCL_LEFT_DEPTH
-#define MCL_LEFT_DEPTH   6.0f
+#ifndef MCL_LEFT_Y
+#define MCL_LEFT_Y    0.0f
+#endif
+#ifndef MCL_LEFT_ANGLE
+#define MCL_LEFT_ANGLE 90.0f
 #endif
 #ifndef MCL_RIGHT_PORT
 #define MCL_RIGHT_PORT   0
 #endif
-#ifndef MCL_RIGHT_ALONG
-#define MCL_RIGHT_ALONG  0.0f
+#ifndef MCL_RIGHT_X
+#define MCL_RIGHT_X       6.0f
 #endif
-#ifndef MCL_RIGHT_DEPTH
-#define MCL_RIGHT_DEPTH  6.0f
+#ifndef MCL_RIGHT_Y
+#define MCL_RIGHT_Y       0.0f
+#endif
+#ifndef MCL_RIGHT_ANGLE
+#define MCL_RIGHT_ANGLE  -90.0f
 #endif
 
 // MCL/EKF tuning lives in default_constants() in autons.cpp; the runtime
 // defaults in MCLConfig (mcl_config.hpp) cover any field you don't override.
 
 #include "LightLib/main.h"
+#include <cmath>
 #include <functional>
 #include <atomic>
 #include <vector>
@@ -189,21 +201,37 @@ static pros::Distance _dist_left_obj(MCL_LEFT_PORT);
 static pros::Distance _dist_right_obj(MCL_RIGHT_PORT);
 #endif
 
+// build the spec list - one entry per enabled port
 static std::vector<DistanceSensorSpec> _build_distance_specs() {
     std::vector<DistanceSensorSpec> v;
-    using light::lightcast::Face;
-    using light::lightcast::fromFace;
+    constexpr float kDegToRad = (float)(M_PI / 180.0);
+
     #if MCL_FRONT_PORT != 0
-    v.push_back(fromFace(&_dist_front_obj, Face::FRONT, MCL_FRONT_ALONG, MCL_FRONT_DEPTH));
+    v.push_back({&_dist_front_obj, MCL_FRONT_X, MCL_FRONT_Y, MCL_FRONT_ANGLE * kDegToRad, nullptr});
     #endif
+
     #if MCL_BACK_PORT != 0
-    v.push_back(fromFace(&_dist_back_obj, Face::BACK, MCL_BACK_ALONG, MCL_BACK_DEPTH));
+    v.push_back(DistanceSensorSpec{
+        &_dist_back_obj,
+        MCL_BACK_X, MCL_BACK_Y,
+        MCL_BACK_ANGLE * kDegToRad,
+        nullptr});
     #endif
+
     #if MCL_LEFT_PORT != 0
-    v.push_back(fromFace(&_dist_left_obj, Face::LEFT, MCL_LEFT_ALONG, MCL_LEFT_DEPTH));
+    DistanceSensorSpec leftSpec{
+        &_dist_left_obj,
+        MCL_LEFT_X, MCL_LEFT_Y,
+        MCL_LEFT_ANGLE * kDegToRad,
+        nullptr};
+    v.push_back(leftSpec);
     #endif
+
     #if MCL_RIGHT_PORT != 0
-    v.push_back(fromFace(&_dist_right_obj, Face::RIGHT, MCL_RIGHT_ALONG, MCL_RIGHT_DEPTH));
+    v.push_back(DistanceSensorSpec{&_dist_right_obj,
+                                   MCL_RIGHT_X, MCL_RIGHT_Y,
+                                   MCL_RIGHT_ANGLE * kDegToRad,
+                                   nullptr});
     #endif
     return v;
 }

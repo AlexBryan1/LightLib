@@ -78,6 +78,13 @@ void AutonSelector::show() {
 }
 
 void AutonSelector::teardown_ui() {
+  // Kill any LV_ANIM_REPEAT_INFINITE anims before the parents are freed,
+  // otherwise the anim timer fires exec_cb on freed memory.
+  for (lv_obj_t* obj : infinite_anim_targets_) {
+    lv_anim_del(obj, NULL);
+  }
+  infinite_anim_targets_.clear();
+
   if (odom_timer_) {
     lv_timer_del(odom_timer_);
     odom_timer_ = nullptr;
@@ -310,6 +317,7 @@ void AutonSelector::build_ui() {
       lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
       lv_anim_set_repeat_delay(&a, UI_ANIM_BANNER_REPEAT_DELAY_MS);
       lv_anim_start(&a);
+      infinite_anim_targets_.push_back(img);
     } else {
       lv_obj_t* lbl = lv_label_create(btn);
       lv_label_set_text(lbl, autons_[i].name.c_str());
@@ -705,6 +713,7 @@ void AutonSelector::build_run_screen() {
       lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
       lv_anim_set_repeat_delay(&a, 0);
       lv_anim_start(&a);
+      infinite_anim_targets_.push_back(img);
     };
     add_scroll_img(start_y);
     add_scroll_img(start_y - eff_iw);

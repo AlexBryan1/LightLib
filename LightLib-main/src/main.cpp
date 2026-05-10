@@ -54,25 +54,29 @@
 #define DRIVE_TYPE 1
 
 // ── MCL distance sensors — one per side (set port to 0 if not installed) ─────
-//  PORT:  VEX port number
-//  ALONG: position along that face in robot frame, inches (0 = centered)
-//  DEPTH: distance from robot center to sensor, inches
+// just type where the sensor sits on the robot. X/Y in inches (robot frame),
+// ANGLE is which way it points in degrees. 0 = forward, 90 = left, 180 = back,
+// -90 = right. diagnoal mounts are fine, MCL uses the generic perimiter raycast.
 
-#define MCL_FRONT_PORT 0
-#define MCL_FRONT_ALONG 0.0f
-#define MCL_FRONT_DEPTH 6.0f
+#define MCL_FRONT_PORT  0
+#define MCL_FRONT_X     0.0f
+#define MCL_FRONT_Y     6.0f
+#define MCL_FRONT_ANGLE 0.0f      // forward
 
-#define MCL_BACK_PORT 0
-#define MCL_BACK_ALONG 0.0f
-#define MCL_BACK_DEPTH 6.0f
+#define MCL_BACK_PORT  0
+#define MCL_BACK_X     0.0f
+#define MCL_BACK_Y    -6.0f
+#define MCL_BACK_ANGLE 180.0f
 
 #define MCL_LEFT_PORT 0
-#define MCL_LEFT_ALONG 0.0f
-#define MCL_LEFT_DEPTH 6.0f
+#define MCL_LEFT_X  -6.0f
+#define MCL_LEFT_Y   0.0f
+#define MCL_LEFT_ANGLE  90.0f
 
-#define MCL_RIGHT_PORT 0
-#define MCL_RIGHT_ALONG 0.0f
-#define MCL_RIGHT_DEPTH 6.0f
+#define MCL_RIGHT_PORT   0
+#define MCL_RIGHT_X      6.0f
+#define MCL_RIGHT_Y      0.0f
+#define MCL_RIGHT_ANGLE -90.0f
 
 // MCL/EKF tuning lives in default_constants() in autons.cpp.
 

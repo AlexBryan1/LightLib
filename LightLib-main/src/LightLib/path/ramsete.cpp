@@ -1118,8 +1118,11 @@ void autotune_drive_pid(float reliefV, int cycles, int timeoutMs,
     double avg = 0.5 * (chassis->drive_sensor_left() + chassis->drive_sensor_right());
     return target - (float)avg;
   };
+  // apply(sign) must drive readErr in the same direction as sign to match the
+  // convention runRelay expects (consistent with turn/swing/heading lambdas).
+  // Negate so apply(+1) drives wheels backward → avg falls → readErr rises.
   auto apply = [&](int sign) {
-    int mV = (int)(sign * reliefV * 1000.0f);
+    int mV = (int)(-sign * reliefV * 1000.0f);
     L->move_voltage(mV);
     R->move_voltage(mV);
   };
