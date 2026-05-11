@@ -345,12 +345,17 @@ static float curve_lut[256]; // index 0 = joystick -127, index 255 = joystick +1
 
 static void build_curve_lut() {
     for (int i = -127; i <= 127; i++) {
-        float x      = i / 127.0f;
-        float curved = (std::exp(JOYSTICK_CURVE * std::abs(x)) - 1.0f) /
-                       (std::exp(JOYSTICK_CURVE) - 1.0f);
-        curve_lut[i + 127] = std::copysign(curved * 127.0f, (float)i);
+        // If curve is basically 0, just make it linear
+        if (std::abs(JOYSTICK_CURVE) < 0.001f) {
+            curve_lut[i + 127] = (float)i;
+        } 
+        else {
+            float x = i / 127.0f;
+            float curved = (std::exp(JOYSTICK_CURVE * std::abs(x)) - 1.0f) / (std::exp(JOYSTICK_CURVE) - 1.0f);
+            curve_lut[i + 127] = std::copysign(curved * 127.0f, (float)i);
+        }
     }
-    curve_lut[127] = 0.0f; // exact zero for zero input
+    curve_lut[127] = 0.0f; 
 }
 
 static inline float apply_curve(int raw) {
