@@ -3341,6 +3341,19 @@ class Drive {
   bool pid_tuner_enabled();
 
   /**
+   * Force a refresh of the PID Tuner brain/terminal output with current
+   * constant values. No-op when the tuner isn't enabled.
+   */
+  void pid_tuner_refresh();
+
+  /**
+   * Set which PID the tuner UI displays (index into pid_tuner_pids /
+   * pid_tuner_full_pids). Clamped to vector range. Resets row to 0 and
+   * re-prints.
+   */
+  void pid_tuner_column_set(int idx);
+
+  /**
    * Iterates through controller inputs to modify PID constants.
    */
   void pid_tuner_iterate();

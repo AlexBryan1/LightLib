@@ -192,40 +192,6 @@ void characterize_friction(float maxVoltage = 10.0f, float stepV = 0.5f);
 /** @} */
 
 /**
- * \name Bracket-and-bisect PID auto-tune (drive / turn / swing)
- * Two-phase tuner that uses the chassis's own PID with kI=0.
- *   Phase 1 — find kP boundary: doubles kP until the robot overshoots, then
- *   bisects the [no-overshoot, overshoot] interval until within tolerance.
- *   Phase 2 — find kD: boosts kP past the boundary (×2 by default) so the
- *   robot intentionally overshoots, then doubles kD until the overshoot is
- *   damped and bisects to find the smallest sufficient kD.
- * Net result: aggressive kP with just-enough kD — faster response than pure-P
- * with no residual overshoot. Final values are applied live via
- * pid_*_constants_set; transcribe the printed FINAL line into
- * default_constants() to persist across reboots. Space: turn/swing ~3 ft²;
- * drive ≥6 ft straight.
- * @{
- */
-void autotune_turn_pid (float turnAngleDeg  = 180.0f, float overshootThreshDeg = 3.0f,
-                        float kpStart = 1.0f, int maxIters = 10);
-void autotune_drive_pid(float driveDistIn   = 24.0f, float overshootThreshIn   = 0.5f,
-                        float kpStart = 2.0f, int maxIters = 10);
-void autotune_swing_pid(float swingAngleDeg = 90.0f, float overshootThreshDeg  = 3.0f,
-                        float kpStart = 1.0f, int maxIters = 10);
-/** @} */
-
-/**
- * Relay-feedback (Åström–Hägglund) heading-correction PID auto-tune. Robot
- * creeps forward at forwardV while relay modulates L/R differential. Ku/Pu →
- * Z-N classic gains, applied live via pid_heading_constants_set. Needs ≥8 ft
- * lane. Heading PID is a corrective overlay during drives — it doesn't fit the
- * velocity-based tuner pattern that turn/swing/drive use.
- */
-void autotune_heading_pid(float forwardV = 3.0f, float reliefV = 2.0f,
-                          int cycles = 5, int timeoutMs = 15000,
-                          int chunkCycles = 2, int coolMs = 5000);
-
-/**
  * Stationary EKF process-noise calibration. Robot parked. Per-tick var(x,y,θ)
  * → Q values, pushed live via setConfig().
  */
@@ -238,4 +204,23 @@ void autotune_ekf_noise(int sampleMs = 10, int durationMs = 5000, int warmupMs =
  */
 void autotune_mcl_noise(int sampleMs = 20, int durationMs = 4000, int warmupMs = 300);
 
-}  // namespace light
+
+/**
+ * \name Bracket-and-bisect PID auto-tune (drive / turn / swing)
+ * Two-phase tuner with kI=0. Phase 1 doubles kP until the robot oscillates
+ * (≥3 zero-crossings of pos − target), then bisects between the last stable
+ * and oscillating values. Phase 2 boosts that kP, doubles kD until the
+ * oscillation damps, then bisects to find the smallest sufficient kD.
+ * Net result: aggressive kP with just-enough kD — faster response than pure-P
+ * with no residual ringing. Final values are applied live via
+ * pid_*_constants_set; transcribe the printed FINAL line into
+ * default_constants() to persist across reboots. Space: turn/swing ~3 ft²;
+ * drive ≥6 ft straight.
+ * @{
+ */
+void autotune_turn_pid (float turnAngleDeg  = 180.0f, float overshootThreshDeg = 3.0f, int maxIters = 10);
+void autotune_drive_pid(float driveDistIn   = 24.0f, float overshootThreshIn   = 0.5f, int maxIters = 10);
+void autotune_swing_pid(float swingAngleDeg = 90.0f,  float overshootThreshDeg = 3.0f, int maxIters = 10);
+/** @} */
+
+} // namespace light

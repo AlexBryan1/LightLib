@@ -66,6 +66,23 @@ void Drive::pid_tuner_disable() {
   pros::lcd::shutdown();
 }
 
+// Public refresh wrapper so the autotune (which lives outside Drive) can push
+// updates onto the brain/terminal whenever it changes the live constants.
+void Drive::pid_tuner_refresh() { pid_tuner_print(); }
+
+// Select which PID the tuner UI displays. Clamps to vector range, resets row
+// to 0, and re-renders.
+void Drive::pid_tuner_column_set(int idx) {
+  if (!used_pid_tuner_pids) return;
+  int n = (int)used_pid_tuner_pids->size();
+  if (n <= 0) return;
+  if (idx < 0) idx = 0;
+  if (idx > n - 1) idx = n - 1;
+  column = idx;
+  row = 0;
+  pid_tuner_print();
+}
+
 // Toggle PID Tuner
 void Drive::pid_tuner_toggle() {
   pid_tuner_on = !pid_tuner_on;

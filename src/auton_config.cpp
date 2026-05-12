@@ -20,19 +20,17 @@ void register_autons() {
   light::auton_selector.add("Test Path", "funny", run_jerryio_path_1);
 
   // ── PID auto-tune ────────────────────────────────────────────────────────
-  // Two-phase bracket+bisect. Phase 1: find largest kP that doesn't overshoot
-  // (kD=0, double-then-halve). Phase 2: boost that kP ×2 so the robot
-  // overshoots, then bracket+bisect kD upward until overshoot is damped. kI=0.
-  // Heading still uses relay-feedback. Each prints per-iter stats; the final
-  // kP/kD pair is applied to the live chassis on exit.
-  light::auton_selector.add("Tune: Turn", "180° back-and-forth; bracket+bisect turn kP then kD",
+  // Two-phase bracket+bisect on oscillation (≥3 target zero-crossings).
+  // Phase 1: find largest kP that doesn't oscillate (kD=0, double-then-halve).
+  // Phase 2: boost that kP, then bracket+bisect kD upward until oscillation
+  // damps. kI=0. Heading still uses relay-feedback. Each prints per-iter
+  // stats; the final kP/kD pair is applied to the live chassis on exit.
+  light::auton_selector.add("Tune: Turn", "180° back-and-forth; bisect turn kP then kD on oscillation",
                             [] { light::autotune_turn_pid(); });
-  light::auton_selector.add("Tune: Drive", "24\" forward/back; bracket+bisect drive kP then kD (needs 6 ft)",
+  light::auton_selector.add("Tune: Drive", "24\" forward/back; bisect drive kP then kD on oscillation (needs 6 ft)",
                             [] { light::autotune_drive_pid(); });
-  light::auton_selector.add("Tune: Swing", "90° left-side swing; bracket+bisect swing kP then kD",
+  light::auton_selector.add("Tune: Swing", "90° left-side swing; bisect swing kP then kD on oscillation",
                             [] { light::autotune_swing_pid(); });
-  light::auton_selector.add("Tune: Heading", "Relay-tune heading-correct PID (needs lane)",
-                            [] { light::autotune_heading_pid(); });
   light::auton_selector.add("Tune: EKF", "Park robot, measure noise floor (5 s)",
                             [] { light::autotune_ekf_noise(); });
   light::auton_selector.add("Tune: MCL", "Park facing walls, measure dist-sensor sigma (4 s)",
