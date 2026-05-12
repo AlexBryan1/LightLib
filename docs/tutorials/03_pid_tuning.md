@@ -199,40 +199,6 @@ Logic: the motion exits if **either**
 Start with the shipped defaults. Only tighten `small_error` once the PID
 is well-tuned; loose exit thresholds will mask poor PID gains.
 
-## The live PID tuner: light::pid_tuner
-
-LightLib ships an on-brain PID tuner that lets you adjust gains live
-without rebuilding. To enable:
-
-```cpp
-// In opcontrol(), once at the start
-light::pid_tuner.set_drive(&chassis);
-light::pid_tuner.start_task();
-
-// Bind a controller button to open it
-if (master.get_digital_new_press(DIGITAL_X)) {
-  light::pid_tuner.open();
-}
-```
-
-When the tuner is open the brain screen shows tabs for DRIVE / TURN /
-SWING / HEADING / EKF, each with editable kP/kI/kD/start_i values and a
-live chart of left/right wheel output and error. Hit "Apply" to push
-the values to the chassis; the changes take effect on the *next* PID
-motion.
-
-**Workflow with the tuner:**
-
-1. Open the tuner.
-2. Run an auton command (e.g. via a button-bound `drive_test(24)`).
-3. Watch the chart. Adjust gains. Apply. Re-run the auton.
-4. When you find values you like, transcribe them into
-   `default_constants()` so they survive a program restart. **The tuner
-   does not save to flash.**
-
-The legacy EZ-Template tuner (`pid_tuner_enable()`, `pid_tuner_iterate()`)
-is also still available on the chassis — but the LVGL tuner (`light::pid_tuner`)
-is the supported one.
 
 ## Auto-tune (Z–N relay feedback)
 
