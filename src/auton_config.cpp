@@ -19,13 +19,17 @@
 void register_autons() {
   light::auton_selector.add("Test Path", "funny", run_jerryio_path_1);
 
-  // ── Relay-feedback PID auto-tune ────────────────────────────────────────
-  // Each runs ~6-10 s, printf's Ku/Pu/kP/kI/kD, and auto-applies to EZ.
-  light::auton_selector.add("Tune: Turn", "Relay-tune turn PID (in-place)",
+  // ── PID auto-tune ────────────────────────────────────────────────────────
+  // Two-phase bracket+bisect. Phase 1: find largest kP that doesn't overshoot
+  // (kD=0, double-then-halve). Phase 2: boost that kP ×2 so the robot
+  // overshoots, then bracket+bisect kD upward until overshoot is damped. kI=0.
+  // Heading still uses relay-feedback. Each prints per-iter stats; the final
+  // kP/kD pair is applied to the live chassis on exit.
+  light::auton_selector.add("Tune: Turn", "180° back-and-forth; bracket+bisect turn kP then kD",
                             [] { light::autotune_turn_pid(); });
-  light::auton_selector.add("Tune: Drive", "Relay-tune drive PID (needs 8 ft)",
+  light::auton_selector.add("Tune: Drive", "24\" forward/back; bracket+bisect drive kP then kD (needs 6 ft)",
                             [] { light::autotune_drive_pid(); });
-  light::auton_selector.add("Tune: Swing", "Relay-tune swing PID (left-side)",
+  light::auton_selector.add("Tune: Swing", "90° left-side swing; bracket+bisect swing kP then kD",
                             [] { light::autotune_swing_pid(); });
   light::auton_selector.add("Tune: Heading", "Relay-tune heading-correct PID (needs lane)",
                             [] { light::autotune_heading_pid(); });

@@ -5,10 +5,10 @@
 // └─────────────────────────────────────────────────────────────────────────┘
 
 #include "subsystems.hpp"
-#define LEFT_PORTS {-1, -2, -3}  // left drive motors
-#define RIGHT_PORTS {4, 5, 6}     // right drive motors
+#define LEFT_PORTS {-6, -5, -4}  // left drive motors
+#define RIGHT_PORTS {3, 2, 1}     // right drive motors
 
-#define IMU_PORT 0   // primary inertial sensor
+#define IMU_PORT 9   // primary inertial sensor
 #define IMU2_PORT 0  // second IMU — set to 0 if you only have one
 
 #define WHEEL_DIAMETER 3.25  // inches  (4" wheels are actually ~4.125")

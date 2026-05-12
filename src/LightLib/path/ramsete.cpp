@@ -1068,100 +1068,259 @@ static void applyZnAndPrint(const char* tag, const RelayResult& r,
   printf("[AUTOTUNE][%s] applied to live EZ chassis (start_i=0).\n", tag);
 }
 
-void autotune_turn_pid(float reliefV, int cycles, int timeoutMs,
-                       int chunkCycles, int coolMs) {
+// Velocity-based iterative autotune. Drives the chassis through its own PID,
+// samples peak |velocity|, peak |position|, and counts target zero-crossings.
+// Oscillation criterion: crossings >= 3 (one approach + return-through +
+// re-cross). kI stays at zero.
+struct VelocityMotionSample {
+  float peakAbsVel = 0.0f;   // peak |dpos/dt| in units/sec
+  float peakAbsPos = 0.0f;   // peak |pos − resetSensor zero|
+  int   crossings  = 0;      // number of (pos − target) sign flips
+};
+
+static VelocityMotionSample sampleMotion(std::function<float()> readPos,
+                                         pros::MotorGroup* L, pros::MotorGroup* R,
+                                         float target,
+                                         int maxMotionMs,
+                                         int settleMs = 250,
+                                         float settleVoltMv = 1500.0f) {
+  VelocityMotionSample s;
+  uint32_t t0 = pros::millis();
+  float prevPos = readPos();
+  float prevDelta = prevPos - target;
+  uint32_t prevMs = t0;
+  uint32_t lowVoltStart = 0;
+
+  pros::delay(40);  // let the PID start commanding before we judge "settled"
+
+  while ((int)(pros::millis() - t0) < maxMotionMs) {
+    uint32_t now = pros::millis();
+    float pos = readPos();
+    float dt = (now - prevMs) / 1000.0f;
+    if (dt > 0.0f) {
+      float v = (pos - prevPos) / dt;
+      if (std::fabs(v) > s.peakAbsVel) s.peakAbsVel = std::fabs(v);
+    }
+    if (std::fabs(pos) > s.peakAbsPos) s.peakAbsPos = std::fabs(pos);
+
+    float delta = pos - target;
+    if ((prevDelta < 0.0f) != (delta < 0.0f)) ++s.crossings;
+    prevDelta = delta;
+
+    prevPos = pos;
+    prevMs = now;
+
+    // Chassis-done heuristic: both motor commands stay near 0 for settleMs.
+    float vL = (float)std::abs(L->get_voltage());
+    float vR = (float)std::abs(R->get_voltage());
+    if (vL < settleVoltMv && vR < settleVoltMv) {
+      if (lowVoltStart == 0) lowVoltStart = now;
+      else if ((int)(now - lowVoltStart) >= settleMs) break;
+    } else {
+      lowVoltStart = 0;
+    }
+    pros::delay(10);
+  }
+  return s;
+}
+
+struct VelocityTunerStep {
+  std::function<void(float, float)> setConsts;  // (kP, kD); kI always 0
+  std::function<void()> setTarget;              // drive/turn/swing to target
+  std::function<void()> driveBack;              // return to start
+  std::function<float()> readPos;
+  std::function<void()> resetSensor;
+  float target;             // signed target (matches the value handed to pid_*_set)
+  float targetMag;          // |target|, for printout / safety
+  float overshootThresh;    // kept for printout context
+  const char* label;
+};
+
+// Two-phase bracket-and-bisect tuner.
+// Phase 1: find largest kP that doesn't overshoot (kD=0). Bracket by doubling
+//          kP until overshoot, then bisect.
+// Phase 2: boost kP past the boundary (×kpBoostFactor) so the robot
+//          intentionally overshoots/oscillates. With that aggressive kP fixed,
+//          bracket+bisect kD upward to find the smallest kD that damps the
+//          overshoot back under threshold.
+// Result: aggressive kP with just-enough kD — faster response than pure-P
+// "barely no overshoot", still no residual overshoot. kI stays 0.
+static void runVelocityAutotune(light::Drive* chassis,
+                                pros::MotorGroup* L, pros::MotorGroup* R,
+                                const VelocityTunerStep& s,
+                                float kpStart, int maxItersPerPhase,
+                                float kpMaxCap = 50.0f,
+                                float kpBoostFactor = 2.0f,
+                                float kdStartFrac = 0.10f,
+                                float kdMaxCapMul = 10.0f,
+                                float tolFrac = 0.05f,
+                                int maxMotionMs = 4000) {
+  auto runOnce = [&](float kP, float kD) -> VelocityMotionSample {
+    s.setConsts(kP, kD);
+    s.resetSensor();
+    pros::delay(80);
+    s.setTarget();
+    VelocityMotionSample m = sampleMotion(s.readPos, L, R, s.target, maxMotionMs);
+    chassis->pid_wait();
+    pros::delay(500);  // catch any late ring
+    s.driveBack();
+    chassis->pid_wait();
+    pros::delay(250);
+    return m;
+  };
+
+  const int oscThresh = 3;  // crossings >= 3 ⇒ oscillating
+
+  // ═══ Phase 1: find kP boundary (largest non-oscillating value) ═════════
+  float pLow = 0.0f, pHigh = 0.0f;
+  float kP = kpStart;
+  int iter = 0;
+  while (iter < maxItersPerPhase) {
+    VelocityMotionSample m = runOnce(kP, 0.0f);
+    bool osc = m.crossings >= oscThresh;
+    printf("[AUTOTUNE][%s] kP-bracket iter=%d kP=%.3f peakAbs=%.2f crossings=%d %s\n",
+           s.label, iter, kP, m.peakAbsPos, m.crossings, osc ? "OSCILLATES" : "stable");
+    ++iter;
+    if (osc) { pHigh = kP; break; }
+    pLow = kP;
+    kP *= 2.0f;
+    if (kP >= kpMaxCap) { pHigh = kpMaxCap; break; }
+  }
+
+  // Never oscillated → use the largest tested kP, no kD.
+  if (pHigh <= 0.0f) {
+    printf("[AUTOTUNE][%s] FINAL kP=%.3f kI=0 kD=0 (no oscillation in kP bracket; capped)\n",
+           s.label, pLow);
+    s.setConsts(pLow, 0.0f);
+    return;
+  }
+
+  while (iter < maxItersPerPhase && (pHigh - pLow) / pHigh > tolFrac) {
+    kP = 0.5f * (pLow + pHigh);
+    VelocityMotionSample m = runOnce(kP, 0.0f);
+    bool osc = m.crossings >= oscThresh;
+    printf("[AUTOTUNE][%s] kP-bisect iter=%d kP=%.3f peakAbs=%.2f crossings=%d %s [low=%.3f high=%.3f]\n",
+           s.label, iter, kP, m.peakAbsPos, m.crossings,
+           osc ? "OSCILLATES" : "stable", pLow, pHigh);
+    if (osc) pHigh = kP; else pLow = kP;
+    ++iter;
+  }
+
+  float kpBoundary = pLow;  // largest kP that didn't oscillate
+  float kpBoosted  = kpBoundary * kpBoostFactor;
+  printf("[AUTOTUNE][%s] kP boundary=%.3f → boosting to kP=%.3f (×%.2f) for kD search\n",
+         s.label, kpBoundary, kpBoosted, kpBoostFactor);
+
+  // ═══ Phase 2: find smallest kD that stops oscillation at boosted kP ════
+  float dLow = 0.0f, dHigh = 0.0f;
+  float kdMaxCap = kpBoosted * kdMaxCapMul;
+  float kD = std::max(0.1f, kpBoosted * kdStartFrac);
+  int dIter = 0;
+  while (dIter < maxItersPerPhase) {
+    VelocityMotionSample m = runOnce(kpBoosted, kD);
+    bool osc = m.crossings >= oscThresh;
+    printf("[AUTOTUNE][%s] kD-bracket iter=%d kD=%.3f peakAbs=%.2f crossings=%d %s\n",
+           s.label, dIter, kD, m.peakAbsPos, m.crossings,
+           osc ? "OSCILLATES" : "stable");
+    ++dIter;
+    if (!osc) { dHigh = kD; break; }
+    dLow = kD;
+    kD *= 2.0f;
+    if (kD >= kdMaxCap) { dHigh = kdMaxCap; break; }
+  }
+
+  // kD couldn't damp even at cap → fall back to safe pure-P tune.
+  if (dHigh <= 0.0f) {
+    printf("[AUTOTUNE][%s] WARN kD didn't damp at kP=%.3f; falling back to boundary kP\n",
+           s.label, kpBoosted);
+    printf("[AUTOTUNE][%s] FINAL kP=%.3f kI=0 kD=0\n", s.label, kpBoundary);
+    s.setConsts(kpBoundary, 0.0f);
+    return;
+  }
+
+  while (dIter < maxItersPerPhase && (dHigh - dLow) / dHigh > tolFrac) {
+    kD = 0.5f * (dLow + dHigh);
+    VelocityMotionSample m = runOnce(kpBoosted, kD);
+    bool osc = m.crossings >= oscThresh;
+    printf("[AUTOTUNE][%s] kD-bisect iter=%d kD=%.3f peakAbs=%.2f crossings=%d %s [low=%.3f high=%.3f]\n",
+           s.label, dIter, kD, m.peakAbsPos, m.crossings,
+           osc ? "OSCILLATES" : "stable", dLow, dHigh);
+    if (osc) dLow = kD; else dHigh = kD;
+    ++dIter;
+  }
+
+  printf("[AUTOTUNE][%s] FINAL kP=%.3f kI=0 kD=%.3f\n", s.label, kpBoosted, dHigh);
+  s.setConsts(kpBoosted, dHigh);
+}
+
+void autotune_turn_pid(float turnAngleDeg, float overshootThreshDeg,
+                       float kpStart, int maxIters) {
   light::Drive* chassis = light::getChassis();
-  pros::MotorGroup* L = nullptr;
-  pros::MotorGroup* R = nullptr;
+  pros::MotorGroup *L = nullptr, *R = nullptr;
   light::getDriveMotorGroups(&L, &R);
   if (!chassis || !L || !R) {
     printf("[AUTOTUNE][turn] no chassis/motors\n");
     return;
   }
-
-  EzPauseGuard guard(chassis, L, R);
-  chassis->drive_imu_reset(0.0);
-  pros::delay(50);
-
-  auto readErr = [&]() -> float {
-    return -(float)chassis->drive_imu_get();
-  };
-  auto apply = [&](int sign) {
-    int mV = (int)(sign * reliefV * 1000.0f);
-    L->move_voltage(mV);
-    R->move_voltage(-mV);
-  };
-  RelayResult r = runRelay(readErr, apply, reliefV, cycles, timeoutMs,
-                           chunkCycles, coolMs);
-  applyZnAndPrint("turn", r, [&](double p, double i, double d) {
-    chassis->pid_turn_constants_set(p, i, d, 0.0);
-  });
+  // pid_*_set's speed-arg default is the user-owned light::TURN_SPEED /
+  // DRIVE_SPEED / SWING_SPEED globals (defined in autons.cpp, hot package).
+  // Pass 127 (full) explicitly so the cold-package link doesn't need them.
+  VelocityTunerStep s;
+  s.setConsts    = [&](float p, float d) { chassis->pid_turn_constants_set(p, 0.0, d); };
+  s.setTarget    = [&]() { chassis->pid_turn_set((double)turnAngleDeg, 127); };
+  s.driveBack    = [&]() { chassis->pid_turn_set(0.0, 127); };
+  s.readPos      = [&]() -> float { return (float)chassis->drive_imu_get(); };
+  s.resetSensor  = [&]() { chassis->drive_imu_reset(0.0); };
+  s.target           = turnAngleDeg;
+  s.targetMag        = std::fabs(turnAngleDeg);
+  s.overshootThresh  = overshootThreshDeg;
+  s.label            = "turn";
+  runVelocityAutotune(chassis, L, R, s, kpStart, maxIters);
 }
 
-void autotune_drive_pid(float reliefV, int cycles, int timeoutMs,
-                        int chunkCycles, int coolMs) {
+void autotune_drive_pid(float driveDistIn, float overshootThreshIn,
+                        float kpStart, int maxIters) {
   light::Drive* chassis = light::getChassis();
-  pros::MotorGroup* L = nullptr;
-  pros::MotorGroup* R = nullptr;
+  pros::MotorGroup *L = nullptr, *R = nullptr;
   light::getDriveMotorGroups(&L, &R);
   if (!chassis || !L || !R) {
     printf("[AUTOTUNE][drive] no chassis/motors\n");
     return;
   }
-
-  EzPauseGuard guard(chassis, L, R);
-  chassis->drive_sensor_reset();
-  pros::delay(50);
-
-  const float target = 12.0f;  // in
-  auto readErr = [&]() -> float {
-    double avg = 0.5 * (chassis->drive_sensor_left() + chassis->drive_sensor_right());
-    return target - (float)avg;
+  VelocityTunerStep s;
+  s.setConsts   = [&](float p, float d) { chassis->pid_drive_constants_set(p, 0.0, d); };
+  s.setTarget   = [&]() { chassis->pid_drive_set((double)driveDistIn, 127); };
+  s.driveBack   = [&]() { chassis->pid_drive_set((double)-driveDistIn, 127); };
+  s.readPos     = [&]() -> float {
+    return (float)(0.5 * (chassis->drive_sensor_left() + chassis->drive_sensor_right()));
   };
-  // apply(sign) must drive readErr in the same direction as sign to match the
-  // convention runRelay expects (consistent with turn/swing/heading lambdas).
-  // Negate so apply(+1) drives wheels backward → avg falls → readErr rises.
-  auto apply = [&](int sign) {
-    int mV = (int)(-sign * reliefV * 1000.0f);
-    L->move_voltage(mV);
-    R->move_voltage(mV);
-  };
-  RelayResult r = runRelay(readErr, apply, reliefV, cycles, timeoutMs,
-                           chunkCycles, coolMs);
-  applyZnAndPrint("drive", r, [&](double p, double i, double d) {
-    chassis->pid_drive_constants_set(p, i, d, 0.0);
-  });
+  s.resetSensor = [&]() { chassis->drive_sensor_reset(); };
+  s.target           = driveDistIn;
+  s.targetMag        = std::fabs(driveDistIn);
+  s.overshootThresh  = overshootThreshIn;
+  s.label            = "drive";
+  runVelocityAutotune(chassis, L, R, s, kpStart, maxIters);
 }
 
-void autotune_swing_pid(float reliefV, int cycles, int timeoutMs,
-                        int chunkCycles, int coolMs) {
+void autotune_swing_pid(float swingAngleDeg, float overshootThreshDeg,
+                        float kpStart, int maxIters) {
   light::Drive* chassis = light::getChassis();
-  pros::MotorGroup* L = nullptr;
-  pros::MotorGroup* R = nullptr;
+  pros::MotorGroup *L = nullptr, *R = nullptr;
   light::getDriveMotorGroups(&L, &R);
   if (!chassis || !L || !R) {
     printf("[AUTOTUNE][swing] no chassis/motors\n");
     return;
   }
-
-  EzPauseGuard guard(chassis, L, R);
-  chassis->drive_imu_reset(0.0);
-  pros::delay(50);
-
-  // Left-swing variant: only left motors drive; right held at 0 V.
-  auto readErr = [&]() -> float {
-    return -(float)chassis->drive_imu_get();
-  };
-  auto apply = [&](int sign) {
-    int mV = (int)(sign * reliefV * 1000.0f);
-    L->move_voltage(mV);
-    R->move_voltage(0);
-  };
-  RelayResult r = runRelay(readErr, apply, reliefV, cycles, timeoutMs,
-                           chunkCycles, coolMs);
-  applyZnAndPrint("swing", r, [&](double p, double i, double d) {
-    chassis->pid_swing_constants_set(p, i, d, 0.0);
-  });
+  VelocityTunerStep s;
+  s.setConsts   = [&](float p, float d) { chassis->pid_swing_constants_set(p, 0.0, d); };
+  s.setTarget   = [&]() { chassis->pid_swing_set(light::LEFT_SWING, (double)swingAngleDeg, 127); };
+  s.driveBack   = [&]() { chassis->pid_swing_set(light::LEFT_SWING, 0.0, 127); };
+  s.readPos     = [&]() -> float { return (float)chassis->drive_imu_get(); };
+  s.resetSensor = [&]() { chassis->drive_imu_reset(0.0); };
+  s.targetMag        = std::fabs(swingAngleDeg);
+  s.overshootThresh  = overshootThreshDeg;
+  s.label            = "swing";
+  runVelocityAutotune(chassis, L, R, s, kpStart, maxIters);
 }
 
 void autotune_heading_pid(float forwardV, float reliefV, int cycles, int timeoutMs,
@@ -1186,8 +1345,8 @@ void autotune_heading_pid(float forwardV, float reliefV, int cycles, int timeout
     return -(float)chassis->drive_imu_get();
   };
   auto apply = [&](int sign) {
-    float vL = forwardV + sign * reliefV;
-    float vR = forwardV - sign * reliefV;
+    float vL = forwardV - sign * reliefV;
+    float vR = forwardV + sign * reliefV;
     L->move_voltage((int)(vL * 1000.0f));
     R->move_voltage((int)(vR * 1000.0f));
   };
