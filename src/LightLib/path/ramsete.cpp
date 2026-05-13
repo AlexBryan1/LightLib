@@ -22,6 +22,7 @@
 #include "path_runtime_internal.hpp"
 #include "LightLib/drive/lightcast.hpp"
 #include "LightLib/drive/odometry.hpp"
+#include "LightLib/ui/log_display.hpp"
 #include "LightLib/util/util.hpp"
 #include "pros/misc.hpp"
 #include "pros/motor_group.hpp"
@@ -1062,16 +1063,16 @@ static RelayResult runRelay(std::function<float()> readError,
 static void applyZnAndPrint(const char* tag, const RelayResult& r,
                             std::function<void(double, double, double)> setter) {
   if (!r.ok) {
-    printf("[AUTOTUNE][%s] FAILED — no stable oscillation (reliefV too low?)\n", tag);
+    log_emit("[AUTOTUNE][%s] FAILED — no stable oscillation (reliefV too low?)", tag);
     return;
   }
   float kP = 0.6f * r.Ku;
   float kI = 2.0f * kP / r.Pu;
   float kD = kP * r.Pu / 8.0f;
-  printf("[AUTOTUNE][%s] Ku=%.3f  Pu=%.3fs  (cycles=%d) -> kP=%.3f  kI=%.4f  kD=%.3f\n",
-         tag, r.Ku, r.Pu, r.cyclesSeen, kP, kI, kD);
+  log_emit("[AUTOTUNE][%s] Ku=%.3f  Pu=%.3fs  (cycles=%d) -> kP=%.3f  kI=%.4f  kD=%.3f",
+           tag, r.Ku, r.Pu, r.cyclesSeen, kP, kI, kD);
   if (setter) setter((double)kP, (double)kI, (double)kD);
-  printf("[AUTOTUNE][%s] applied to live EZ chassis (start_i=0).\n", tag);
+  log_emit("[AUTOTUNE][%s] applied to live EZ chassis (start_i=0).", tag);
 }
 
 // Velocity-based iterative autotune. Drives the chassis through its own PID,
@@ -1328,8 +1329,8 @@ static void runVelocityAutotune(light::Drive* chassis,
   if (dHigh <= 0.0f) {
     s.setConsts(kpBoundary, 0.0f);
     g_autotunePrevSuccess[s.label] = false;
-    printf("[AUTOTUNE][%s] phase 2 could not damp at kP=%.3f — marked failed; "
-           "next run will not boost\n", s.label, kpBoosted);
+    log_emit("[AUTOTUNE][%s] phase 2 could not damp at kP=%.3f — marked failed; "
+             "next run will not boost", s.label, kpBoosted);
     return;
   }
 
@@ -1355,12 +1356,12 @@ static void runVelocityAutotune(light::Drive* chassis,
     ++dIter;
   }
 
-  printf("[AUTOTUNE][%s] COMPLETED. Old kP: %.2f -> New kP: %.3f | Old kD: %.2f -> New kD: %.3f\n",
-         s.label, kpStart, kpBoosted, kdLive, dHigh);
+  log_emit("[AUTOTUNE][%s] COMPLETED. Old kP: %.2f -> New kP: %.3f | Old kD: %.2f -> New kD: %.3f",
+           s.label, kpStart, kpBoosted, kdLive, dHigh);
   s.setConsts(kpBoosted, dHigh);
   auto applied = s.getConsts();
-  printf("[AUTOTUNE][%s] APPLIED VERIFY: live PID now reads kP=%.3f kD=%.3f\n",
-         s.label, applied.first, applied.second);
+  log_emit("[AUTOTUNE][%s] APPLIED VERIFY: live PID now reads kP=%.3f kD=%.3f",
+           s.label, applied.first, applied.second);
   g_autotunePrevSuccess[s.label] = true;
 }
 
@@ -1372,7 +1373,7 @@ void autotune_turn_pid(float turnAngleDeg, float overshootThreshDeg, int maxIter
   pros::MotorGroup *L = nullptr, *R = nullptr;
   light::getDriveMotorGroups(&L, &R);
   if (!chassis || !L || !R) {
-    printf("[AUTOTUNE][turn] Failed: No chassis or motor groups resolved.\n");
+    log_emit("[AUTOTUNE][turn] Failed: No chassis or motor groups resolved.");
     return;
   }
 
@@ -1402,7 +1403,7 @@ void autotune_drive_pid(float driveDistIn, float overshootThreshIn, int maxIters
   pros::MotorGroup *L = nullptr, *R = nullptr;
   light::getDriveMotorGroups(&L, &R);
   if (!chassis || !L || !R) {
-    printf("[AUTOTUNE][drive] Failed: No chassis or motor groups resolved.\n");
+    log_emit("[AUTOTUNE][drive] Failed: No chassis or motor groups resolved.");
     return;
   }
 
@@ -1434,7 +1435,7 @@ void autotune_swing_pid(float swingAngleDeg, float overshootThreshDeg, int maxIt
   pros::MotorGroup *L = nullptr, *R = nullptr;
   light::getDriveMotorGroups(&L, &R);
   if (!chassis || !L || !R) {
-    printf("[AUTOTUNE][swing] Failed: No chassis or motor groups resolved.\n");
+    log_emit("[AUTOTUNE][swing] Failed: No chassis or motor groups resolved.");
     return;
   }
 
@@ -1513,9 +1514,9 @@ void autotune_ekf_noise(int sampleMs, int durationMs, int warmupMs) {
   cfg.ekfQVel = Qvel;
   light::ekf::setConfig(cfg);
 
-  printf("[AUTOTUNE][ekf] samples=%d  Q_pos=%.5f in^2/s  Q_theta=%.6f rad^2/s  Q_vel=%.4f\n",
-         (int)dx.size(), Qpos, Qtheta, Qvel);
-  printf("[AUTOTUNE][ekf] applied live. Transcribe into EKF_Q_* macros in main.cpp to persist.\n");
+  log_emit("[AUTOTUNE][ekf] samples=%d  Q_pos=%.5f in^2/s  Q_theta=%.6f rad^2/s  Q_vel=%.4f",
+           (int)dx.size(), Qpos, Qtheta, Qvel);
+  log_emit("[AUTOTUNE][ekf] applied live. Transcribe into EKF_Q_* macros in main.cpp to persist.");
 }
 
 // Robot parked with each distance sensor pointed at a wall in range.
@@ -1591,9 +1592,9 @@ void autotune_mcl_noise(int sampleMs, int durationMs, int warmupMs) {
   cfg.outlierGapIn = gap;
   light::lightcast::setConfig(cfg);
 
-  printf("[AUTOTUNE][mcl] sensorSigmaIn=%.3f in  outlierGapIn=%.3f in  (avg of %d sensors)\n",
-         sigma, gap, contributing);
-  printf("[AUTOTUNE][mcl] applied live. Transcribe into mcl.sensorSigmaIn / mcl.outlierGapIn in default_constants() (autons.cpp) to persist.\n");
+  log_emit("[AUTOTUNE][mcl] sensorSigmaIn=%.3f in  outlierGapIn=%.3f in  (avg of %d sensors)",
+           sigma, gap, contributing);
+  log_emit("[AUTOTUNE][mcl] applied live. Transcribe into mcl.sensorSigmaIn / mcl.outlierGapIn in default_constants() (autons.cpp) to persist.");
 }
 
 }  // namespace light
