@@ -5,7 +5,7 @@
 //     path (success/timeout/bail/exception) must pass through its destructor.
 //   * Do not call chassis.pid_* while a trajectory is running.
 
-#include "LightLib/path/ramsete.hpp"
+#include "LightLib/drive/ramsete.hpp"
 
 #include <algorithm>
 #include <atomic>

@@ -9,10 +9,10 @@
 #include "LightLib/drive/odometry.hpp"
 #include "LightLib/drive/ekf.hpp"
 #include "LightLib/drive/lightcast.hpp"
-#include "LightLib/path/ramsete.hpp"
-#include "LightLib/path/pure_pursuit.hpp"
+#include "LightLib/drive/ramsete.hpp"
+#include "LightLib/drive/pure_pursuit.hpp"
 #include "LightLib/util/util.hpp"
-#include "LightLib/path/paths.hpp"
+#include "LightLib/drive/paths.hpp"
 #include "pros/motors.h"
 #include "subsystems.hpp"
 
@@ -214,7 +214,7 @@ void ramsete_demo_s_curve() {
 }
 
 // Run a Jerryio-authored path by name. Path bodies live in
-// include/LightLib/paths/<name>.hpp and are registered in src/LightLib/paths.cpp.
+// include/Lightlib/drives/<name>.hpp and are registered in src/Lightlib/drives.cpp.
 // The densified format is auto-detected and translated so point 0 sits at
 // the robot's current pose — so this starts wherever the robot happens to be.
 void run_jerryio_path_1() {

@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "LightLib/path/ramsete.hpp"
+#include "Lightlib/drive/ramsete.hpp"
 
 /**
  * \file paths.hpp

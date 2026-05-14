@@ -3,7 +3,7 @@
 #include <cmath>
 #include <mutex>
 
-#include "LightLib/path/field_map.hpp"
+#include "LightLib/drive/field_map.hpp"
 #include "LightLib/util/util.hpp"
 #include "pros/rtos.hpp"
 

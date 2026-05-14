@@ -82,7 +82,7 @@ Path following needs three structs configured *once* in `initialize()`,
 before any auton runs:
 
 ```cpp
-#include "LightLib/path/ramsete.hpp"
+#include "Lightlib/drive/ramsete.hpp"
 
 void initialize() {
   // ... chassis init, default_constants(), etc ...
@@ -120,7 +120,7 @@ toward 60 in/s.
 ### Inline waypoint list
 
 ```cpp
-#include "LightLib/path/ramsete.hpp"
+#include "Lightlib/drive/ramsete.hpp"
 
 void my_auton() {
   light::setPose(Pose(0, 0, 0));   // always reset pose at the top

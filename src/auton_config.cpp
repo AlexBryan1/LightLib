@@ -1,6 +1,6 @@
 #include "LightLib/ui/auton_selector.hpp"
-#include "LightLib/path/autotune.hpp"
-#include "LightLib/path/ramsete.hpp"
+#include "LightLib/drive/autotune.hpp"
+#include "LightLib/drive/ramsete.hpp"
 #include "autons.hpp"
 
 // ┌─────────────────────────────────────────────────────────────────────────┐

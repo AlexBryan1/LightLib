@@ -2,7 +2,7 @@
 // forward accel sweep, backward decel sweep. Endpoints clamped to zero. Then
 // the arclength profile is walked at dt = 2·ds/(v[i]+v[i+1]) to emit samples.
 
-#include "LightLib/path/trajectory.hpp"
+#include "Lightlib/drive/trajectory.hpp"
 
 #include <algorithm>
 #include <cmath>

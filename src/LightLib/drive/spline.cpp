@@ -3,7 +3,7 @@
 // (non-zero α estimates wiggle more than they help on short segments).
 // Per-segment 65-sample s(u) trapezoid table; s→u lookup is binary search.
 
-#include "LightLib/path/spline.hpp"
+#include "LightLib/drive/spline.hpp"
 
 #include <algorithm>
 #include <cmath>

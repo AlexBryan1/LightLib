@@ -163,7 +163,7 @@ Trajectory generation</h2>
 <h1 class="doxsection"><a class="anchor" id="autotoc_md47"></a>
 Configuration</h1>
 <p>Path following needs three structs configured <em>once</em> in <span class="tt"><a class="el" href="main_8h.html#a9efe22aaead3a5e936b5df459de02eba">initialize()</a></span>, before any auton runs:</p>
-<div class="fragment"><div class="line"><span class="preprocessor">#include &quot;<a class="code" href="ramsete_8hpp.html">LightLib/path/ramsete.hpp</a>&quot;</span></div>
+<div class="fragment"><div class="line"><span class="preprocessor">#include &quot;<a class="code" href="ramsete_8hpp.html">Lightlib/drive/ramsete.hpp</a>&quot;</span></div>
 <div class="line"> </div>
 <div class="line"><span class="keywordtype">void</span> <a class="code hl_function" href="main_8h.html#a9efe22aaead3a5e936b5df459de02eba">initialize</a>() {</div>
 <div class="line">  <span class="comment">// ... chassis init, default_constants(), etc ...</span></div>
@@ -197,7 +197,7 @@ tank chassis on 3.25" wheels. The <span class="tt">kS / kV / kA</span> values co
 Following a trajectory</h1>
 <h2 class="doxsection"><a class="anchor" id="autotoc_md49"></a>
 Inline waypoint list</h2>
-<div class="fragment"><div class="line"><span class="preprocessor">#include &quot;<a class="code" href="ramsete_8hpp.html">LightLib/path/ramsete.hpp</a>&quot;</span></div>
+<div class="fragment"><div class="line"><span class="preprocessor">#include &quot;<a class="code" href="ramsete_8hpp.html">Lightlib/drive/ramsete.hpp</a>&quot;</span></div>
 <div class="line"> </div>
 <div class="line"><span class="keywordtype">void</span> my_auton() {</div>
 <div class="line">  <a class="code hl_function" href="namespacelight.html#af9f4896464112133a640a04f4eb249fe">light::setPose</a>(<a class="code hl_struct" href="struct_pose.html">Pose</a>(0, 0, 0));   <span class="comment">// always reset pose at the top</span></div>

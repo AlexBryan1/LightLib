@@ -66,7 +66,7 @@ default stub.
 ## Coordinate frame contract
 
 The emitted code assumes the field frame from
-[include/LightLib/path/field_map.hpp](../../include/LightLib/path/field_map.hpp):
+[include/Lightlib/drive/field_map.hpp](../../include/Lightlib/drive/field_map.hpp):
 
 - Origin at field center
 - `+X` right, `+Y` forward, `theta` CCW from `+Y` (radians)

@@ -3,7 +3,7 @@
 #include <functional>
 #include <vector>
 
-#include "LightLib/path/trajectory.hpp"
+#include "LightLib/drive/trajectory.hpp"
 
 /**
  * \file ramsete.hpp

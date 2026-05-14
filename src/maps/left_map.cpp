@@ -14,7 +14,7 @@
 // │  Built into firmware/libmaps.a — only recompiled by `pros make maps`.   │
 // └─────────────────────────────────────────────────────────────────────────┘
 
-#include "LightLib/path/field_map.hpp"
+#include "Lightlib/drive/field_map.hpp"
 
 namespace light::field {
 
