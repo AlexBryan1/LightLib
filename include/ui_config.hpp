@@ -63,7 +63,6 @@ constexpr int UI_ANIM_BANNER_PX_MS = 7;         ///< Per-pixel scroll duration.
 constexpr int UI_ANIM_BANNER_STAGGER_MS = 400;  ///< Delay between buttons.
 constexpr int UI_ANIM_BANNER_REPEAT_DELAY_MS = 800; ///< Delay before banner repeats.
 constexpr int UI_ODOM_REFRESH_MS = 100;         ///< Odom X/Y/Angle label refresh period.
-constexpr int UI_LOG_REFRESH_MS  = 250;         ///< Log panel refresh period.
 /** @} */
 
 /**

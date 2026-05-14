@@ -7,7 +7,6 @@
 
 #include "LightLib/drive/odometry.hpp"
 #include "LightLib/control/pid_tuner.hpp"
-#include "LightLib/ui/log_display.hpp"
 #include "ui_config.hpp"
 
 LV_IMG_DECLARE(LOGO);
@@ -90,10 +89,6 @@ void AutonSelector::teardown_ui() {
     lv_timer_del(odom_timer_);
     odom_timer_ = nullptr;
   }
-  if (log_timer_) {
-    lv_timer_del(log_timer_);
-    log_timer_ = nullptr;
-  }
   if (run_back_lbl_) {
     lv_obj_del(run_back_lbl_);
     run_back_lbl_ = nullptr;
@@ -118,9 +113,6 @@ void AutonSelector::teardown_ui() {
   odom_x_lbl_ = nullptr;
   odom_y_lbl_ = nullptr;
   odom_theta_lbl_ = nullptr;
-  log_cont_ = nullptr;
-  log_text_lbl_ = nullptr;
-  log_last_rev_ = 0;
   toggle_lbl_ = nullptr;
   run_img_cont_ = nullptr;
   run_info_cont_ = nullptr;
@@ -247,19 +239,8 @@ void AutonSelector::build_ui() {
   build_right_odom(odom_cont_);
   lv_obj_add_flag(odom_cont_, LV_OBJ_FLAG_HIDDEN);
 
-  log_cont_ = lv_obj_create(right_panel);
-  lv_obj_set_size(log_cont_, rp_w, rp_h);
-  lv_obj_set_pos(log_cont_, 0, 0);
-  lv_obj_set_style_bg_opa(log_cont_, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_border_width(log_cont_, 0, 0);
-  lv_obj_set_style_pad_all(log_cont_, 0, 0);
-  build_right_log(log_cont_);
-  lv_obj_add_flag(log_cont_, LV_OBJ_FLAG_HIDDEN);
-
   // Timer fires every 100ms to refresh the odom X/Y/Angle display
   odom_timer_ = lv_timer_create(odom_timer_cb, UI_ODOM_REFRESH_MS, this);
-  // Log panel pulls from the ring buffer at a slower cadence
-  log_timer_ = lv_timer_create(log_timer_cb, UI_LOG_REFRESH_MS, this);
 
   // ── Left panel: auton button grid ────────────────────────────────────────
   // Lays out buttons in a 2-column grid.  If there are too many to fit on
@@ -519,81 +500,12 @@ void AutonSelector::build_right_odom(lv_obj_t* parent) {
   }
 }
 
-// Log sub-panel — shows the most recent lines emitted by light::log_emit().
-// Autotuners route their final-result lines through that helper so the
-// driver can read kP/kD outcomes (and FAILED notices) off the brain.
-void AutonSelector::build_right_log(lv_obj_t* parent) {
-  int pw = PREVIEW_W - 8;
-  int ph = SCREEN_H - HEADER_H - 8;
-
-  lv_obj_t* title = lv_label_create(parent);
-  lv_label_set_text(title, LV_SYMBOL_FILE "  LOG");
-  lv_obj_set_style_text_color(title, COL_ACCENT, 0);
-  lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 8);
-
-  lv_obj_t* sep = lv_obj_create(parent);
-  lv_obj_set_size(sep, pw - 8, 1);
-  lv_obj_set_pos(sep, 4, 26);
-  lv_obj_set_style_bg_color(sep, COL_ACCENT2, 0);
-  lv_obj_set_style_bg_opa(sep, LV_OPA_COVER, 0);
-  lv_obj_set_style_border_width(sep, 0, 0);
-  lv_obj_set_style_radius(sep, 0, 0);
-
-  // Clear button bottom-right; scroll area gets the remaining height.
-  int clear_h = 22;
-  int clear_w = 64;
-  int scroll_y = 30;
-  int scroll_h = ph - scroll_y - clear_h - 6;
-
-  lv_obj_t* scroll = lv_obj_create(parent);
-  lv_obj_set_size(scroll, pw - 8, scroll_h);
-  lv_obj_set_pos(scroll, 4, scroll_y);
-  lv_obj_set_style_bg_opa(scroll, LV_OPA_TRANSP, 0);
-  lv_obj_set_style_border_width(scroll, 0, 0);
-  lv_obj_set_style_pad_all(scroll, 2, 0);
-  lv_obj_set_style_radius(scroll, 0, 0);
-  lv_obj_add_flag(scroll, LV_OBJ_FLAG_SCROLLABLE);
-  lv_obj_set_scroll_dir(scroll, LV_DIR_VER);
-  lv_obj_set_scrollbar_mode(scroll, LV_SCROLLBAR_MODE_ACTIVE);
-  lv_obj_set_style_width(scroll, 4, LV_PART_SCROLLBAR);
-  lv_obj_set_style_bg_color(scroll, COL_ACCENT, LV_PART_SCROLLBAR);
-  lv_obj_set_style_bg_opa(scroll, LV_OPA_COVER, LV_PART_SCROLLBAR);
-
-  // Width must be set before LONG_WRAP so the first wrap pass uses the real
-  // bounds, and the initial text must be non-empty so LVGL's auto-height has
-  // a glyph to measure (zero-glyph WRAP labels wedge layout inside SCROLLABLE).
-  log_text_lbl_ = lv_label_create(scroll);
-  lv_label_set_text(log_text_lbl_, " ");
-  lv_obj_set_width(log_text_lbl_, pw - 16);
-  lv_label_set_long_mode(log_text_lbl_, LV_LABEL_LONG_WRAP);
-  lv_obj_set_style_text_color(log_text_lbl_, COL_TEXT_DIM, 0);
-  lv_obj_set_style_text_font(log_text_lbl_, &lv_font_montserrat_14, 0);
-
-  lv_obj_t* clear = lv_btn_create(parent);
-  lv_obj_set_size(clear, clear_w, clear_h);
-  lv_obj_set_pos(clear, pw - clear_w - 8, ph - clear_h - 4);
-  lv_obj_set_style_bg_color(clear, COL_ACCENT, 0);
-  lv_obj_set_style_bg_grad_color(clear, COL_ACCENT2, 0);
-  lv_obj_set_style_bg_grad_dir(clear, LV_GRAD_DIR_VER, 0);
-  lv_obj_set_style_bg_opa(clear, LV_OPA_COVER, 0);
-  lv_obj_set_style_bg_color(clear, COL_BTN_IDLE, LV_STATE_PRESSED);
-  lv_obj_set_style_border_width(clear, 0, 0);
-  lv_obj_set_style_radius(clear, 4, 0);
-  lv_obj_add_event_cb(clear, log_clear_cb, LV_EVENT_CLICKED, this);
-
-  lv_obj_t* cl = lv_label_create(clear);
-  lv_label_set_text(cl, LV_SYMBOL_TRASH "  Clear");
-  lv_obj_set_style_text_color(cl, COL_TEXT_SEL, 0);
-  lv_obj_center(cl);
-}
-
 // Toggle label shows what the NEXT press switches to, not the current panel.
 void AutonSelector::switch_panel(int mode) {
   right_panel_mode_ = mode;
   lv_obj_add_flag(preview_cont_, LV_OBJ_FLAG_HIDDEN);
   lv_obj_add_flag(pid_cont_, LV_OBJ_FLAG_HIDDEN);
   lv_obj_add_flag(odom_cont_, LV_OBJ_FLAG_HIDDEN);
-  if (log_cont_) lv_obj_add_flag(log_cont_, LV_OBJ_FLAG_HIDDEN);
 
   switch (mode) {
     case 1:  // PID Tune
@@ -604,12 +516,6 @@ void AutonSelector::switch_panel(int mode) {
       break;
     case 2:  // Odom Position
       lv_obj_clear_flag(odom_cont_, LV_OBJ_FLAG_HIDDEN);
-      lv_label_set_text(toggle_lbl_, LV_SYMBOL_FILE "  Log");
-      break;
-    case 3:  // Log
-      if (log_cont_) lv_obj_clear_flag(log_cont_, LV_OBJ_FLAG_HIDDEN);
-      // Force a fresh paint on enter so we don't wait up to UI_LOG_REFRESH_MS.
-      log_last_rev_ = 0;
       lv_label_set_text(toggle_lbl_, LV_SYMBOL_IMAGE "  Preview");
       break;
     default:  // 0 = Preview
@@ -948,8 +854,6 @@ void AutonSelector::run_back_cb(lv_event_t* e) {
   lv_anim_start(&ay);
 }
 
-// Tap selects the auton and opens the run screen. The auton itself runs from
-// autonomous() — start it with UP on the controller (auton_toggle in robot_impl.inl).
 void AutonSelector::btn_cb(lv_event_t* e) {
   lv_obj_t* btn = lv_event_get_target(e);
   int idx = (int)(intptr_t)lv_obj_get_user_data(btn);
@@ -964,18 +868,16 @@ void AutonSelector::btn_cb(lv_event_t* e) {
   self.start_run_anim();
 }
 
-// Header toggle button — cycles right panel: Preview → PID Tune → Odom → Log → Preview…
+// Header toggle button — cycles right panel: Preview → PID Tune → Odom → Preview…
 void AutonSelector::toggle_cb(lv_event_t* e) {
   auto* self = static_cast<AutonSelector*>(lv_event_get_user_data(e));
-  self->switch_panel((self->right_panel_mode_ + 1) % 4);
+  self->switch_panel((self->right_panel_mode_ + 1) % 3);
 }
 
 // Fires every 100ms — refreshes the X/Y/Angle labels on the odom sub-panel
 void AutonSelector::odom_timer_cb(lv_timer_t* timer) {
   auto* self = static_cast<AutonSelector*>(timer->user_data);
   if (self->right_panel_mode_ != 2 || !self->odom_x_lbl_) return;
-  // Don't touch picker-screen labels while the run screen is active.
-  if (lv_scr_act() == self->run_screen_) return;
   Pose p = light::getPose();
   char buf[16];
 
@@ -1021,26 +923,6 @@ void AutonSelector::pid_adj_cb(lv_event_t* e) {
 void AutonSelector::pid_apply_cb(lv_event_t* e) {
   auto* self = static_cast<AutonSelector*>(lv_event_get_user_data(e));
   self->apply_pid_vals();
-}
-
-// Polls light::log_revision() — only redraws when something has changed,
-// so the LVGL invalidate cost stays at zero between tuner runs.
-void AutonSelector::log_timer_cb(lv_timer_t* timer) {
-  auto* self = static_cast<AutonSelector*>(timer->user_data);
-  if (self->right_panel_mode_ != 3 || !self->log_text_lbl_) return;
-  // Don't touch picker-screen labels while the run screen is active.
-  if (lv_scr_act() == self->run_screen_) return;
-  uint32_t rev = light::log_revision();
-  if (rev == self->log_last_rev_) return;
-  self->log_last_rev_ = rev;
-  std::string snap = light::log_snapshot();
-  lv_label_set_text(self->log_text_lbl_, snap.c_str());
-}
-
-// Clear button — empty the ring buffer; the next timer tick paints it blank.
-void AutonSelector::log_clear_cb(lv_event_t* e) {
-  (void)e;
-  light::log_clear();
 }
 
 }  // namespace light
