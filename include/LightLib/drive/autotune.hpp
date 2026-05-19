@@ -25,13 +25,14 @@ void autotune_mcl_noise(int sampleMs = 20, int durationMs = 4000, int warmupMs =
 
 /**
  * \name Bracket-and-bisect PID auto-tune (drive / turn / swing / heading)
- * Two-phase tuner with kI=0. Phase 1 doubles kP until the robot oscillates
+ * Three-phase tuner with kI=0. Phase 1 doubles kP until the robot oscillates
  * (≥3 zero-crossings of pos − target), then bisects between the last stable
  * and oscillating values. Phase 2 boosts that kP, doubles kD until the
  * oscillation damps, then bisects to find the smallest sufficient kD.
- * Net result: aggressive kP with just-enough kD — faster response than pure-P
- * with no residual ringing. Final values are applied live via
- * pid_*_constants_set; transcribe the printed FINAL line into
+ * Phase 3 then pushes kP higher in +15% steps — bumping kD when oscillation
+ * returns — until settle time stops improving (best-of-2 confirmed), and
+ * writes the fastest-settling stable (kP, kD) pair. Final values are applied
+ * live via pid_*_constants_set; transcribe the printed FINAL line into
  * default_constants() to persist across reboots. Heading scores on the
  * |L−R| motor voltage differential (the heading PID's own controller effort)
  * instead of IMU error, so its oscillation read isn't masked by drive PID
@@ -39,10 +40,10 @@ void autotune_mcl_noise(int sampleMs = 20, int durationMs = 4000, int warmupMs =
  * straight.
  * @{
  */
-void autotune_turn_pid   (float turnAngleDeg  = 180.0f, float overshootThreshDeg = 3.0f,    int maxIters = 10);
-void autotune_drive_pid  (float driveDistIn   = 24.0f,  float overshootThreshIn  = 0.5f,    int maxIters = 10);
-void autotune_swing_pid  (float swingAngleDeg = 90.0f,  float overshootThreshDeg = 3.0f,    int maxIters = 10);
-void autotune_heading_pid(float driveDistIn   = 48.0f,  float peakDiffMv         = 3000.0f, int maxIters = 10);
+void autotune_turn_pid   (float turnAngleDeg  = 180.0f, float overshootThreshDeg = 3.0f,    int maxIters = 20);
+void autotune_drive_pid  (float driveDistIn   = 24.0f,  float overshootThreshIn  = 0.5f,    int maxIters = 20);
+void autotune_swing_pid  (float swingAngleDeg = 90.0f,  float overshootThreshDeg = 3.0f,    int maxIters = 20);
+void autotune_heading_pid(float driveDistIn   = 48.0f,  float peakDiffMv         = 3000.0f, int maxIters = 20);
 /** @} */
 
 }  // namespace light

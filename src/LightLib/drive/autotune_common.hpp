@@ -18,6 +18,7 @@ struct VelocityMotionSample {
   float peakAbsVel = 0.0f;   // peak |dpos/dt| in units/sec
   float peakAbsPos = 0.0f;   // peak |pos − resetSensor zero|
   int   crossings  = 0;      // number of (pos − target) sign flips
+  int   settleMs   = -1;     // ms from probe start to 3-stop confirm; -1 = never settled
 };
 
 VelocityMotionSample sampleMotion(std::function<float()> readPos,

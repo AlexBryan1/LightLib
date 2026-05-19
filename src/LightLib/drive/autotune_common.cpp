@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 
 #include "pros/rtos.hpp"
 
@@ -59,6 +60,7 @@ VelocityMotionSample sampleMotion(std::function<float()> readPos,
         printf("[AUTOTUNE] Good stop confirmed (%d/3)\n", consecutiveStops);
 
         if (consecutiveStops >= 3) {
+          s.settleMs = (int)(now - t0);
           break;
         }
         currentStopStart = now;
@@ -252,9 +254,128 @@ void runVelocityAutotune(light::Drive* chassis,
     ++dIter;
   }
 
-  printf("[AUTOTUNE][%s] COMPLETED. Old kP: %.2f -> New kP: %.3f | Old kD: %.2f -> New kD: %.3f\n",
-         s.label, kpStart, kpBoosted, kdLive, dHigh);
-  s.setConsts(kpBoosted, dHigh);
+  // Heading tuner uses a 48 in drive as the probe, with motors pinned high the
+  // whole way — settleMs only fires once the drive completes and the chassis
+  // parks, so it tracks drive completion time, not heading-correction speed.
+  // Skipping phase 3 here keeps phase-2's kP/kD as the final result.
+  if (std::strcmp(s.label, "heading") == 0) {
+    printf("[AUTOTUNE][%s] phase2 done. kP=%.3f kD=%.3f — skipping phase3 (settleMs not meaningful for heading)\n",
+           s.label, kpBoosted, dHigh);
+    printf("[AUTOTUNE][%s] COMPLETED. Old kP: %.2f -> New kP: %.3f | Old kD: %.2f -> New kD: %.3f\n",
+           s.label, kpStart, kpBoosted, kdLive, dHigh);
+    s.setConsts(kpBoosted, dHigh);
+    auto applied = s.getConsts();
+    printf("[AUTOTUNE][%s] APPLIED VERIFY: live PID now reads kP=%.3f kD=%.3f\n",
+           s.label, applied.first, applied.second);
+    g_autotunePrevSuccess[s.label] = true;
+    return;
+  }
+
+  printf("[AUTOTUNE][%s] phase2 done. kP=%.3f kD=%.3f — entering phase3 (speed search)\n",
+         s.label, kpBoosted, dHigh);
+
+  // ═══ Phase 3: Push kP for faster settle; bump kD when oscillation returns ══
+  //
+  // Strategy: keep the (kP, kD) pair found in phase 2 as the baseline, then
+  // scale kP up (+15%/iter) while the probe stays stable. If a probe shows
+  // oscillation, bump kD (+25%) to recover. Use best-of-2 confirmation before
+  // bailing on either failure mode (slower settle OR oscillation) to absorb
+  // run-to-run noise. Final write is the fastest stable (kP, kD) seen.
+  float bestKp = kpBoosted;
+  float bestKd = dHigh;
+
+  // Seed bestMs with a fresh probe at the phase-2 result — the phase-2 bisect
+  // tracked peakAbsPos, not settleMs, so we don't have a clean baseline yet.
+  VelocityMotionSample baseline = runOnce(bestKp, bestKd);
+  if (baseline.settleMs <= 0) {
+    printf("[AUTOTUNE][%s] phase3 baseline failed to settle — skipping speed search\n",
+           s.label);
+    s.setConsts(bestKp, bestKd);
+    auto applied = s.getConsts();
+    printf("[AUTOTUNE][%s] APPLIED VERIFY: live PID now reads kP=%.3f kD=%.3f\n",
+           s.label, applied.first, applied.second);
+    g_autotunePrevSuccess[s.label] = true;
+    return;
+  }
+  int bestMs = baseline.settleMs;
+  printf("[AUTOTUNE][%s] phase3 baseline kP=%.3f kD=%.3f settleMs=%d\n",
+         s.label, bestKp, bestKd, bestMs);
+
+  const float pBumpFactor = 1.15f;
+  const float dBumpFactor = 1.25f;
+
+  float kP3 = bestKp * pBumpFactor;
+  float kD3 = bestKd;
+  enum class FailMode { None, Slower, Unstable };
+  FailMode pending = FailMode::None;
+  int p3 = 0;
+
+  while (p3 < maxItersPerPhase) {
+    if (kP3 > kpMaxCap) {
+      printf("[AUTOTUNE][%s] phase3 kP cap hit (kP=%.3f >= cap=%.3f) — stopping\n",
+             s.label, kP3, kpMaxCap);
+      break;
+    }
+    // Cap recomputed each iter against the current kP3 — phase 3 may push kP
+    // well past kpBoosted, and the kD ceiling should scale with it.
+    float kdCapNow = kP3 * kdMaxCapMul;
+    if (kD3 > kdCapNow) {
+      printf("[AUTOTUNE][%s] phase3 kD cap hit (kD=%.3f >= cap=%.3f for kP=%.3f) — stopping\n",
+             s.label, kD3, kdCapNow, kP3);
+      break;
+    }
+
+    VelocityMotionSample m = runOnce(kP3, kD3);
+    float absoluteOvershoot = m.peakAbsPos - s.targetMag;
+    bool osc = (m.crossings >= oscThresh) || (absoluteOvershoot > s.overshootThresh);
+    bool settled = (m.settleMs > 0);
+
+    printf("[AUTOTUNE][%s] phase3 iter=%d kP=%.3f kD=%.3f settleMs=%d peakAbs=%.2f crossings=%d %s\n",
+           s.label, p3, kP3, kD3, m.settleMs, m.peakAbsPos, m.crossings,
+           osc ? "OSCILLATES" : (settled ? "stable" : "no-settle"));
+
+    if (osc || !settled) {
+      if (pending != FailMode::Unstable) {
+        // First unstable probe (or a mode flip from Slower) — re-probe to confirm.
+        pending = FailMode::Unstable;
+        printf("[AUTOTUNE][%s] phase3 unstable — re-probing for confirm\n", s.label);
+      } else {
+        // Two unstable probes in a row — bump kD to recover.
+        pending = FailMode::None;
+        kD3 *= dBumpFactor;
+        printf("[AUTOTUNE][%s] phase3 confirmed unstable — bumping kD to %.3f\n",
+               s.label, kD3);
+      }
+      ++p3;
+      continue;
+    }
+
+    // Stable AND settled — compare against best.
+    if (m.settleMs <= bestMs) {
+      bestKp = kP3;
+      bestKd = kD3;
+      bestMs = m.settleMs;
+      pending = FailMode::None;
+      printf("[AUTOTUNE][%s] phase3 new best: kP=%.3f kD=%.3f settleMs=%d\n",
+             s.label, bestKp, bestKd, bestMs);
+      kP3 *= pBumpFactor;
+    } else {
+      if (pending != FailMode::Slower) {
+        pending = FailMode::Slower;
+        printf("[AUTOTUNE][%s] phase3 slower than best (%d > %d) — re-probing for confirm\n",
+               s.label, m.settleMs, bestMs);
+      } else {
+        printf("[AUTOTUNE][%s] phase3 confirmed slower — stopping\n", s.label);
+        ++p3;
+        break;
+      }
+    }
+    ++p3;
+  }
+
+  printf("[AUTOTUNE][%s] COMPLETED. Old kP: %.2f -> New kP: %.3f | Old kD: %.2f -> New kD: %.3f | bestSettleMs=%d\n",
+         s.label, kpStart, bestKp, kdLive, bestKd, bestMs);
+  s.setConsts(bestKp, bestKd);
   auto applied = s.getConsts();
   printf("[AUTOTUNE][%s] APPLIED VERIFY: live PID now reads kP=%.3f kD=%.3f\n",
          s.label, applied.first, applied.second);
