@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -121,9 +122,14 @@ class AutonSelector {
   lv_obj_t* run_back_lbl_ = nullptr;
   lv_obj_t* run_img_ = nullptr;
   bool run_show_img_ = false;
+  // Signals run() (auton task) that the deferred LVGL setup in
+  // run_screen_load_async has finished running on the LVGL task.
+  std::atomic<bool> run_setup_done_{false};
   void build_run_screen();
+  void activate_run_screen();
   void start_run_anim();
   void switch_run_view(bool show_img);
+  static void run_screen_load_async(void* p);
   static void run_toggle_cb(lv_event_t* e);
   static void run_back_cb(lv_event_t* e);
 

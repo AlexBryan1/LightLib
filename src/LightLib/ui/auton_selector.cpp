@@ -8,6 +8,7 @@
 #include "LightLib/drive/odometry.hpp"
 #include "LightLib/control/pid_tuner.hpp"
 #include "LightLib/ui/log_display.hpp"
+#include "pros/rtos.hpp"
 #include "ui_config.hpp"
 
 LV_IMG_DECLARE(LOGO);
@@ -62,15 +63,38 @@ void AutonSelector::init() {
   select(0);
 }
 
-// Blocks in autonomous() until the auton finishes.
-void AutonSelector::run() {
-  if (selected_idx_ < 0 || selected_idx_ >= (int)autons_.size()) return;
+// switch_run_view runs before lv_scr_load so btn_cb (mid-event) doesn't
+// deactivate the picker tree while still issuing LVGL writes.
+void AutonSelector::activate_run_screen() {
   if (!run_screen_) build_run_screen();
-  lv_scr_load(run_screen_);
   switch_run_view(true);
+  lv_scr_load(run_screen_);
   lv_obj_clear_flag(run_back_lbl_, LV_OBJ_FLAG_HIDDEN);
   lv_obj_clear_flag(run_toggle_lbl_, LV_OBJ_FLAG_HIDDEN);
   start_run_anim();
+}
+
+// Runs on the LVGL task — see run() for why we defer.
+void AutonSelector::run_screen_load_async(void* p) {
+  auto* self = static_cast<AutonSelector*>(p);
+  self->activate_run_screen();
+  self->run_setup_done_.store(true, std::memory_order_release);
+}
+
+void AutonSelector::run() {
+  if (selected_idx_ < 0 || selected_idx_ >= (int)autons_.size()) return;
+  // Swap to the run screen and start the zoom anim on the LVGL task — calling
+  // them from the auton task races with whatever the LVGL daemon is rendering
+  // (notably the log panel's long-wrap label after a previous auton).
+  run_setup_done_.store(false, std::memory_order_relaxed);
+  lv_async_call(&AutonSelector::run_screen_load_async, this);
+  // Bounded wait so a wedged LVGL can't strand the auton.
+  constexpr int kRunScreenWaitMs = 200;
+  constexpr int kRunScreenPollMs = 2;
+  for (int waited = 0; waited < kRunScreenWaitMs; waited += kRunScreenPollMs) {
+    if (run_setup_done_.load(std::memory_order_acquire)) break;
+    pros::delay(kRunScreenPollMs);
+  }
   autons_[selected_idx_].fn();
 }
 
@@ -954,14 +978,7 @@ void AutonSelector::btn_cb(lv_event_t* e) {
   lv_obj_t* btn = lv_event_get_target(e);
   int idx = (int)(intptr_t)lv_obj_get_user_data(btn);
   auton_selector.select(idx);
-
-  auto& self = auton_selector;
-  if (!self.run_screen_) self.build_run_screen();
-  self.switch_run_view(true);
-  lv_scr_load(self.run_screen_);
-  lv_obj_clear_flag(self.run_back_lbl_, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_clear_flag(self.run_toggle_lbl_, LV_OBJ_FLAG_HIDDEN);
-  self.start_run_anim();
+  auton_selector.activate_run_screen();
 }
 
 // Header toggle button — cycles right panel: Preview → PID Tune → Odom → Log → Preview…
