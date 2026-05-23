@@ -1,5 +1,4 @@
 #pragma once
-#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -83,12 +82,8 @@ class AutonSelector {
   char odom_x_last_[16] = {};
   char odom_y_last_[16] = {};
   char odom_th_last_[16] = {};
-  lv_obj_t* log_cont_ = nullptr;
-  lv_obj_t* log_text_lbl_ = nullptr;
-  lv_timer_t* log_timer_ = nullptr;
-  uint32_t log_last_rev_ = 0;
   lv_obj_t* toggle_lbl_ = nullptr;
-  int right_panel_mode_ = 0;  // 0=preview, 1=pid, 2=odom, 3=log
+  int right_panel_mode_ = 0;  // 0=preview, 1=pid, 2=odom
   std::vector<lv_obj_t*> btn_objs_;
   // Targets of LV_ANIM_REPEAT_INFINITE animations — must be lv_anim_del'd
   // before their parents are freed, otherwise the anim timer keeps firing
@@ -106,7 +101,6 @@ class AutonSelector {
   void build_right_preview(lv_obj_t* parent);
   void build_right_pid(lv_obj_t* parent);
   void build_right_odom(lv_obj_t* parent);
-  void build_right_log(lv_obj_t* parent);
   void switch_panel(int mode);
   void select_pid_tab(int idx);
   void refresh_pid_labels();
@@ -139,8 +133,6 @@ class AutonSelector {
   static void pid_adj_cb(lv_event_t* e);
   static void pid_apply_cb(lv_event_t* e);
   static void odom_timer_cb(lv_timer_t* timer);
-  static void log_timer_cb(lv_timer_t* timer);
-  static void log_clear_cb(lv_event_t* e);
 };
 
 /** Process-wide singleton selector instance. */

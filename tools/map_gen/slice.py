@@ -24,7 +24,7 @@ from emit import Segment, write_face_map
 
 
 # -----------------------------------------------------------------------------
-# Constants matching include/LightLib/path/field_map.hpp
+# Constants matching include/Lightlib/drive/field_map.hpp
 # -----------------------------------------------------------------------------
 
 FIELD_HALF_IN = 72.0  # 144" / 2

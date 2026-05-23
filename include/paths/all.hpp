@@ -4,7 +4,7 @@
  * \file all.hpp
  *
  * Universal path registry. Add a new path in two steps:
- *   1. Drop `include/paths/<name>.hpp` with
+ *   1. Drop `include/drive/<name>.hpp` with
  *      `inline constexpr const char* <name>` under `namespace light::paths`.
  *   2. Add TWO lines to this file — one `#include`, one row in `kAll[]`.
  *

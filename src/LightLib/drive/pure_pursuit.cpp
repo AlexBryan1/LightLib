@@ -5,7 +5,7 @@
 // Invariants: θ is radians (use getPoseRad at boundaries); EzPauseGuard owns
 // motors for the call; do not call chassis.pid_* while PP is running.
 
-#include "LightLib/path/pure_pursuit.hpp"
+#include "LightLib/drive/pure_pursuit.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -14,7 +14,7 @@
 #include <cstdio>
 
 #include "LightLib/lib.hpp"
-#include "LightLib/path/ramsete.hpp"
+#include "LightLib/drive/ramsete.hpp"
 #include "path_runtime_internal.hpp"
 #include "LightLib/util/extras.hpp"
 #include "LightLib/drive/odometry.hpp"

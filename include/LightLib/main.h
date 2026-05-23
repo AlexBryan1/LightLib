@@ -50,9 +50,9 @@
 #include "LightLib/drive.hpp"
 #include "LightLib/drive/holo_drive.hpp"
 #include "LightLib/util/auton_timer.hpp"
-#include "LightLib/path/spline.hpp"
-#include "LightLib/path/trajectory.hpp"
-#include "LightLib/path/ramsete.hpp"
+#include "Lightlib/drive/spline.hpp"
+#include "Lightlib/drive/trajectory.hpp"
+#include "Lightlib/drive/ramsete.hpp"
 
 /**
  * If you find doing pros::Motor() to be tedious and you'd prefer just to do

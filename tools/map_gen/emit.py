@@ -2,7 +2,7 @@
 C++ emitter for sliced field maps.
 
 Produces a self-contained `<face>_map.cpp` that matches the contract in
-include/LightLib/path/field_map.hpp: each per-face raycast() delegates to
+include/Lightlib/drive/field_map.hpp: each per-face raycast() delegates to
 the perimeter raycast() (slab math, already in the library) and then walks
 the segment array for interior geometry.
 """
@@ -31,7 +31,7 @@ _TEMPLATE = """\
 // Segments emitted : {n_segments}
 // Regenerate       : python tools/map_gen/slice.py --face {face} --height {height} --cad {cad}
 
-#include "LightLib/path/field_map.hpp"
+#include "Lightlib/drive/field_map.hpp"
 
 #include <algorithm>
 #include <cmath>

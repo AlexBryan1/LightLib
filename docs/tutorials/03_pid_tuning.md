@@ -238,7 +238,7 @@ void run_autotune_heading() {
 ```
 
 **Space requirements** — the routines are noted in
-[ramsete.hpp](../../include/LightLib/path/ramsete.hpp):
+[ramsete.hpp](../../include/Lightlib/drive/ramsete.hpp):
 
 - `turn` / `swing` — about 2 ft² (in-place oscillation).
 - `drive` — at least 8 ft of clear straight space ahead.

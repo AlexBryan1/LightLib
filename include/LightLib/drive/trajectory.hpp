@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "LightLib/path/spline.hpp"
+#include "LightLib/drive/spline.hpp"
 
 /**
  * \file trajectory.hpp

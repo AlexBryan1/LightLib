@@ -59,7 +59,7 @@ Autonomous routines live in [src/autons.cpp](src/autons.cpp) and are registered 
 - LightCast Monte-Carlo localization at 10 Hz — particle filter using distance-sensor ray-casts; the EKF snaps to it when divergence is detected
 - Custom moves: wall-tracking primitives using paired distance sensors
 
-**Path** — [include/LightLib/path/](include/LightLib/path/)
+**Path** — [include/Lightlib/drive/](include/Lightlib/drive/)
 - Quintic Hermite spline generator over 2D waypoints
 - Time-parameterized trajectories (pose, velocity, acceleration) sampled at 10 ms
 - RAMSETE feedback follower with `kS / kV / kA` feedforward

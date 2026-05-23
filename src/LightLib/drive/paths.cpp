@@ -1,6 +1,6 @@
 // Named-path dispatcher. Registry kAll[] lives in include/paths/all.hpp.
 
-#include "LightLib/path/paths.hpp"
+#include "LightLib/drive/paths.hpp"
 
 #include <cstdio>
 #include <cstring>

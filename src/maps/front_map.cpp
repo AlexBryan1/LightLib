@@ -6,7 +6,7 @@
 // Segments emitted : 0
 // Regenerate       : python tools/map_gen/slice.py --face front --height 2.5 --cad tools/map_gen/cad/OverrideField.STEP
 
-#include "LightLib/path/field_map.hpp"
+#include "Lightlib/drive/field_map.hpp"
 
 #include <algorithm>
 #include <cmath>

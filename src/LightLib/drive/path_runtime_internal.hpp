@@ -8,9 +8,9 @@
 #include <functional>
 #include <vector>
 
-#include "LightLib/path/ramsete.hpp"
-#include "LightLib/path/spline.hpp"
-#include "LightLib/path/trajectory.hpp"
+#include "LightLib/drive/ramsete.hpp"
+#include "LightLib/drive/spline.hpp"
+#include "LightLib/drive/trajectory.hpp"
 #include "pros/motor_group.hpp"
 
 namespace light {

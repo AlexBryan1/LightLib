@@ -1,5 +1,6 @@
 #include "LightLib/ui/auton_selector.hpp"
-#include "LightLib/path/ramsete.hpp"
+#include "LightLib/drive/autotune.hpp"
+#include "LightLib/drive/ramsete.hpp"
 #include "autons.hpp"
 
 // ┌─────────────────────────────────────────────────────────────────────────┐
@@ -31,6 +32,8 @@ void register_autons() {
                             [] { light::autotune_drive_pid(); });
   light::auton_selector.add("Tune: Swing", "90° left-side swing; bisect swing kP then kD on oscillation",
                             [] { light::autotune_swing_pid(); });
+  light::auton_selector.add("Tune: Heading", "48\" fwd/back, scores on |L-R| motor differential (needs 10 ft; tune drive first)",
+                            [] { light::autotune_heading_pid(); });
   light::auton_selector.add("Tune: EKF", "Park robot, measure noise floor (5 s)",
                             [] { light::autotune_ekf_noise(); });
   light::auton_selector.add("Tune: MCL", "Park facing walls, measure dist-sensor sigma (4 s)",

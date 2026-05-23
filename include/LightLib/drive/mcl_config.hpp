@@ -1,6 +1,6 @@
 #pragma once
 
-#include "LightLib/path/field_map.hpp"
+#include "Lightlib/drive/field_map.hpp"
 
 /**
  * \file mcl_config.hpp

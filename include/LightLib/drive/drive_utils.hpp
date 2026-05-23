@@ -3,7 +3,7 @@
 #include <cmath>
 
 #include "LightLib/drive/drive.hpp"
-#include "LightLib/path/field_map.hpp"
+#include "Lightlib/drive/field_map.hpp"
 #include "LightLib/drive/odometry.hpp"
 #include "LightLib/util/util.hpp"
 #include "okapi/api/units/QLength.hpp"
