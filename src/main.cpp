@@ -88,9 +88,10 @@
 // │  The chassis, IMU, and auton selector are already ready by this point.  │
 // └─────────────────────────────────────────────────────────────────────────┘
 void user_initialize() {
-  // Stiff hold for the snapping lift, and define boot pose as 0°.
-  LiftMotor.set_brake_mode(pros::E_MOTOR_BRAKE_HOLD);
-  LiftRot.reset_position();
+  // Hold both axes so the arm doesn't drop under gravity, then zero sensors.
+  CascadeMotor.set_brake_mode(pros::E_MOTOR_BRAKE_HOLD);
+  ArmMotor.set_brake_mode(pros::E_MOTOR_BRAKE_HOLD);
+  LiftArm.zero_sensors();
 }
 
 // ┌─────────────────────────────────────────────────────────────────────────┐
@@ -130,14 +131,22 @@ void opcontrol() {
         Score.move(0),
         MidGoal.set(false);
 
-      // ── Lift (snaps to nearest preset on release) ──────────────────
-      // Joystick provides analog control; UP/DOWN buttons override it.
-      int liftInput = master.get_analog(ANALOG_RIGHT_Y);
-      if (master.get_digital(DIGITAL_UP))
-        liftInput = 100;
-      else if (master.get_digital(DIGITAL_DOWN))
-        liftInput = -100;
-      Lift.update(liftInput);
+      // ── Cascade lift + 2-bar arm ──────────────────────────────────
+      // Presets (A/B = stow/score), joystick = arm jog, UP/DOWN = lift jog.
+      constexpr float kPresetStow  = 4.0f;   // inches above floor — tune
+      constexpr float kPresetScore = 30.0f;  // inches above floor — tune
+      if (master.get_digital_new_press(DIGITAL_B))
+        LiftArm.set_target_height(kPresetScore);
+      else if (master.get_digital_new_press(DIGITAL_A))
+        LiftArm.set_target_height(kPresetStow);
+
+      int armJog_mV = master.get_analog(ANALOG_RIGHT_Y) * 94;  // 127 -> ~12000mV
+      int cascadeJog_mV = 0;
+      if (master.get_digital(DIGITAL_UP))        cascadeJog_mV =  12000;
+      else if (master.get_digital(DIGITAL_DOWN)) cascadeJog_mV = -12000;
+
+      LiftArm.manual(cascadeJog_mV, armJog_mV);
+      LiftArm.update();
     }
 
     // ── Toggle buttons ────────────────────────────────────────────────

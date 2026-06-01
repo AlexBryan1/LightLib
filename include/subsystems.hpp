@@ -1,7 +1,7 @@
 #pragma once
 
 #include "LightLib/lib.hpp"
-#include "LightLib/util/rotational_snap.hpp"
+#include "cascade_arm.hpp"
 #include "pros/motors.hpp"
 
 /**
@@ -44,27 +44,32 @@ inline pros::Optical optical(15); ///< Optical sensor for color sorting.
 /** @} */
 
 /**
- * \name Lift with rotational snapping
- * A motor + rotation sensor pair that snaps to the nearest preset angle when
- * the operator stops driving it. While `DIGITAL_UP` / `DIGITAL_DOWN` is held —
- * or the right joystick is deflected — the motor moves manually. As soon as
- * the operator releases, the lift latches the closest snap angle and runs a P
- * controller to it, then holds (motor brake mode is set to HOLD in main.cpp).
+ * \name Cascade lift + 2-bar arm (proprietary branch feature)
+ * Coordinated kinematics: give a single target end-effector height, both the
+ * cascade lift and the 2-bar arm move toward it simultaneously at max voltage.
+ * Configure ports below; configure geometry and gear ratios in `LiftArmCfg`.
  *
- * To use: replace port 0 with your real motor / rotation-sensor ports, then
- * edit the snap angles (degrees) to match your mechanism's rest stops.
+ * See cascade_arm.hpp for the full API. Key calls:
+ *   - `LiftArm.set_target_height(in)`   set target end-effector height
+ *   - `LiftArm.set_height_limit(in)`    change the runtime height cap
+ *   - `LiftArm.manual(lift_mV, arm_mV)` operator jog (overrides target)
+ *   - `LiftArm.update()`                call every loop in opcontrol/auton
+ *   - `LiftArm.current_forward_in()`    arm-tip forward distance (for auton)
+ *   - `LiftArm.current_height_in()`     arm-tip height above floor
+ *   - `LiftArm.at_target()`             true when within tolerance
  * @{
  */
-inline pros::Motor LiftMotor(0);  ///< 0 = disabled until you set the port.
-inline pros::Rotation LiftRot(0); ///< Rotation sensor on the lift axis.
+inline pros::Motor    CascadeMotor(0); ///< 0 = disabled until you set the port.
+inline pros::Rotation CascadeRot(0);   ///< Cascade position sensor.
 
-/** Lift assembly: snaps to {0, 45, 90, 135, 180}° at rest. */
-inline light::RotationalSnap Lift(
-    LiftMotor, LiftRot,
-    /* snap_angles_deg = */ {0.0, 45.0, 90.0, 135.0, 180.0},
-    /* kP             = */ 1.5,
-    /* tolerance_deg  = */ 1.0,
-    /* max_snap_speed = */ 80);
+inline pros::Motor    ArmMotor(0);     ///< 0 = disabled until you set the port.
+inline pros::Rotation ArmRot(0);       ///< Arm-pivot rotation sensor.
+
+/** Tune geometry, gear ratios, height cap, and PID gains here. */
+inline CascadeArmConfig LiftArmCfg{};
+
+/** The coordinated lift+arm controller. */
+inline CascadeArm LiftArm(CascadeMotor, CascadeRot, ArmMotor, ArmRot, LiftArmCfg);
 /** @} */
 
 /**

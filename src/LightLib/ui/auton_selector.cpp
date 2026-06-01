@@ -77,7 +77,7 @@ void AutonSelector::activate_run_screen() {
 void AutonSelector::run_screen_load_async(void* p) {
   auto* self = static_cast<AutonSelector*>(p);
   self->activate_run_screen();
-  self->run_setup_done_.store(true, std::memory_order_release);
+  self->run_setup_done_ = true;
 }
 
 void AutonSelector::run() {
@@ -85,13 +85,13 @@ void AutonSelector::run() {
   // Swap to the run screen and start the zoom anim on the LVGL task — calling
   // them from the auton task races with whatever the LVGL daemon is rendering
   // (notably the log panel's long-wrap label after a previous auton).
-  run_setup_done_.store(false, std::memory_order_relaxed);
+  run_setup_done_ = false;
   lv_async_call(&AutonSelector::run_screen_load_async, this);
   // Bounded wait so a wedged LVGL can't strand the auton.
   constexpr int kRunScreenWaitMs = 200;
   constexpr int kRunScreenPollMs = 2;
   for (int waited = 0; waited < kRunScreenWaitMs; waited += kRunScreenPollMs) {
-    if (run_setup_done_.load(std::memory_order_acquire)) break;
+    if (run_setup_done_) break;
     pros::delay(kRunScreenPollMs);
   }
   autons_[selected_idx_].fn();

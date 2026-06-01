@@ -118,7 +118,7 @@ class AutonSelector {
   bool run_show_img_ = false;
   // Signals run() (auton task) that the deferred LVGL setup in
   // run_screen_load_async has finished running on the LVGL task.
-  std::atomic<bool> run_setup_done_{false};
+  volatile bool run_setup_done_ = false;
   void build_run_screen();
   void activate_run_screen();
   void start_run_anim();
