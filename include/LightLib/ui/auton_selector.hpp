@@ -65,6 +65,17 @@ class AutonSelector {
   /** \return Index of the currently selected auton. */
   int selected() const { return selected_idx_; }
 
+  /** \return Number of registered autons. */
+  int count() const { return (int)autons_.size(); }
+
+  /** \return Name of auton `idx`; empty string if out of range. */
+  const std::string& name(int idx) const;
+
+  /** Advance selection to the next auton (wraps). Safe to call from any
+   *  task: selected_idx_ updates immediately; the brain-screen highlight
+   *  is deferred to the LVGL task via lv_async_call. */
+  void select_next();
+
  private:
   std::vector<Auton> autons_;
   int selected_idx_ = 0;
@@ -124,6 +135,7 @@ class AutonSelector {
   void start_run_anim();
   void switch_run_view(bool show_img);
   static void run_screen_load_async(void* p);
+  static void select_async(void* p);  // runs private select() on the LVGL task
   static void run_toggle_cb(lv_event_t* e);
   static void run_back_cb(lv_event_t* e);
 

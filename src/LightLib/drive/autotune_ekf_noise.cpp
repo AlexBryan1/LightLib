@@ -20,6 +20,7 @@ void autotune_ekf_noise(int sampleMs, int durationMs, int warmupMs) {
   light::Drive* chassis = light::getChassis();
   if (!chassis) {
     printf("[AUTOTUNE][ekf] no chassis\n");
+    autotune_result_set("EKF FAILED");
     return;
   }
 
@@ -71,6 +72,8 @@ void autotune_ekf_noise(int sampleMs, int durationMs, int warmupMs) {
   printf("[AUTOTUNE][ekf] samples=%d  Q_pos=%.5f in^2/s  Q_theta=%.6f rad^2/s  Q_vel=%.4f\n",
          (int)dx.size(), Qpos, Qtheta, Qvel);
   printf("[AUTOTUNE][ekf] applied live. Transcribe into EKF_Q_* macros in main.cpp to persist.\n");
+  // %.1g keeps both values ≤5 chars (e.g. 0.001 / 1e-06) so the line fits 18.
+  autotune_result_set("Qp%.1g Qt%.1g", Qpos, Qtheta);
 }
 
 }  // namespace light

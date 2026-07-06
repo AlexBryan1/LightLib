@@ -20,6 +20,7 @@ void autotune_mcl_noise(int sampleMs, int durationMs, int warmupMs) {
   light::Drive* chassis = light::getChassis();
   if (!chassis) {
     printf("[AUTOTUNE][mcl] no chassis\n");
+    autotune_result_set("MCL FAILED");
     return;
   }
 
@@ -32,6 +33,7 @@ void autotune_mcl_noise(int sampleMs, int durationMs, int warmupMs) {
   const auto& specs = light::lightcast::sensors();
   if (specs.empty()) {
     printf("[AUTOTUNE][mcl] no distance sensors configured — nothing to tune\n");
+    autotune_result_set("MCL FAILED");
     return;
   }
 
@@ -75,6 +77,7 @@ void autotune_mcl_noise(int sampleMs, int durationMs, int warmupMs) {
   }
   if (contributing == 0) {
     printf("[AUTOTUNE][mcl] no usable sensor data — aborting\n");
+    autotune_result_set("MCL FAILED");
     return;
   }
 
@@ -90,6 +93,7 @@ void autotune_mcl_noise(int sampleMs, int durationMs, int warmupMs) {
   printf("[AUTOTUNE][mcl] sensorSigmaIn=%.3f in  outlierGapIn=%.3f in  (avg of %d sensors)\n",
          sigma, gap, contributing);
   printf("[AUTOTUNE][mcl] applied live. Transcribe into mcl.sensorSigmaIn / mcl.outlierGapIn in default_constants() (autons.cpp) to persist.\n");
+  autotune_result_set("MCL sg%.2f gp%.1f", sigma, gap);
 }
 
 }  // namespace light

@@ -58,7 +58,7 @@ void ramsete_char_alat() { light::characterize_a_lat_max(); }
 void default_positions() {
   Wings.set(true);
   Loader.set(true);
-  MidGoal.set(false);
+  Lever.set(false);
   Hood.set(true);
 }
 

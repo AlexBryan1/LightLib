@@ -629,6 +629,25 @@ void AutonSelector::select(int idx) {
   selected_idx_ = idx;
 }
 
+const std::string& AutonSelector::name(int idx) const {
+  static const std::string kEmpty;
+  if (idx < 0 || idx >= (int)autons_.size()) return kEmpty;
+  return autons_[idx].name;
+}
+
+void AutonSelector::select_async(void* p) {
+  auto* self = static_cast<AutonSelector*>(p);
+  self->select(self->selected_idx_);
+}
+
+void AutonSelector::select_next() {
+  if (autons_.empty()) return;
+  // selected_idx_ takes effect immediately for run(); the LVGL highlight
+  // repaint must happen on the LVGL task, so defer it like run() does.
+  selected_idx_ = (selected_idx_ + 1) % (int)autons_.size();
+  lv_async_call(&AutonSelector::select_async, this);
+}
+
 // Run screen: BACK strip | center (image / name+desc) | IMG strip.
 // Side strips animate scrolling banners and act as buttons.
 void AutonSelector::build_run_screen() {

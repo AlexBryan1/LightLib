@@ -121,6 +121,7 @@ static constexpr double _ROBOT_WHEEL_DIA = WHEEL_DIAMETER;
 #include <vector>
 #include "autons.hpp"
 #include "pros/motors.h"
+#include "LightLib/drive/autotune.hpp"
 #include "LightLib/drive/odometry.hpp"
 #include "LightLib/drive/lightcast.hpp"
 #include "LightLib/drive/sensor_aux.hpp"
@@ -255,6 +256,18 @@ Colors allianceColor = NEUTRAL;
 // so the AutonTimer slot shows the last/current auton's elapsed time.
 static char auton_time_str[16] = "";
 
+// While true, the controller auton menu owns UI_CTRL_LINE and
+// temp_display_task must not print over it.
+static std::atomic<bool> ctrl_menu_open{false};
+
+// While true, a finished tuner auton's result line owns UI_CTRL_LINE (and
+// gates main.cpp's DIGITAL_UP cascade jog). Dismissed by pressing UP.
+static std::atomic<bool> ctrl_results_open{false};
+static char ctrl_results_line[19] = "";
+static bool ctrl_results_reprinted = false;
+static bool ctrl_results_dismissing = false;
+static uint32_t ctrl_results_shown_ms = 0;
+
 static void fmt_ctrl_slot(CtrlSlot s, char* out, size_t n, double max_temp) {
     switch (s) {
         case CtrlSlot::MaxMotorTempC:
@@ -289,7 +302,8 @@ static void temp_display_task(void*) {
         fmt_ctrl_slot(UI_CTRL_SLOT_LEFT,  a, sizeof(a), max_temp);
         fmt_ctrl_slot(UI_CTRL_SLOT_MID,   b, sizeof(b), max_temp);
         fmt_ctrl_slot(UI_CTRL_SLOT_RIGHT, c, sizeof(c), max_temp);
-        master.print(UI_CTRL_LINE, 0, "%-6s %-5s %-5s", a, b, c);
+        if (!ctrl_menu_open.load() && !ctrl_results_open.load())
+            master.print(UI_CTRL_LINE, 0, "%-6s %-5s %-5s", a, b, c);
 
         // Buzz the controller at 2-second intervals when any motor exceeds HEAT_BUZZ_TEMP
         if (HEAT_BUZZ_ENABLED && max_temp >= HEAT_BUZZ_TEMP) {
@@ -308,26 +322,43 @@ static void temp_display_task(void*) {
 static std::atomic<bool> auton_running{false};
 static pros::Task* auton_task = nullptr;
 static uint32_t practice_auton_start_ms = 0;
+static uint32_t menu_last_input_ms = 0;   // base for the 5 s idle timeout
+static bool     menu_reprinted     = false;
 
 static void auton_task_fn(void*) {
     autonomous();
     auton_running.store(false);
 }
 
+static void menu_print_name() {
+    // %-18.18s pads/truncates to the temp line's exact 18-char width
+    // ("%-6s %-5s %-5s") so stale status text is fully overwritten.
+    master.print(UI_CTRL_LINE, 0, "%-18.18s",
+                 light::auton_selector.name(light::auton_selector.selected()).c_str());
+}
+
+static void auton_start_practice_run() {
+    practice_auton_start_ms = pros::millis();
+    auton_running.store(true);
+    auton_task = new pros::Task(auton_task_fn, nullptr, TASK_PRIORITY_DEFAULT,
+                                TASK_STACK_DEPTH_DEFAULT, "Auton Task");
+}
+
 // Call this once per opcontrol loop tick.
-// UP button starts/stops the selected auton for practice testing.
+// Idle: UP opens the auton menu on the controller LCD.
+// Menu open: RIGHT cycles autons (brain selector stays in sync), UP runs the
+// selected one, 5 s without a press closes the menu. Closing the menu lets
+// temp_display_task repaint the temp/timer line within one 500 ms tick.
+// Running: UP stops the practice run (unchanged).
+// Tuner finished: its result line holds UI_CTRL_LINE until UP dismisses it.
 static void auton_toggle() {
     if (auton_task != nullptr && !auton_running.load()) {
         delete auton_task;
         auton_task = nullptr;
     }
-    if (master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_UP)) {
-        if (auton_task == nullptr) {
-            practice_auton_start_ms = pros::millis();
-            auton_running.store(true);
-            auton_task = new pros::Task(auton_task_fn, nullptr, TASK_PRIORITY_DEFAULT,
-                                        TASK_STACK_DEPTH_DEFAULT, "Auton Task");
-        } else {
+
+    if (auton_task != nullptr) {
+        if (master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_UP)) {
             uint32_t elapsed_ms = pros::millis() - practice_auton_start_ms;
             uint32_t secs = elapsed_ms / 1000;
             uint32_t ms   = elapsed_ms % 1000;
@@ -337,6 +368,70 @@ static void auton_toggle() {
             delete auton_task;
             auton_task = nullptr;
         }
+        return;
+    }
+
+    // Results screen: UP dismisses. Must sit before the menu/idle branches so
+    // the dismiss press is consumed here and can't re-open the auton menu.
+    if (ctrl_results_open.load()) {
+        if (ctrl_results_dismissing) {
+            // Hold the flag until UP is released so main.cpp's DIGITAL_UP
+            // cascade jog (gated on ctrl_results_open) doesn't fire mid-press.
+            if (!master.get_digital(pros::E_CONTROLLER_DIGITAL_UP)) {
+                ctrl_results_open.store(false);  // temp task repaints ≤500 ms later
+                ctrl_results_dismissing = false;
+            }
+        } else if (master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_UP)) {
+            ctrl_results_dismissing = true;
+        } else if (!ctrl_results_reprinted &&
+                   pros::millis() - ctrl_results_shown_ms >= 600) {
+            // One-shot, same as menu_reprinted: temp_display_task may have
+            // passed its flag check just as the result was posted.
+            master.print(UI_CTRL_LINE, 0, "%-18.18s", ctrl_results_line);
+            ctrl_results_reprinted = true;
+        }
+        return;
+    }
+
+    // A tuner auton just finished (practice task above or a competition
+    // autonomous() run) — show its result line until UP dismisses it.
+    if (light::autotune_result_take(ctrl_results_line, sizeof(ctrl_results_line))) {
+        ctrl_results_open.store(true);
+        ctrl_results_shown_ms = pros::millis();
+        ctrl_results_reprinted = false;
+        ctrl_results_dismissing = false;
+        master.print(UI_CTRL_LINE, 0, "%-18.18s", ctrl_results_line);
+        master.rumble(".");  // heads-up; the 600 ms reprint covers a dropped print
+        return;
+    }
+
+    if (ctrl_menu_open.load()) {
+        uint32_t now = pros::millis();
+        if (master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_RIGHT)) {
+            light::auton_selector.select_next();
+            menu_last_input_ms = now;
+            menu_print_name();
+            menu_reprinted = true;
+        } else if (master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_UP)) {
+            ctrl_menu_open.store(false);
+            auton_start_practice_run();
+        } else if (now - menu_last_input_ms >= 5000) {
+            ctrl_menu_open.store(false);  // idle timeout — close without running
+        } else if (!menu_reprinted && now - menu_last_input_ms >= 600) {
+            // One-shot: temp_display_task may have passed its flag check just
+            // as the menu opened and overwritten the first name print.
+            menu_print_name();
+            menu_reprinted = true;
+        }
+        return;
+    }
+
+    if (master.get_digital_new_press(pros::E_CONTROLLER_DIGITAL_UP)) {
+        if (light::auton_selector.count() == 0) return;
+        ctrl_menu_open.store(true);
+        menu_last_input_ms = pros::millis();
+        menu_reprinted = false;
+        menu_print_name();
     }
 }
 

@@ -14,6 +14,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "LightLib/drive/autotune.hpp"
 #include "LightLib/util/extras.hpp"
 #include "path_runtime_internal.hpp"
 #include "LightLib/drive/odometry.hpp"
@@ -639,6 +640,7 @@ void characterize_kV_kA_kS(float maxVoltage, float rampVps) {
   light::getDriveMotorGroups(&L, &R);
   if (!L || !R) {
     printf("[CHAR] no motor groups\n");
+    autotune_result_set("kVAS FAILED");
     return;
   }
 
@@ -712,8 +714,10 @@ void characterize_kV_kA_kS(float maxVoltage, float rampVps) {
     g_ff.kA = kA;
     printf("[CHAR][APPLIED] DriveFF kS=%.3f kV=%.4f kA=%.4f (kP unchanged)\n",
            kS, kV, kA);
+    autotune_result_set("S%.2g V%.2g A%.2g", kS, kV, kA);
   } else {
     printf("[CHAR][FAILED] kV/kA invalid — DriveFF left unchanged\n");
+    autotune_result_set("kVAS FAILED");
   }
 
   (void)t0;
@@ -726,6 +730,7 @@ float characterize_track_width(int rotations) {
   light::getDriveMotorGroups(&L, &R);
   if (!L || !R) {
     printf("[CHAR] no motor groups\n");
+    autotune_result_set("TrackW FAILED");
     return 0.0f;
   }
 
@@ -754,6 +759,7 @@ float characterize_track_width(int rotations) {
   float turnedRad = std::fabs(wrap_rad(now.theta - start.theta));
   if (turnedRad < 0.1f) {
     printf("[CHAR] turn too small\n");
+    autotune_result_set("TrackW FAILED");
     return 0.0f;
   }
 
@@ -763,8 +769,10 @@ float characterize_track_width(int rotations) {
   if (W > 1.0f && W < 40.0f) {
     g_rc.trackWidthIn = W;
     printf("[CHAR][APPLIED] RamseteConfig.trackWidthIn = %.2f in\n", W);
+    autotune_result_set("TrackW %.2f in", W);
   } else {
     printf("[CHAR][FAILED] track width out of range — config unchanged\n");
+    autotune_result_set("TrackW FAILED");
   }
   return W;
 }
@@ -778,6 +786,7 @@ float characterize_a_lat_max() {
   light::getDriveMotorGroups(&L, &R);
   if (!L || !R) {
     printf("[CHAR] no motor groups\n");
+    autotune_result_set("aLatMax FAILED");
     return 0.0f;
   }
 
@@ -816,8 +825,10 @@ float characterize_a_lat_max() {
   if (aLatSafe > 5.0f) {
     g_defaultCons.aLatMax = aLatSafe;
     printf("[CHAR][APPLIED] TrajConstraints.aLatMax = %.1f in/s^2\n", aLatSafe);
+    autotune_result_set("aLatMax %.1f", aLatSafe);
   } else {
     printf("[CHAR][FAILED] aLatMax invalid — TrajConstraints unchanged\n");
+    autotune_result_set("aLatMax FAILED");
   }
   return aLatSafe;
 }
@@ -833,12 +844,14 @@ void characterize_friction(float maxVoltage, float stepV) {
   light::getDriveMotorGroups(&L, &R);
   if (!L || !R || !chassis) {
     printf("[FRIC] no motor groups / chassis\n");
+    autotune_result_set("FRIC FAILED");
     return;
   }
 
   double maxRpm = chassis->drive_rpm_get();
   if (maxRpm < 1.0) {
     printf("[FRIC] invalid cartridge rpm (%g) — aborting\n", maxRpm);
+    autotune_result_set("FRIC FAILED");
     return;
   }
 
@@ -890,6 +903,7 @@ void characterize_friction(float maxVoltage, float stepV) {
   if (N < 5) {
     printf("[FRIC] not enough usable samples (%u) — fit aborted\n",
            (unsigned)N);
+    autotune_result_set("FRIC FAILED");
     return;
   }
 
@@ -917,6 +931,7 @@ void characterize_friction(float maxVoltage, float stepV) {
   double D = det3(M);
   if (std::fabs(D) < 1e-9) {
     printf("[FRIC] singular fit matrix — aborting\n");
+    autotune_result_set("FRIC FAILED");
     return;
   }
   auto subDet = [&](int col) {
@@ -937,8 +952,10 @@ void characterize_friction(float maxVoltage, float stepV) {
     chassis->friction_constants_set(kS, kV, kQ);
     printf("[FRIC][APPLIED] friction_constants_set(%.3f, %.4f, %.5f)\n",
            kS, kV, kQ);
+    autotune_result_set("S%.2g V%.2g Q%.1g", kS, kV, kQ);
   } else {
     printf("[FRIC][FAILED] negative coefficients — chassis unchanged\n");
+    autotune_result_set("FRIC FAILED");
   }
   if (light::util::SD_CARD_ACTIVE) {
     printf("[FRIC] raw data: /usd/friction_id.csv\n");

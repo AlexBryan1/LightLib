@@ -1,6 +1,24 @@
 #pragma once
 
+#include <cstddef>
+
 namespace light {
+
+/**
+ * \name Tuner result line for the controller UI
+ * Each tuner/characterizer posts one ≤18-char line (success or FAILED) when it
+ * exits; auton_toggle() shows it on the controller until UP dismisses it.
+ * @{
+ */
+
+/** Post a one-line (≤18 char) tuner result for the controller UI. printf-style. */
+void autotune_result_set(const char* fmt, ...);
+
+/** Consume the pending result into out; returns false if none pending. */
+bool autotune_result_take(char* out, size_t n);
+
+/** @} */
+
 
 /**
  * \name Stationary noise calibration

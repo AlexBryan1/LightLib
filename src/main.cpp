@@ -4,12 +4,14 @@
 // │  Use a negative port number to reverse that motor.                      │
 // └─────────────────────────────────────────────────────────────────────────┘
 
-#include "subsystems.hpp"
-#define LEFT_PORTS {-6, -5, -4}  // left drive motors
-#define RIGHT_PORTS {3, 2, 1}     // right drive motors
+#include <cmath>
 
-#define IMU_PORT 9   // primary inertial sensor
-#define IMU2_PORT 0  // second IMU — set to 0 if you only have one
+#include "subsystems.hpp"
+#define LEFT_PORTS {-15, 14, -13, 12, -3}  // left drive motors
+#define RIGHT_PORTS {16, -17, 18, -19, 8}     // right drive motors
+
+#define IMU_PORT 4   // primary inertial sensor
+#define IMU2_PORT 7  // second IMU — set to 0 if you only have one
 
 #define WHEEL_DIAMETER 3.25  // inches  (4" wheels are actually ~4.125")
 #define WHEEL_RPM 450       // motor cartridge RPM × (motor sprocket / wheel sprocket)
@@ -21,7 +23,7 @@
 //  OFFSET:  signed perpendicular distance from robot center, inches
 
 #define VERT_WHEEL_DIA   2.75
-#define VERT_1_PORT      0
+#define VERT_1_PORT      6
 #define VERT_1_OFFSET    0.0
 #define VERT_2_PORT      0
 #define VERT_2_OFFSET    0.0
@@ -110,6 +112,13 @@ void user_autonomous() {
 void opcontrol() {
   chassis.drive_brake_set(MOTOR_BRAKE_COAST);
 
+  // Hard-stop detection for the Score park-to-zero: if move_absolute keeps
+  // commanding Score but it isn't moving, it's seated against a hard stop —
+  // brake instead of stalling at full torque.
+  constexpr double kScoreStallVel   = 5.0;  // RPM; below this = "not moving" (tune)
+  constexpr int    kScoreStallTicks = 8;    // ~80ms of no motion => hard stop (tune)
+  int scoreStallCount = 0;
+
   while (true) {
     auton_toggle();
 
@@ -118,18 +127,30 @@ void opcontrol() {
 
       // ── Held buttons ──────────────────────────────────────────────
       if (master.get_digital(DIGITAL_R2))
-        Score.move(127);
+        Bottom.move(-127);
       else if (master.get_digital(DIGITAL_R1))
+        Bottom.move(127);
+      else if (master.get_digital(DIGITAL_L2)) {
+        Bottom.move(127);
         Score.move(-127);
-      else if (master.get_digital(DIGITAL_L2))
-        Bottom.move(-127),
-        Top.move(0);
+        Hood.set(true);
+        scoreStallCount = 0;  // operator drove Score — re-arm hard-stop detection
+      }
       else if (master.get_digital(DIGITAL_L1))
-        Bottom.move(-127),
-        MidGoal.set(true);
-      else
-        Score.move(0),
-        MidGoal.set(false);
+        Bottom.move(-127);
+      else {
+        Bottom.move(0),
+        Hood.set(false);
+        if (scoreStallCount >= kScoreStallTicks) {
+          Score.brake();  // seated against hard stop — stop pushing
+        } else {
+          Score.move_absolute(0, 127);
+          if (std::fabs(Score.get_actual_velocity()) < kScoreStallVel)
+            scoreStallCount++;
+          else
+            scoreStallCount = 0;  // still moving toward 0
+        }
+      }
 
       // ── Cascade lift + 2-bar arm ──────────────────────────────────
       // Presets (A/B = stow/score), joystick = arm jog, UP/DOWN = lift jog.
@@ -142,7 +163,7 @@ void opcontrol() {
 
       int armJog_mV = master.get_analog(ANALOG_RIGHT_Y) * 94;  // 127 -> ~12000mV
       int cascadeJog_mV = 0;
-      if (master.get_digital(DIGITAL_UP))        cascadeJog_mV =  12000;
+      if (master.get_digital(DIGITAL_UP) && !ctrl_menu_open.load() && !ctrl_results_open.load()) cascadeJog_mV = 12000;
       else if (master.get_digital(DIGITAL_DOWN)) cascadeJog_mV = -12000;
 
       LiftArm.manual(cascadeJog_mV, armJog_mV);
@@ -150,7 +171,9 @@ void opcontrol() {
     }
 
     // ── Toggle buttons ────────────────────────────────────────────────
-    Hood.button_toggle(master.get_digital(DIGITAL_Y));
+    Lever.button_toggle(master.get_digital(DIGITAL_DOWN));
+    Wings.button_toggle(master.get_digital(DIGITAL_B));
+    Loader.button_toggle(master.get_digital(DIGITAL_Y));
     pros::delay(10);
   }
 }

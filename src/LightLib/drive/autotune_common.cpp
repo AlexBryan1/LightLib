@@ -1,16 +1,41 @@
 #include "autotune_common.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
+#include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
+#include "LightLib/drive/autotune.hpp"
 #include "pros/rtos.hpp"
 
 namespace light {
 
 std::map<std::string, bool> g_autotunePrevSuccess;
+
+// ── Tuner result line for the controller UI ─────────────────────────────────
+// Single producer (auton task) / single consumer (opcontrol's auton_toggle):
+// write the buffer, then release the pending flag; take() acquires before
+// copying, so the buffer contents are visible to the reader.
+static char g_resultLine[24];
+static std::atomic<bool> g_resultPending{false};
+
+void autotune_result_set(const char* fmt, ...) {
+  va_list args;
+  va_start(args, fmt);
+  vsnprintf(g_resultLine, sizeof(g_resultLine), fmt, args);
+  va_end(args);
+  g_resultPending.store(true, std::memory_order_release);
+}
+
+bool autotune_result_take(char* out, size_t n) {
+  if (!g_resultPending.load(std::memory_order_acquire)) return false;
+  snprintf(out, n, "%s", g_resultLine);
+  g_resultPending.store(false, std::memory_order_release);
+  return true;
+}
 
 VelocityMotionSample sampleMotion(std::function<float()> readPos,
                                   pros::MotorGroup* L, pros::MotorGroup* R,
@@ -115,6 +140,12 @@ void runVelocityAutotune(light::Drive* chassis,
            s.label, kpStart, boosted);
     kpStart = boosted;
   }
+
+  // One-line summary for the controller UI (≤18 chars — controller line width).
+  auto report = [&](bool ok, float kp, float kd) {
+    if (ok) autotune_result_set("%.4s P%.4g D%.4g", s.label, kp, kd);
+    else    autotune_result_set("%.7s FAILED", s.label);
+  };
 
   // Alternating-direction probe: each call flips sgn so the previous-probe's
   // end pose becomes the next probe's start pose. No back-drive needed.
@@ -229,6 +260,7 @@ void runVelocityAutotune(light::Drive* chassis,
     g_autotunePrevSuccess[s.label] = false;
     printf("[AUTOTUNE][%s] phase 2 could not damp at kP=%.3f — marked failed; "
            "next run will not boost\n", s.label, kpBoosted);
+    report(false, 0.0f, 0.0f);
     return;
   }
 
@@ -268,6 +300,7 @@ void runVelocityAutotune(light::Drive* chassis,
     printf("[AUTOTUNE][%s] APPLIED VERIFY: live PID now reads kP=%.3f kD=%.3f\n",
            s.label, applied.first, applied.second);
     g_autotunePrevSuccess[s.label] = true;
+    report(true, applied.first, applied.second);
     return;
   }
 
@@ -295,6 +328,7 @@ void runVelocityAutotune(light::Drive* chassis,
     printf("[AUTOTUNE][%s] APPLIED VERIFY: live PID now reads kP=%.3f kD=%.3f\n",
            s.label, applied.first, applied.second);
     g_autotunePrevSuccess[s.label] = true;
+    report(true, applied.first, applied.second);
     return;
   }
   int bestMs = baseline.settleMs;
@@ -380,6 +414,7 @@ void runVelocityAutotune(light::Drive* chassis,
   printf("[AUTOTUNE][%s] APPLIED VERIFY: live PID now reads kP=%.3f kD=%.3f\n",
          s.label, applied.first, applied.second);
   g_autotunePrevSuccess[s.label] = true;
+  report(true, applied.first, applied.second);
 }
 
 }  // namespace light

@@ -35,9 +35,9 @@ extern Drive chassis;
  *   - `name.get_actual_velocity()`    measured RPM
  * @{
  */
-inline pros::Motor Top(20);
-inline pros::Motor Bottom(-10);
-inline pros::MotorGroup Score({10, 20});  ///< Top + Bottom together.
+inline pros::MotorGroup Top({-2, 9});
+inline pros::MotorGroup Bottom({-2, 9});
+inline pros::MotorGroup Score({-1, 10});  ///< Top + Bottom together.
 
 inline pros::Motor turret(0);     ///< Set port to 0 if not installed.
 inline pros::Optical optical(15); ///< Optical sensor for color sorting.
@@ -82,10 +82,10 @@ inline CascadeArm LiftArm(CascadeMotor, CascadeRot, ArmMotor, ArmRot, LiftArmCfg
  *   - `name.button_toggle(btn)`  toggle state when btn is newly pressed
  * @{
  */
-inline light::Piston Wings('A');
-inline light::Piston Loader('C');
-inline light::Piston MidGoal('H');
-inline light::Piston Hood('E');     
+inline light::Piston Lever('H');
+inline light::Piston Loader('A');
+inline light::Piston Wings('C');
+inline light::Piston Hood('B');     
 /** @} */
 
 /**
