@@ -7,7 +7,6 @@
 
 #include "LightLib/drive/odometry.hpp"
 #include "LightLib/control/pid_tuner.hpp"
-#include "LightLib/ui/log_display.hpp"
 #include "ui_config.hpp"
 
 LV_IMG_DECLARE(LOGO);

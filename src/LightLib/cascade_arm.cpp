@@ -1,4 +1,4 @@
-#include "cascade_arm.hpp"
+#include "LightLib/cascade_arm.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -58,8 +58,9 @@ float CascadeArm::current_forward_in() const {
 
 float CascadeArm::target_height_in() const { return target_height_; }
 
-bool CascadeArm::at_target(float tol_in) const {
-  return std::fabs(current_height_in() - target_height_) < tol_in;
+bool CascadeArm::at_target(float lift_tol_in, float arm_tol_deg) const {
+  return std::fabs(cascade_position_in() - lift_tgt_in_) < lift_tol_in
+      && std::fabs(arm_angle_deg()       - arm_tgt_deg_) < arm_tol_deg;
 }
 
 void CascadeArm::set_height_limit(float inches) {

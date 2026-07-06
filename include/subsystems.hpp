@@ -1,7 +1,7 @@
 #pragma once
 
 #include "LightLib/lib.hpp"
-#include "cascade_arm.hpp"
+#include "LightLib/cascade_arm.hpp"
 #include "pros/motors.hpp"
 
 /**
