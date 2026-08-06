@@ -18,21 +18,22 @@
 // └─────────────────────────────────────────────────────────────────────────┘
 
 void register_autons() {
-  light::auton_selector.add("Test Path", "funny", run_jerryio_path_1);
+  light::auton_selector.add("Test Path", "funny", ex_turn);
 
   // ── PID auto-tune ────────────────────────────────────────────────────────
   // Two-phase bracket+bisect on oscillation (≥3 target zero-crossings).
   // Phase 1: find largest kP that doesn't oscillate (kD=0, double-then-halve).
   // Phase 2: boost that kP, then bracket+bisect kD upward until oscillation
-  // damps. kI=0. Heading still uses relay-feedback. Each prints per-iter
-  // stats; the final kP/kD pair is applied to the live chassis on exit.
+  // damps. kI=0. Heading uses the same engine, scoring on the L−R drive-encoder
+  // offset with an injected heading step. Each prints per-iter stats; the final
+  // kP/kD pair is applied to the live chassis on exit.
   light::auton_selector.add("Tune: Turn", "180° back-and-forth; bisect turn kP then kD on oscillation",
                             [] { light::autotune_turn_pid(); });
   light::auton_selector.add("Tune: Drive", "24\" forward/back; bisect drive kP then kD on oscillation (needs 6 ft)",
                             [] { light::autotune_drive_pid(); });
   light::auton_selector.add("Tune: Swing", "90° left-side swing; bisect swing kP then kD on oscillation",
                             [] { light::autotune_swing_pid(); });
-  light::auton_selector.add("Tune: Heading", "48\" fwd/back, scores on |L-R| motor differential (needs 10 ft; tune drive first)",
+  light::auton_selector.add("Tune: Heading", "48\" fwd/back with a 10° heading step; bisect heading kP then kD on straightness (needs 10 ft; tune drive first)",
                             [] { light::autotune_heading_pid(); });
   light::auton_selector.add("Tune: EKF", "Park robot, measure noise floor (5 s)",
                             [] { light::autotune_ekf_noise(); });
@@ -50,4 +51,6 @@ void register_autons() {
                             [] { light::characterize_a_lat_max(); });
   light::auton_selector.add("Char: Friction", "Sweep voltage, fit kS/kV/kQ for PID FF (needs 8 ft)",
                             [] { light::characterize_friction(); });
+  light::auton_selector.add("Char: IMU scale", "Spin 10 turns in place; controller shows per-IMU deg vs encoder + suggested scaler",
+                            char_imu_scale);
 }

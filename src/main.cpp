@@ -94,6 +94,21 @@ void user_initialize() {
   CascadeMotor.set_brake_mode(pros::E_MOTOR_BRAKE_HOLD);
   ArmMotor.set_brake_mode(pros::E_MOTOR_BRAKE_HOLD);
   LiftArm.zero_sensors();
+
+  // ── TEMP: IMU yaw-scale measurement — REMOVE once the scaler is set ──────────
+  // With the robot disabled, hand-spin it exactly 10 full turns (3600°) and read
+  // `raw` (either the controller line or the `pros terminal` log). Then set
+  //   scaler = 3600 / raw   in default_constants() (autons.cpp), and delete this.
+  // `raw` is the port-4 IMU un-scaled; `scaled` reflects the current scaler.
+  static pros::Task imu_scale_readout([] {
+    while (true) {
+      printf("[IMU-SCALE] raw=%.1f  scaled=%.1f  pose.theta=%.1f\n",
+             imu.get_rotation(), chassis.drive_imu_get(), light::getPose().theta);
+      master.print(2, 0, "raw %.0f th %.0f   ",
+                   imu.get_rotation(), light::getPose().theta);
+      pros::delay(300);
+    }
+  });
 }
 
 // ┌─────────────────────────────────────────────────────────────────────────┐
@@ -102,6 +117,77 @@ void user_initialize() {
 // │  Use this to set allianceColor or do any pre-auton setup.               │
 // └─────────────────────────────────────────────────────────────────────────┘
 void user_autonomous() {
+}
+
+// ── Char: IMU scale ──────────────────────────────────────────────────────────
+// Spins in place 10 full turns (ground truth = drive encoders), then reports
+// each IMU's raw rotation and the suggested drive_imu_scaler on the controller
+// (lines 0/1 — line 2 is owned by the [IMU-SCALE] readout task above).
+// Defined here (not autons.cpp) because `imu`, `imu2`, and IMU2_PORT only
+// exist in this translation unit.
+void char_imu_scale() {
+  constexpr double kTargetDeg = 3600.0;  // 10 full turns
+  constexpr int kSpinPower = 45;         // slow — minimize wheel slip
+  constexpr uint32_t kSpinTimeoutMs = 60000;
+  constexpr uint32_t kReportMs = 60000;
+
+  double trackW = chassis.drive_width_get();
+  if (trackW < 0.1) trackW = 11.5;  // same fallback as autotune_heading.cpp
+
+  chassis.drive_imu_reset(0);
+  chassis.drive_sensor_reset();
+  pros::delay(100);
+
+  double imu1_0 = imu.get_rotation();
+#if IMU2_PORT != 0
+  double imu2_0 = imu2.get_rotation();
+#endif
+
+  // Encoder-derived rotation: theta_rad = (L - R) / trackWidth (CW positive,
+  // matching the IMU convention — same arc relation as odometry.cpp).
+  auto encDeg = [&]() -> double {
+    return (chassis.drive_sensor_left() - chassis.drive_sensor_right()) /
+           trackW * (180.0 / M_PI);
+  };
+
+  chassis.drive_set(kSpinPower, -kSpinPower);  // spin clockwise
+  uint32_t t0 = pros::millis();
+  while (encDeg() < kTargetDeg && pros::millis() - t0 < kSpinTimeoutMs) {
+    pros::delay(10);
+  }
+  chassis.drive_set(0, 0);
+  pros::delay(700);  // settle; let the IMU catch up
+
+  double enc = encDeg();
+  double d1 = imu.get_rotation() - imu1_0;
+#if IMU2_PORT != 0
+  double d2 = imu2.get_rotation() - imu2_0;
+  double fused = (d1 + d2) / 2.0;
+#else
+  double d2 = 0.0;
+  double fused = d1;
+#endif
+  // The IMUs are trusted as ground truth (they track real yaw ≈1:1). `factor`
+  // = how much the drive encoders under/over-read vs truth this run. The number
+  // to COPY into chassis.drive_ratio_set() is the current ratio times factor,
+  // so it's the correct absolute value whatever ratio is already applied (after
+  // a good fix a re-run reports the same ratio and factor≈1.0).
+  double factor = std::fabs(fused) > 1.0 ? enc / fused : 0.0;
+  double suggestedRatio = chassis.drive_ratio_get() * factor;
+
+  printf("[IMU-CHAR] enc=%.1f deg  imu1=%.1f  imu2=%.1f  fused=%.1f  "
+         "factor=%.4f  set drive_ratio=%.4f (current=%.4f)\n",
+         enc, d1, d2, fused, factor, suggestedRatio, chassis.drive_ratio_get());
+
+  // Hold the results on the controller so they're readable without a screen.
+  master.rumble("-");
+  uint32_t tr = pros::millis();
+  while (pros::millis() - tr < kReportMs) {
+    master.print(0, 0, "1:%5.0f 2:%5.0f   ", d1, d2);
+    pros::delay(150);
+    master.print(1, 0, "E:%4.0f ratio:%.3f", enc, suggestedRatio);
+    pros::delay(150);
+  }
 }
 
 // ┌─────────────────────────────────────────────────────────────────────────┐

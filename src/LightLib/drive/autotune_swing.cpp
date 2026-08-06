@@ -23,8 +23,11 @@ void autotune_swing_pid(float swingAngleDeg, float overshootThreshDeg, int maxIt
     chassis->pid_swing_constants_set((double)p, 0.0, (double)d);
   };
 
+  // Read fwd_rev_swingPID directly: the combined pid_swing_constants_set() zeros
+  // forward/backward and stores gains only here, so pid_swing_constants_get()
+  // (which reads forward) returns 0. Same workaround as pid_tuner.cpp.
   s.getConsts = std::function<std::pair<float, float>()>([chassis]() -> std::pair<float, float> {
-    PID::Constants c = chassis->pid_swing_constants_get();
+    PID::Constants c = chassis->fwd_rev_swingPID.constants_get();
     return std::make_pair((float)c.kp, (float)c.kd);
   });
 

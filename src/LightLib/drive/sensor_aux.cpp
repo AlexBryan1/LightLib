@@ -4,6 +4,7 @@
 #include <mutex>
 
 #include "LightLib/drive/field_map.hpp"
+#include "LightLib/util/extras.hpp"
 #include "LightLib/util/util.hpp"
 #include "pros/rtos.hpp"
 
@@ -77,15 +78,19 @@ pros::Mutex mtx_;
 float radToDeg(float r) { return r * 180.0f / M_PI; }
 float degToRad(float d) { return d * M_PI / 180.0f; }
 
-// Matches the dual-IMU averaging in odometry.cpp.
+// Matches the dual-IMU averaging AND the IMU yaw-scale correction in
+// odometry.cpp, so the bias/slip detectors see the same heading the estimator
+// does.
 float readImuRad() {
+  light::Drive* c = light::getChassis();
+  const float scaler = c ? (float)c->drive_imu_scaler_get() : 1.0f;
   if (odomSensors_.imu && odomSensors_.imu2) {
     return degToRad((odomSensors_.imu->get_rotation() +
                      odomSensors_.imu2->get_rotation()) /
-                    2.0f);
+                    2.0f * scaler);
   }
   if (odomSensors_.imu) {
-    return degToRad(odomSensors_.imu->get_rotation());
+    return degToRad(odomSensors_.imu->get_rotation() * scaler);
   }
   return 0.0f;
 }

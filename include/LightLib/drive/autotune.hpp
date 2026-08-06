@@ -51,17 +51,18 @@ void autotune_mcl_noise(int sampleMs = 20, int durationMs = 4000, int warmupMs =
  * returns — until settle time stops improving (best-of-2 confirmed), and
  * writes the fastest-settling stable (kP, kD) pair. Final values are applied
  * live via pid_*_constants_set; transcribe the printed FINAL line into
- * default_constants() to persist across reboots. Heading scores on the
- * |L−R| motor voltage differential (the heading PID's own controller effort)
- * instead of IMU error, so its oscillation read isn't masked by drive PID
- * dynamics. Space: turn/swing ~3 ft²; drive ≥6 ft straight; heading ≥10 ft
- * straight.
+ * default_constants() to persist across reboots. Heading injects a small
+ * heading-target step while driving and scores on the L−R drive-encoder offset
+ * (straightness: L_enc − R_enc = trackWidth · heading), a physical heading-
+ * deviation measure rather than controller effort. Space: turn/swing ~3 ft²;
+ * drive ≥6 ft straight; heading ≥10 ft straight.
  * @{
  */
-void autotune_turn_pid   (float turnAngleDeg  = 180.0f, float overshootThreshDeg = 3.0f,    int maxIters = 20);
-void autotune_drive_pid  (float driveDistIn   = 24.0f,  float overshootThreshIn  = 0.5f,    int maxIters = 20);
-void autotune_swing_pid  (float swingAngleDeg = 90.0f,  float overshootThreshDeg = 3.0f,    int maxIters = 20);
-void autotune_heading_pid(float driveDistIn   = 48.0f,  float peakDiffMv         = 3000.0f, int maxIters = 20);
+void autotune_turn_pid   (float turnAngleDeg  = 180.0f, float overshootThreshDeg = 3.0f, int maxIters = 20);
+void autotune_drive_pid  (float driveDistIn   = 24.0f,  float overshootThreshIn  = 0.5f, int maxIters = 20);
+void autotune_swing_pid  (float swingAngleDeg = 90.0f,  float overshootThreshDeg = 3.0f, int maxIters = 20);
+void autotune_heading_pid(float driveDistIn   = 48.0f,  float headingStepDeg     = 10.0f,
+                          float overshootThreshDeg = 3.0f, int maxIters = 20);
 /** @} */
 
 }  // namespace light

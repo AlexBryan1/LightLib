@@ -23,8 +23,11 @@ void autotune_drive_pid(float driveDistIn, float overshootThreshIn, int maxIters
     chassis->pid_drive_constants_set((double)p, 0.0, (double)d);
   };
 
+  // Read fwd_rev_drivePID directly: the combined pid_drive_constants_set() zeros
+  // forward/backward and stores gains only here, so pid_drive_constants_get()
+  // (which reads forward) returns 0. Same workaround as pid_tuner.cpp.
   s.getConsts = std::function<std::pair<float, float>()>([chassis]() -> std::pair<float, float> {
-    PID::Constants c = chassis->pid_drive_constants_get();
+    PID::Constants c = chassis->fwd_rev_drivePID.constants_get();
     return std::make_pair((float)c.kp, (float)c.kd);
   });
 

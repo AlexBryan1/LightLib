@@ -66,10 +66,29 @@ void default_positions() {
 // Called once from initialize(). PID format is (kP, kI, kD); see
 // docs/tutorials/03_pid_tuning.md for what each gain does.
 void default_constants() {
+  // ── IMU yaw-scale correction ──
+  // MEASURED 2026-07-07 via the "Char: IMU scale" auton: the IMUs track true
+  // rotation ≈1:1 (both read ≈8,900° over ≈25 physical turns), so 1.0 is
+  // correct — do NOT change it based on encoder-derived numbers. The mismatch
+  // was the drive-motor encoders under-reading distance, corrected below.
+  // Applies everywhere heading is read (PID + odometry/EKF). 1.0 = no change.
+  chassis.drive_imu_scaler_set(1.0);
+
+  // ── Drive encoder scale correction ──
+  // MEASURED 2026-07-07 via "Char: IMU scale": the drive motors report only
+  // ≈0.404× the true wheel distance (10 encoder "turns" took ≈25 physical
+  // turns; s=0.404 on the controller). The gearset/units defaults don't match
+  // this drivetrain, so instead of guessing them we scale TICK_PER_INCH
+  // directly — drive_ratio multiplies it, and drive_sensor = raw/TICK_PER_INCH,
+  // so ratio 0.404 makes every drive_sensor read true inches (drive PID,
+  // autotune straightness score, pid_wait_until all depend on this).
+  // Re-run "Char: IMU scale" after any drivetrain change; set ratio = that s.
+  chassis.drive_ratio_set(0.404);
+
   // ── PID gains ──
   chassis.pid_drive_constants_set(3.0, 0.0, 0.0);            // straight-line drive
   chassis.pid_heading_constants_set(3.0, 0.0, 0.0);          // heading-hold during drive
-  chassis.pid_turn_constants_set(3.0, 0.0, 0.0);             // in-place pivot
+  chassis.pid_turn_constants_set(1.52, 0.0, 9.2);             // in-place pivot
   chassis.pid_swing_constants_set(3.0, 0.0, 0.0);            // single-side swing
   chassis.pid_odom_angular_constants_set(3.0, 0.0, 0.0);     // odom heading
   chassis.pid_odom_boomerang_constants_set(3.0, 0.0, 0.0);   // boomerang angular

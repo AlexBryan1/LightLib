@@ -60,6 +60,7 @@ void ramsete_char_alat();       ///< Characterize max lateral accel.
  * @{
  */
 void con_test();                 ///< Basic connectivity / control check.
+void char_imu_scale();           ///< Spin 10 turns; report per-IMU deg vs encoder + suggested scaler (defined in main.cpp).
 void drive_test(int inches);     ///< Drive straight N inches — tune drive PID.
 void turn_test(int degrees);     ///< Turn to N degrees — tune turn PID.
 void swing_test(int degrees);    ///< Swing to N degrees — tune swing PID.

@@ -359,10 +359,19 @@ bool Drive::drive_current_left_over() { return left_motors.front().is_over_curre
 
 void Drive::drive_imu_reset(double new_heading) {
   imu.set_rotation(new_heading);
+  if (imu2_ != nullptr) imu2_->set_rotation(new_heading);
   angle_rad = util::to_rad(new_heading);
   t_last = angle_rad;
 }
-double Drive::drive_imu_get() { return imu.get_rotation() * IMU_SCALER; }
+// Average both IMUs when a second is present (mirrors readOdomImuRad() so the
+// PID heading path and odometry agree), then apply the shared yaw scaler.
+double Drive::drive_imu_get() {
+  double h = imu.get_rotation();
+  if (imu2_ != nullptr) h = (h + imu2_->get_rotation()) / 2.0;
+  return h * IMU_SCALER;
+}
+
+void Drive::drive_imu2_set(pros::Imu* imu2) { imu2_ = imu2; }
 double Drive::drive_imu_accel_get() { return imu.get_accel().x + imu.get_accel().y; }
 
 void Drive::drive_imu_scaler_set(double scaler) { IMU_SCALER = scaler; }
@@ -402,6 +411,7 @@ void Drive::drive_imu_display_loading(int iter) {
 bool Drive::drive_imu_calibrate(bool run_loading_animation) {
   imu_calibration_complete = false;
   imu.reset();
+  if (imu2_ != nullptr) imu2_->reset();
   int iter = 0;
   bool current_status = imu.is_calibrating();
   bool last_status = current_status;

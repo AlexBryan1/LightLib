@@ -499,7 +499,8 @@ void user_autonomous();
 
 void initialize() {
     pros::delay(300);
-    chassis.initialize();          // calibrates IMU internally
+    chassis.drive_imu2_set(imu2_ptr);  // average both IMUs in the PID heading path
+    chassis.initialize();          // calibrates both IMUs internally
     {
         const uint32_t imu_calib_deadline = pros::millis() + 3000;
         auto still_calibrating = [&]() -> bool {

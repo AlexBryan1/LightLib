@@ -200,60 +200,63 @@ Start with the shipped defaults. Only tighten `small_error` once the PID
 is well-tuned; loose exit thresholds will mask poor PID gains.
 
 
-## Auto-tune (Z–N relay feedback)
+## Auto-tune (bracket-and-bisect)
 
-LightLib includes an Åström–Hägglund relay-feedback auto-tuner. It
-oscillates the chassis with a bang-bang voltage relay, measures the
-sustained-oscillation amplitude `a` and period `Tu`, then applies the
-classical Ziegler–Nichols formula:
+LightLib includes a three-phase auto-tuner shared by all four chassis
+PIDs. It brackets and bisects (regula falsi) rather than using relay
+feedback, and holds `kI = 0` throughout:
 
-```
-Ku = 4·h / (π·a)
-Pu = Tu
-kP = 0.6 · Ku
-kI = 2·kP / Pu
-kD = kP·Pu / 8
-```
+- **Phase 1 — largest `kP` that doesn't oscillate.** Starting from the
+  live `kP` (with `kD = 0`), it doubles `kP` until a probe oscillates —
+  defined as ≥3 zero-crossings of (position − target) or overshoot past a
+  threshold — then bisects between the last stable and first oscillating
+  value.
+- **Phase 2 — add `kD`.** It boosts that `kP` ~30% so the robot
+  intentionally overshoots, then doubles `kD` until the overshoot damps,
+  and bisects for the smallest sufficient `kD`.
+- **Phase 3 — push `kP` for speed.** It raises `kP` in +15% steps (bumping
+  `kD` when oscillation returns) until settle time stops improving, then
+  keeps the fastest stable pair. *(Heading skips this phase — see below.)*
 
-The result is printf'd to the terminal AND pushed to the live chassis
-PIDs immediately. You still have to transcribe the printed values into
-`default_constants()` for them to survive a restart.
+Each probe's stats are printf'd to the terminal, and the final `kP`/`kD`
+pair is pushed to the live chassis immediately — but you still have to
+transcribe the printed values into `default_constants()` for them to
+survive a restart. Re-running a tuner that previously succeeded starts
+from a slightly higher `kP` (a ×1.25 boost), so you can iterate toward a
+tighter tune.
+
+Each tuner is already registered on the brain selector in
+[auton_config.cpp](../../src/auton_config.cpp) — look for the **"Tune: …"**
+entries; the robot WILL move when you run them. The signatures (all
+arguments optional) live in
+[autotune.hpp](../../include/LightLib/drive/autotune.hpp):
 
 ```cpp
-// Run each as its own auton routine. The robot WILL move during these.
-void run_autotune_drive() {
-  light::autotune_drive_pid(/*reliefV=*/6.0f,
-                            /*cycles=*/5,
-                            /*timeoutMs=*/15000,
-                            /*chunkCycles=*/2,
-                            /*coolMs=*/5000);
-}
-
-void run_autotune_turn()  { light::autotune_turn_pid();  }
-void run_autotune_swing() { light::autotune_swing_pid(); }
-
-void run_autotune_heading() {
-  light::autotune_heading_pid(/*forwardV=*/3.0f, /*reliefV=*/2.0f);
-}
+void autotune_drive_pid  (float driveDistIn       = 24.0f,
+                          float overshootThreshIn  = 0.5f,   int maxIters = 20);
+void autotune_turn_pid   (float turnAngleDeg       = 180.0f,
+                          float overshootThreshDeg = 3.0f,   int maxIters = 20);
+void autotune_swing_pid  (float swingAngleDeg      = 90.0f,
+                          float overshootThreshDeg = 3.0f,   int maxIters = 20);
+void autotune_heading_pid(float driveDistIn        = 48.0f, float headingStepDeg = 10.0f,
+                          float overshootThreshDeg = 3.0f,   int maxIters = 20);
 ```
 
-**Space requirements** — the routines are noted in
-[ramsete.hpp](../../include/Lightlib/drive/ramsete.hpp):
+The **heading** tuner is special: heading correction only does anything
+while the robot is driving, so its probe drives fwd/back while injecting a
+small heading-target step (default 10°) and scores on the **drive-encoder
+side offset** `drive_sensor_left() − drive_sensor_right()` — a physical
+straightness measure, since `L_enc − R_enc = trackWidth · heading`. Tune
+the drive PID first, because the heading probe rides on top of a drive
+motion.
 
-- `turn` / `swing` — about 2 ft² (in-place oscillation).
-- `drive` — at least 8 ft of clear straight space ahead.
-- `heading` — at least 8 ft of clear lane; the robot drives forward at
-  `forwardV` while the relay oscillates the heading around 0.
+**Space requirements:**
 
-**`reliefV` must exceed `kS`** (the static-friction voltage). If the robot
-never moves, the tune times out and aborts without overwriting the previous
-PID values. Bumping `reliefV` solves this — but if you have to push it past
-~7V the robot is too sticky for the algorithm and you should hand-tune.
+- `turn` / `swing` — about 3 ft² (in-place rotation).
+- `drive` — at least 6 ft of clear straight space ahead.
+- `heading` — at least 10 ft of clear straight lane (it drives 48" out
+  and back).
 
-The chunked-cooldown defaults (`chunkCycles=2, coolMs=5000`) protect the
-motors from thermal damage during long tunes. Don't disable cooldowns
-unless you're tuning indoors with a fan on the chassis.
-
-**Use auto-tune as a starting point**, not a final answer. The Z–N
-formulas favor robustness over performance; you can usually get 20–40%
-faster motion by hand-trimming after an auto-tune.
+**Use auto-tune as a starting point**, not a final answer. It favors a
+clean, robust response; you can usually get faster motion by hand-trimming
+after an auto-tune.

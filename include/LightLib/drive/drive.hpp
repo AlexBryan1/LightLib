@@ -120,6 +120,13 @@ class Drive {
   pros::Imu imu;
 
   /**
+   * Optional second inertial sensor. When set, its reading is averaged with
+   * `imu` in drive_imu_get() so the PID heading path matches the dual-IMU
+   * averaging the odometry path already does. nullptr = single-IMU config.
+   */
+  pros::Imu* imu2_ = nullptr;
+
+  /**
    * Deprecated left tracking wheel.
    */
   pros::adi::Encoder left_tracker;
@@ -1410,6 +1417,18 @@ class Drive {
    * Returns the current imu rotation value in degrees.
    */
   double drive_imu_get();
+
+  /**
+   * Registers an optional second IMU to average into the heading.
+   *
+   * Must be called before drive_imu_calibrate()/initialize() so the second IMU
+   * is calibrated and reset alongside the primary one. Pass nullptr for a
+   * single-IMU setup.
+   *
+   * \param imu2
+   *        pointer to the second inertial sensor, or nullptr
+   */
+  void drive_imu2_set(pros::Imu* imu2);
 
   /**
    * Returns the current imu accel x + accel y value.

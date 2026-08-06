@@ -7,6 +7,7 @@
 #include "LightLib/drive/lightcast.hpp"
 #include "LightLib/drive/odometry.hpp"
 #include "LightLib/drive/sensor_aux.hpp"
+#include "LightLib/util/extras.hpp"
 #include "LightLib/util/util.hpp"
 #include "pros/rtos.hpp"
 
@@ -84,20 +85,36 @@ Pose light::estimatePose(float time, bool radians) {
   return future;
 }
 
+// IMU yaw-scale correction (set via Drive::drive_imu_scaler_set). A factor > 1
+// compensates a tilted mount whose spin axis is off vertical and therefore
+// under-counts real yaw. Reading it from the chassis keeps a single knob shared
+// with the PID path (drive_imu_get) so heading is consistent across the stack.
+static float imuScaler() {
+  light::Drive* c = light::getChassis();
+  return c ? (float)c->drive_imu_scaler_get() : 1.0f;
+}
+
+// Scaled, dual-IMU-averaged heading in radians. Used by both update() and
+// reset() so their baselines can't drift apart (a mismatch would teleport the
+// first post-reset delta). Averaging both IMUs lets uncorrelated drift cancel.
+static float readOdomImuRad() {
+  const float scaler = imuScaler();
+  if (odomSensors.imu != nullptr && odomSensors.imu2 != nullptr) {
+    return degToRad((odomSensors.imu->get_rotation() +
+                     odomSensors.imu2->get_rotation()) /
+                    2.0f * scaler);
+  } else if (odomSensors.imu != nullptr) {
+    return degToRad(odomSensors.imu->get_rotation() * scaler);
+  }
+  return 0.0f;
+}
+
 void light::update() {
   float vertical1Raw = odomSensors.vertical1 ? odomSensors.vertical1->getDistanceTraveled() : 0;
   float vertical2Raw = odomSensors.vertical2 ? odomSensors.vertical2->getDistanceTraveled() : 0;
   float horizontal1Raw = odomSensors.horizontal1 ? odomSensors.horizontal1->getDistanceTraveled() : 0;
   float horizontal2Raw = odomSensors.horizontal2 ? odomSensors.horizontal2->getDistanceTraveled() : 0;
-  float imuRaw = 0;
-  if (odomSensors.imu != nullptr && odomSensors.imu2 != nullptr) {
-    // Average both IMUs so uncorrelated drift partially cancels.
-    imuRaw = degToRad((odomSensors.imu->get_rotation() +
-                       odomSensors.imu2->get_rotation()) /
-                      2.0f);
-  } else if (odomSensors.imu != nullptr) {
-    imuRaw = degToRad(odomSensors.imu->get_rotation());
-  }
+  float imuRaw = readOdomImuRad();
 
   float deltaV1 = vertical1Raw - prevVertical1;
   float deltaV2 = vertical2Raw - prevVertical2;
@@ -315,7 +332,7 @@ void light::reset() {
   prevVertical2 = odomSensors.vertical2 ? odomSensors.vertical2->getDistanceTraveled() : 0;
   prevHorizontal1 = odomSensors.horizontal1 ? odomSensors.horizontal1->getDistanceTraveled() : 0;
   prevHorizontal2 = odomSensors.horizontal2 ? odomSensors.horizontal2->getDistanceTraveled() : 0;
-  prevImu = odomSensors.imu ? degToRad(odomSensors.imu->get_rotation()) : 0;
+  prevImu = readOdomImuRad();
   prevVertical = 0;
   prevHorizontal = 0;
 }
